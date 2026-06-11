@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Building2,
   Camera,
+  ChevronDown,
   Compass,
   Home,
   LineChart,
@@ -60,6 +61,36 @@ const studioItems = [
   "Ad Creatives"
 ];
 
+const navGroups = [
+  {
+    label: "Explore",
+    links: [
+      ["Properties", "/properties"],
+      ["Reels", "#reels"],
+      ["AI Search", "/search"],
+      ["Life Map", "/life-map"]
+    ]
+  },
+  {
+    label: "Intelligence",
+    links: [
+      ["Analyzer", "/analyzer"],
+      ["Invest", "/invest"],
+      ["AI Companion", "#assistant"],
+      ["Ecosystem", "/ecosystem"]
+    ]
+  },
+  {
+    label: "Solutions",
+    links: [
+      ["Studio", "/studio"],
+      ["Pro CRM", "/pro"],
+      ["Builder Hub", "/builder"],
+      ["Services", "/services"]
+    ]
+  }
+];
+
 const companionMetrics = [
   {
     label: "Risk",
@@ -77,11 +108,11 @@ const companionMetrics = [
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.16),_transparent_34%),linear-gradient(180deg,#ffffff_0%,#faf7ff_48%,#ffffff_100%)]">
-      <header className="sticky top-0 z-40 border-b border-white/70 bg-white/76 backdrop-blur-2xl">
+    <main className="min-h-screen overflow-hidden bg-[#f8f4ee] text-[#17131f]">
+      <header className="sticky top-0 z-40 border-b border-white/60 bg-[#fbf7f0]/86 backdrop-blur-2xl">
         <nav className="container flex h-20 items-center justify-between">
           <a className="flex items-center gap-3" href="#">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-glow">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#17131f] to-violet-700 text-white shadow-glow">
               <Home className="h-5 w-5" />
             </span>
             <span>
@@ -94,7 +125,29 @@ export default function HomePage() {
             </span>
           </a>
 
-          <div className="hidden items-center gap-7 text-sm font-medium text-muted-foreground md:flex">
+          <div className="hidden items-center gap-2 rounded-full border border-[#ded4c7] bg-white/75 p-1 text-sm font-semibold text-[#50475e] shadow-sm lg:flex">
+            {navGroups.map((group) => (
+              <div className="group relative" key={group.label}>
+                <button className="flex h-11 items-center gap-1 rounded-full px-4 transition hover:bg-[#f1e9df] hover:text-[#17131f]">
+                  {group.label}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                <div className="invisible absolute left-1/2 top-14 z-50 w-64 -translate-x-1/2 rounded-[1.25rem] border border-[#ded4c7] bg-white p-3 opacity-0 shadow-soft transition group-hover:visible group-hover:opacity-100">
+                  {group.links.map(([label, href]) => (
+                    <a
+                      className="block rounded-2xl px-4 py-3 text-sm font-bold text-[#342d3e] transition hover:bg-[#f7f1ea] hover:text-violet-700"
+                      href={href}
+                      key={label}
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden">
             <Link className="hover:text-foreground" href="/properties">
               Properties
             </Link>
@@ -195,6 +248,57 @@ export default function HomePage() {
                 </a>
               )
             )}
+          </div>
+        </div>
+
+        <div className="mx-auto mt-14 max-w-6xl overflow-hidden rounded-[2.5rem] border border-white/70 bg-[#16111d] shadow-soft">
+          <div
+            className="relative min-h-[520px] bg-cover bg-center"
+            style={{
+              backgroundImage:
+                "linear-gradient(90deg, rgba(14,10,18,0.92) 0%, rgba(14,10,18,0.62) 42%, rgba(14,10,18,0.08) 100%), url('https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=85')"
+            }}
+          >
+            <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-4 p-5 text-white">
+              <span className="rounded-full border border-white/20 bg-white/12 px-4 py-2 text-xs font-bold backdrop-blur">
+                Featured Luxury Match
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/12 px-4 py-2 text-xs font-bold backdrop-blur">
+                HomeZone Score 91/100
+              </span>
+            </div>
+
+            <div className="relative flex min-h-[520px] max-w-2xl flex-col justify-end p-7 text-white sm:p-10">
+              <p className="flex items-center gap-2 text-sm font-semibold text-white/72">
+                <MapPin className="h-4 w-4 text-[#d8b46a]" />
+                Kakkanad, Kochi · AI matched villa
+              </p>
+              <h2 className="mt-4 text-4xl font-bold tracking-tight sm:text-6xl">
+                Discover homes like a private property advisor.
+              </h2>
+              <p className="mt-5 max-w-xl text-base leading-8 text-white/72">
+                Video-first luxury listings, AI score, property health, rental
+                potential, and verified next steps in one guided experience.
+              </p>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                {[
+                  ["₹78L", "Guide price"],
+                  ["3BHK", "Family villa"],
+                  ["4.1%", "Yield signal"]
+                ].map(([value, label]) => (
+                  <div
+                    className="rounded-[1.25rem] border border-white/14 bg-white/12 p-4 backdrop-blur"
+                    key={label}
+                  >
+                    <p className="text-2xl font-bold">{value}</p>
+                    <p className="mt-1 text-xs font-semibold text-white/58">
+                      {label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
