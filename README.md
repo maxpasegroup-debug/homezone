@@ -10,7 +10,7 @@ HomeZone is a mobile-first, AI-powered real estate platform for buying, selling,
 - TypeScript
 - Tailwind CSS
 - Shadcn-compatible UI setup
-- Supabase client/server helpers
+- Prisma + Railway PostgreSQL foundation
 - Premium landing page
 - AI property search UI
 - Voice search CTA
@@ -117,7 +117,9 @@ HomeZone is a mobile-first, AI-powered real estate platform for buying, selling,
 
 ## Production Backbone
 
-- Supabase schema and RLS migration at `supabase/migrations/001_homezone_initial_schema.sql`
+- Prisma schema for Railway PostgreSQL at `prisma/schema.prisma`
+- Prisma client at `src/lib/db.ts`
+- Auth.js configuration at `src/auth.ts`
 - Auth page at `/auth`
 - Dashboard shell at `/dashboard`
 - Marketplace page at `/properties`
@@ -136,4 +138,4 @@ npm install
 npm run dev
 ```
 
-Create `.env.local` from `.env.example` when Supabase credentials are ready.
+Create `.env.local` from `.env.example` with Railway PostgreSQL, Auth.js, and provider credentials.

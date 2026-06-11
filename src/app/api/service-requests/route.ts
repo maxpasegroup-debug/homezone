@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { serviceRequestSchema } from "@/lib/api/validation";
-import { createClient } from "@/lib/supabase/server";
+import { getOrCreateProfile } from "@/lib/auth/profile";
+import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -16,29 +18,26 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const session = await auth();
 
-  if (!user) {
+  if (!session?.user?.id) {
     return NextResponse.json(
       { error: "Verified account required" },
       { status: 401 }
     );
   }
 
-  const { error } = await supabase.from("service_requests").insert({
-    requester_id: user.id,
-    category: parsedBody.data.category,
-    city: parsedBody.data.city,
-    budget: parsedBody.data.budget,
-    message: parsedBody.data.message
-  });
+  const profile = await getOrCreateProfile(session.user);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  await db.serviceRequest.create({
+    data: {
+      requesterId: profile.id,
+      category: parsedBody.data.category,
+      city: parsedBody.data.city,
+      budget: parsedBody.data.budget,
+      message: parsedBody.data.message
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

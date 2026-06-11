@@ -2,24 +2,35 @@
 
 ## Required Credentials
 
-- Supabase production URL and anon key
-- Supabase service role key for admin-only server tasks
+- Railway PostgreSQL `DATABASE_URL`
+- Railway PostgreSQL `DIRECT_URL`
+- Auth.js `AUTH_SECRET`
+- `NEXTAUTH_URL`
+- Google OAuth client ID and secret
 - WhatsApp OTP provider credentials
 - OpenAI API key
-- Cloudinary or Supabase Storage configuration
+- Cloudinary credentials
 - Razorpay keys and webhook secret
 - PostHog analytics key
 - OneSignal notification credentials
 
-## Supabase
+## Railway PostgreSQL
 
-- Apply `supabase/migrations/001_homezone_initial_schema.sql`
-- Confirm Row Level Security is enabled
-- Create first admin user and set `profiles.role = 'admin'`
-- Create storage buckets and confirm upload policies
-- Enable Google auth
-- Enable phone OTP/SMS auth
-- Add production redirect URLs
+- Add `DATABASE_URL`
+- Add `DIRECT_URL`
+- Run `npx prisma generate`
+- Run `npm run db:push` for first launch
+- Use `npm run db:migrate` for future production migrations
+- Create the first admin profile and set `Profile.role = ADMIN`
+
+## Auth.js
+
+- Set `AUTH_SECRET`
+- Set `NEXTAUTH_URL`
+- Configure Google OAuth redirect URL:
+  `/api/auth/callback/google`
+- Connect WhatsApp OTP provider for phone verification
+- Confirm protected actions redirect to `/auth`
 
 ## Trust And Safety
 
@@ -28,7 +39,7 @@
 - Test verified builder flow
 - Test service provider approval
 - Test fake listing report workflow
-- Test document upload privacy
+- Test document upload privacy in Cloudinary or selected storage provider
 
 ## Payments
 
@@ -51,9 +62,11 @@
 ## Go-Live
 
 - Run `npm install`
+- Run `npx prisma generate`
+- Run `npm run db:push`
 - Run `npm run build`
-- Run manual mobile QA on landing, search, auth, dashboard, property detail, services, pro, builder, and admin
-- Deploy to Vercel
+- Run mobile QA on landing, search, auth, dashboard, property detail, services, pro, builder, and admin
+- Deploy to Railway
 - Add custom domain
 - Configure monitoring
 - Seed first verified properties and providers

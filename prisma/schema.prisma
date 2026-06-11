@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  BUYER
+  OWNER
+  BROKER
+  BUILDER
+  SERVICE_PROVIDER
+  ADMIN
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum LeadStage {
+  NEW
+  QUALIFIED
+  SITE_VISIT
+  NEGOTIATION
+  WON
+  LOST
+  NURTURE
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  profile       Profile?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Profile {
+  id               String             @id @default(cuid())
+  userId           String             @unique
+  fullName         String?
+  phone            String?            @unique
+  whatsappVerified Boolean            @default(false)
+  role             UserRole           @default(BUYER)
+  country          String             @default("India")
+  city             String?
+  avatarUrl        String?
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  properties       Property[]         @relation("PropertyOwner")
+  assignedLeads    Lead[]             @relation("AssignedLeads")
+  userLeads        Lead[]             @relation("UserLeads")
+  savedProperties  SavedProperty[]
+  studioRequests   StudioRequest[]
+  serviceRequests  ServiceRequest[]
+  builderProjects  BuilderProject[]
+  aiReports        AiReport[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model Property {
+  id            String           @id @default(cuid())
+  ownerId       String?
+  owner         Profile?         @relation("PropertyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  title         String
+  description   String?
+  intent        String
+  propertyType  String
+  country       String           @default("India")
+  state         String?
+  city          String
+  locality      String?
+  address       String?
+  latitude      Decimal?
+  longitude     Decimal?
+  price         Decimal?
+  currency      String           @default("INR")
+  areaValue     Decimal?
+  areaUnit      String           @default("sqft")
+  bedrooms      Int?
+  bathrooms     Int?
+  amenities     String[]         @default([])
+  mediaUrls     String[]         @default([])
+  videoUrl      String?
+  status        ListingStatus    @default(DRAFT)
+  verified      Boolean          @default(false)
+  aiSummary     String?
+  propertyScore Int?
+  riskScore     Int?
+  savedBy       SavedProperty[]
+  leads         Lead[]
+  reels         PropertyReel[]
+  studioRequests StudioRequest[]
+  aiReports     AiReport[]
+  publishedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([city])
+  @@index([status])
+  @@index([ownerId])
+}
+
+model SavedProperty {
+  userId     String
+  propertyId String
+  user       Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([userId, propertyId])
+}
+
+model Lead {
+  id          String    @id @default(cuid())
+  propertyId  String?
+  assignedTo  String?
+  userId      String?
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  assigned    Profile?  @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: SetNull)
+  user        Profile?  @relation("UserLeads", fields: [userId], references: [id], onDelete: SetNull)
+  name        String
+  phone       String?
+  email       String?
+  message     String?
+  source      String    @default("HomeZone")
+  stage       LeadStage @default(NEW)
+  aiScore     Int       @default(0)
+  nextAction  String?
+  followUpAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([assignedTo])
+  @@index([stage])
+}
+
+model PropertyReel {
+  id           String        @id @default(cuid())
+  propertyId   String?
+  ownerId      String?
+  property     Property?     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  title        String
+  videoUrl     String
+  thumbnailUrl String?
+  likesCount   Int           @default(0)
+  savesCount   Int           @default(0)
+  status       ListingStatus @default(PENDING_REVIEW)
+  createdAt    DateTime      @default(now())
+}
+
+model StudioRequest {
+  id          String    @id @default(cuid())
+  requesterId String?
+  propertyId  String?
+  requester   Profile?  @relation(fields: [requesterId], references: [id], onDelete: SetNull)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  serviceType String
+  city        String?
+  budget      String?
+  notes       String?
+  status      String    @default("requested")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ServiceRequest {
+  id          String   @id @default(cuid())
+  requesterId String?
+  requester   Profile? @relation(fields: [requesterId], references: [id], onDelete: SetNull)
+  category    String
+  city        String
+  budget      String?
+  message     String?
+  status      String   @default("requested")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ServiceProvider {
+  id           String   @id @default(cuid())
+  profileId    String?
+  businessName String
+  category     String
+  city         String?
+  rating       Decimal  @default(0)
+  verified     Boolean  @default(false)
+  priceLabel   String?
+  createdAt    DateTime @default(now())
+}
+
+model BuilderProject {
+  id             String   @id @default(cuid())
+  builderId      String?
+  builder        Profile? @relation(fields: [builderId], references: [id], onDelete: SetNull)
+  name           String
+  city           String
+  locality       String?
+  description    String?
+  unitsCount     Int?
+  availableUnits Int?
+  mediaUrls      String[] @default([])
+  campaignStatus String   @default("draft")
+  aiReport       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([builderId])
+}
+
+model AiReport {
+  id         String    @id @default(cuid())
+  userId     String?
+  propertyId String?
+  user       Profile?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  reportType String
+  input      Json      @default("{}")
+  output     Json      @default("{}")
+  createdAt  DateTime  @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+}

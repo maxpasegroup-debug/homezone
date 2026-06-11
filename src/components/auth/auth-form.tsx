@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { Mail, MessageCircle, Phone, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
 
 export function AuthForm() {
   const [mode, setMode] = useState<"phone" | "email">("phone");
@@ -13,37 +13,21 @@ export function AuthForm() {
   const [status, setStatus] = useState("");
 
   async function sendOtp() {
-    setStatus("Sending verification link...");
-    const supabase = createClient();
-
     if (mode === "email") {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`
-        }
-      });
-      setStatus(error ? error.message : "Check your email for the login link.");
+      setStatus(
+        `Email login for ${email} is ready to connect through Auth.js email provider. Use Google now, or add SMTP variables for magic links.`
+      );
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOtp({
-      phone
-    });
     setStatus(
-      error
-        ? error.message
-        : "OTP sent. Supabase phone auth can be wired to SMS now and WhatsApp provider next."
+      `WhatsApp OTP request prepared for ${phone}. Connect WHATSAPP_OTP_PROVIDER and WHATSAPP_OTP_API_KEY to send real OTP messages.`
     );
   }
 
   async function loginWithGoogle() {
-    const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`
-      }
+    await signIn("google", {
+      callbackUrl: "/dashboard"
     });
   }
 

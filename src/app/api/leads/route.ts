@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { leadSchema } from "@/lib/api/validation";
-import { createClient } from "@/lib/supabase/server";
+import { getOrCreateProfile } from "@/lib/auth/profile";
+import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -13,31 +15,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const session = await auth();
 
-  if (!user) {
+  if (!session?.user?.id) {
     return NextResponse.json(
       { error: "Verified account required" },
       { status: 401 }
     );
   }
 
-  const { error } = await supabase.from("leads").insert({
-    property_id: parsedBody.data.propertyId,
-    user_id: user.id,
-    name: parsedBody.data.name,
-    phone: parsedBody.data.phone,
-    message: parsedBody.data.message,
-    source: parsedBody.data.source,
-    ai_score: 60
-  });
+  const profile = await getOrCreateProfile(session.user);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  await db.lead.create({
+    data: {
+      propertyId: parsedBody.data.propertyId,
+      userId: profile.id,
+      name: parsedBody.data.name,
+      phone: parsedBody.data.phone,
+      message: parsedBody.data.message,
+      source: parsedBody.data.source,
+      aiScore: 60
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }
