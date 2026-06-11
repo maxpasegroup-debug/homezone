@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   Map,
   Megaphone,
-  Network,
   ShieldCheck,
   Sparkles,
   UsersRound,

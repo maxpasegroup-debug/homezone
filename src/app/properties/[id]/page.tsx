@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Bookmark, MapPin, MessageCircle, Share2, Sparkles } from "lucide-react";
 import { VerificationGate } from "@/components/account/verification-gate";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,9 @@ export default async function PropertyDetailPage({ params }: PageProps) {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
       <section className="container py-10 sm:py-16">
-        <a className="text-sm font-bold text-violet-700" href="/properties">
+        <Link className="text-sm font-bold text-violet-700" href="/properties">
           HomeZone Properties
-        </a>
+        </Link>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_0.82fr]">
           <div>

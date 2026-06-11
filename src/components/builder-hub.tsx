@@ -5,7 +5,6 @@ import {
   ArrowRight,
   BadgeCheck,
   Building2,
-  CheckCircle2,
   FileText,
   Globe2,
   Megaphone,

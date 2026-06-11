@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
@@ -94,9 +95,9 @@ export default function HomePage() {
           </a>
 
           <div className="hidden items-center gap-7 text-sm font-medium text-muted-foreground md:flex">
-            <a className="hover:text-foreground" href="/properties">
+            <Link className="hover:text-foreground" href="/properties">
               Properties
-            </a>
+            </Link>
             <a className="hover:text-foreground" href="#reels">
               Reels
             </a>
