@@ -34,9 +34,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   events: {
     async createUser({ user }) {
+      if (!user.id) {
+        return;
+      }
+
       await db.profile.create({
         data: {
-          userId: user.id,
+          user: {
+            connect: {
+              id: user.id
+            }
+          },
           fullName: user.name,
           avatarUrl: user.image
         }
