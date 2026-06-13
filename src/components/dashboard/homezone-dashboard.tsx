@@ -46,6 +46,13 @@ const dashboardCards = [
     icon: Camera
   },
   {
+    title: "Property Reels",
+    value: "Video",
+    text: "Upload walkthrough reels and manage moderation status.",
+    href: "/dashboard/reels",
+    icon: Camera
+  },
+  {
     title: "Broker Pro",
     value: "CRM",
     text: "Leads, pipeline, WhatsApp automation, and AI scoring.",
@@ -75,7 +82,17 @@ const dashboardCards = [
   }
 ];
 
-export function HomeZoneDashboard({ email }: { email?: string | null }) {
+export function HomeZoneDashboard({
+  email,
+  role,
+  city,
+  whatsappVerified
+}: {
+  email?: string | null;
+  role?: string;
+  city?: string | null;
+  whatsappVerified?: boolean;
+}) {
   return (
     <div className="space-y-8">
       <Card className="overflow-hidden shadow-soft">
@@ -116,11 +133,23 @@ export function HomeZoneDashboard({ email }: { email?: string | null }) {
             <p className="mt-2 break-all text-2xl font-bold">
               {email ?? "HomeZone user"}
             </p>
-            <div className="mt-6 rounded-[1.5rem] bg-white/10 p-5">
-              <p className="flex items-center gap-2 text-sm font-semibold text-white/76">
-                <BellRing className="h-4 w-4" />
-                WhatsApp verification status syncs here after provider setup.
-              </p>
+            <div className="mt-6 grid gap-3">
+              <div className="rounded-[1.5rem] bg-white/10 p-5">
+                <p className="text-sm text-white/55">Role</p>
+                <p className="mt-1 text-xl font-bold">
+                  {(role ?? "BUYER").replace("_", " ")}
+                </p>
+              </div>
+              <div className="rounded-[1.5rem] bg-white/10 p-5">
+                <p className="text-sm text-white/55">City</p>
+                <p className="mt-1 text-xl font-bold">{city ?? "Not set"}</p>
+              </div>
+              <div className="rounded-[1.5rem] bg-white/10 p-5">
+                <p className="flex items-center gap-2 text-sm font-semibold text-white/76">
+                  <BellRing className="h-4 w-4" />
+                  WhatsApp {whatsappVerified ? "verified" : "not verified"}
+                </p>
+              </div>
             </div>
           </div>
         </div>

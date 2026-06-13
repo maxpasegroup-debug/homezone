@@ -121,15 +121,84 @@ HomeZone is a mobile-first, AI-powered real estate platform for buying, selling,
 - Prisma client at `src/lib/db.ts`
 - Auth.js configuration at `src/auth.ts`
 - Auth page at `/auth`
+- Role onboarding page at `/onboarding`
 - Dashboard shell at `/dashboard`
+- Session-aware landing header with login, dashboard, and logout actions
 - Marketplace page at `/properties`
 - Property detail pages at `/properties/[id]`
 - Admin control center at `/admin`
 - API contracts:
   - `/api/ai/search`
   - `/api/leads`
+  - `/api/profile`
   - `/api/service-requests`
 - Launch checklist at `docs/LAUNCH_CHECKLIST.md`
+
+## Phase A Production Core
+
+- Demo credentials login for testing
+- Google Auth.js provider support
+- Automatic user profile creation
+- Role onboarding for buyer, owner, broker, builder, and service provider
+- Profile update API
+- Dashboard shows role, city, and WhatsApp verification status
+- Logout action
+
+## Phase B Real Property Marketplace
+
+- Property creation API at `/api/properties`
+- Save property API at `/api/properties/[id]/save`
+- Add property page at `/dashboard/listings/new`
+- My Listings page at `/dashboard/listings`
+- Saved Properties page at `/dashboard/saved`
+- Inquiries page at `/dashboard/inquiries`
+- Public marketplace reads from PostgreSQL with demo fallback
+- Property detail reads from PostgreSQL with demo fallback
+- Contact owner form creates lead records
+
+## Phase C Media And Reels
+
+- Cloudinary upload API at `/api/media/upload`
+- Attach media to property API at `/api/properties/[id]/media`
+- Reels API at `/api/reels`
+- Property media manager at `/dashboard/listings/[id]/media`
+- Dashboard reels page at `/dashboard/reels`
+- New reel page at `/dashboard/reels/new`
+- Public reels feed at `/reels`
+- Property listing dashboard links to media uploads
+
+## Phase D Admin And Trust
+
+- Admin role guard for `/admin`
+- Live admin moderation queues
+- Property approval/rejection API
+- Reel approval/rejection API
+- User report API
+- Report button on property detail pages
+- Audit log records for moderation and reports
+- Admin dashboard counts for listings, reels, providers, builders, brokers, and reports
+
+To access `/admin`, set a profile role to `ADMIN` in PostgreSQL.
+
+## Phase E AI Search And Companion
+
+- OpenAI Responses API wrapper with demo fallback
+- AI assistant API at `/api/ai/assistant`
+- AI search API upgraded at `/api/ai/search`
+- Floating HomeZone AI companion on every page
+- Search page can call AI endpoint and show AI/fallback source
+- Property creation generates AI summaries when `OPENAI_API_KEY` is configured
+- `OPENAI_MODEL` defaults to `gpt-4.1-mini`
+
+## Phase F Voice Experience
+
+- Reusable browser speech recognition button
+- Voice page at `/voice`
+- English, Malayalam, and Hindi voice modes
+- AI Search page voice input
+- Property listing form voice input
+- Voice transcript to AI search flow
+- Graceful fallback when browser speech recognition is unsupported
 
 ## Run Locally
 

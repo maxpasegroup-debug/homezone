@@ -2,9 +2,13 @@ import Link from "next/link";
 import { ArrowRight, BedDouble, Bookmark, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { propertyListings } from "@/lib/property-data";
+import { getMarketplaceProperties } from "@/lib/properties/queries";
 
-export default function PropertiesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PropertiesPage() {
+  const properties = await getMarketplaceProperties();
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
       <section className="container py-10 sm:py-16">
@@ -30,7 +34,7 @@ export default function PropertiesPage() {
         </div>
 
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {propertyListings.map((property) => (
+          {properties.map((property) => (
             <Card className="overflow-hidden shadow-sm transition hover:-translate-y-1 hover:shadow-soft" key={property.id}>
               <div className="flex aspect-[4/3] items-end bg-gradient-to-br from-violet-700 via-fuchsia-500 to-cyan-400 p-5 text-white">
                 <div>

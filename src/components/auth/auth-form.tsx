@@ -28,7 +28,7 @@ export function AuthForm() {
 
   async function loginWithGoogle() {
     await signIn("google", {
-      callbackUrl: "/dashboard"
+      callbackUrl: "/onboarding"
     });
   }
 
@@ -37,7 +37,7 @@ export function AuthForm() {
     await signIn("credentials", {
       email,
       password,
-      callbackUrl: "/dashboard"
+      callbackUrl: "/onboarding"
     });
   }
 

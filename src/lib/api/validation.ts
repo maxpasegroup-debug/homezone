@@ -20,3 +20,41 @@ export const serviceRequestSchema = z.object({
   budget: z.string().min(2),
   message: z.string().min(2).max(1000)
 });
+
+export const propertyCreateSchema = z.object({
+  title: z.string().min(3).max(160),
+  description: z.string().min(10).max(2000),
+  intent: z.enum(["buy", "rent", "invest", "sell"]),
+  propertyType: z.string().min(2).max(80),
+  city: z.string().min(2).max(120),
+  locality: z.string().min(2).max(160).optional(),
+  price: z.coerce.number().positive().optional(),
+  areaValue: z.coerce.number().positive().optional(),
+  areaUnit: z.string().default("sqft"),
+  bedrooms: z.coerce.number().int().min(0).max(20).optional(),
+  bathrooms: z.coerce.number().int().min(0).max(20).optional(),
+  amenities: z.array(z.string()).default([])
+});
+
+export const propertyMediaSchema = z.object({
+  mediaUrl: z.string().url(),
+  mediaType: z.enum(["image", "video"]).default("image")
+});
+
+export const reelCreateSchema = z.object({
+  propertyId: z.string().optional(),
+  title: z.string().min(3).max(160),
+  videoUrl: z.string().url(),
+  thumbnailUrl: z.string().url().optional()
+});
+
+export const moderationSchema = z.object({
+  status: z.enum(["PUBLISHED", "REJECTED", "ARCHIVED", "PENDING_REVIEW"]),
+  note: z.string().max(500).optional()
+});
+
+export const reportSchema = z.object({
+  entityType: z.enum(["property", "reel", "provider", "builder"]),
+  entityId: z.string(),
+  reason: z.string().min(3).max(500)
+});

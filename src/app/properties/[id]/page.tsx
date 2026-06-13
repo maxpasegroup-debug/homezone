@@ -1,10 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Bookmark, MapPin, MessageCircle, Share2, Sparkles } from "lucide-react";
+import { Bookmark, MapPin, Share2, Sparkles } from "lucide-react";
 import { VerificationGate } from "@/components/account/verification-gate";
+import { ContactPropertyForm } from "@/components/properties/contact-property-form";
+import { ReportButton } from "@/components/reports/report-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { propertyListings } from "@/lib/property-data";
+import { getMarketplaceProperty } from "@/lib/properties/queries";
+
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{
@@ -14,7 +18,7 @@ type PageProps = {
 
 export default async function PropertyDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const property = propertyListings.find((item) => item.id === id);
+  const property = await getMarketplaceProperty(id);
 
   if (!property) {
     notFound();
@@ -46,9 +50,9 @@ export default async function PropertyDetailPage({ params }: PageProps) {
                 AI Summary
               </p>
               <p className="mt-4 text-xl font-bold leading-9">
-                This property is a strong fit for {property.lifestyle.join(", ").toLowerCase()}.
+                This property has been prepared for guided discovery.
                 HomeZone score is {property.score}/100 with rental signal{" "}
-                {property.rentalYield}.
+                {property.rentalYield}. {property.description}
               </p>
             </Card>
 
@@ -74,13 +78,8 @@ export default async function PropertyDetailPage({ params }: PageProps) {
               <p className="mt-2 text-sm font-semibold text-emerald-600">
                 HomeZone Score {property.score}/100
               </p>
-              <div className="mt-6 grid gap-3">
-                <Button asChild size="lg">
-                  <a href="/auth">
-                    <MessageCircle className="h-4 w-4" />
-                    Contact Owner
-                  </a>
-                </Button>
+              <ContactPropertyForm propertyId={property.id} />
+              <div className="mt-3 grid gap-3">
                 <Button asChild size="lg" variant="outline">
                   <a href="/auth">
                     <Bookmark className="h-4 w-4" />
@@ -91,6 +90,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
                   <Share2 className="h-4 w-4" />
                   Share
                 </Button>
+                <ReportButton entityId={property.id} entityType="property" />
               </div>
             </Card>
 

@@ -24,6 +24,7 @@ GOOGLE_CLIENT_SECRET=
 
 ```env
 OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4.1-mini
 ```
 
 ## WhatsApp OTP

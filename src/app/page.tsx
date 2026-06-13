@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AuthNavActions } from "@/components/auth/auth-nav-actions";
 
 const propertyActions = [
   {
@@ -66,8 +67,9 @@ const navGroups = [
     label: "Explore",
     links: [
       ["Properties", "/properties"],
-      ["Reels", "#reels"],
+      ["Reels", "/reels"],
       ["AI Search", "/search"],
+      ["Voice", "/voice"],
       ["Life Map", "/life-map"]
     ]
   },
@@ -190,9 +192,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button asChild className="hidden sm:inline-flex" variant="outline">
-              <a href="/auth">Login</a>
-            </Button>
+            <AuthNavActions />
             <Button asChild>
               <a href="/search">
                 AI Search

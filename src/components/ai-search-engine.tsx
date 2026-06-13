@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { explainSearch, getPropertyMatches, parsePropertySearch } from "@/lib/ai-search";
+import { VoiceInputButton } from "@/components/voice/voice-input-button";
 
 const examples = [
   "I need a villa under 80 lakh in Kochi",
@@ -27,9 +28,37 @@ export function AISearchEngine() {
   const [query, setQuery] = useState(examples[0]);
   const [familySize, setFamilySize] = useState("Family of 4");
   const [goal, setGoal] = useState("Live with family");
+  const [aiExplanation, setAiExplanation] = useState("");
+  const [aiSource, setAiSource] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [language, setLanguage] = useState<"English" | "Malayalam" | "Hindi">("English");
 
   const parsed = useMemo(() => parsePropertySearch(query), [query]);
   const matches = useMemo(() => getPropertyMatches(parsed), [parsed]);
+
+  async function runSearch() {
+    setLoading(true);
+    const response = await fetch("/api/ai/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query
+      })
+    });
+    setLoading(false);
+
+    if (!response.ok) {
+      setAiExplanation("HomeZone could not run AI search right now.");
+      setAiSource("error");
+      return;
+    }
+
+    const data = await response.json();
+    setAiExplanation(data.explanation);
+    setAiSource(data.source);
+  }
 
   return (
     <div className="space-y-8">
@@ -44,9 +73,29 @@ export function AISearchEngine() {
               value={query}
             />
           </div>
-          <Button className="min-h-16" size="lg">
+          <div className="grid gap-2 sm:grid-cols-[auto_auto]">
+            <select
+              className="min-h-16 rounded-full border border-border bg-white px-4 text-sm font-bold outline-none"
+              onChange={(event) =>
+                setLanguage(event.target.value as "English" | "Malayalam" | "Hindi")
+              }
+              value={language}
+            >
+              <option>English</option>
+              <option>Malayalam</option>
+              <option>Hindi</option>
+            </select>
+            <VoiceInputButton
+              language={language}
+              onTranscript={(text) => {
+                setQuery(text);
+                setAiExplanation("");
+              }}
+            />
+          </div>
+          <Button className="min-h-16" onClick={runSearch} size="lg">
             <Mic className="h-5 w-5" />
-            Voice Search
+            {loading ? "Thinking..." : "AI Search"}
           </Button>
         </div>
 
@@ -76,8 +125,13 @@ export function AISearchEngine() {
           </div>
 
           <p className="mt-5 text-sm leading-6 text-muted-foreground">
-            {explainSearch(parsed)}
+            {aiExplanation || explainSearch(parsed)}
           </p>
+          {aiSource ? (
+            <p className="mt-3 rounded-full bg-violet-50 px-4 py-2 text-xs font-bold text-violet-700">
+              Source: {aiSource}
+            </p>
+          ) : null}
 
           <div className="mt-6 grid gap-3">
             {[

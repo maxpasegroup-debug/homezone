@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { explainSearch, getPropertyMatches, parsePropertySearch } from "@/lib/ai-search";
 import { aiSearchSchema } from "@/lib/api/validation";
+import { runAISearch } from "@/lib/ai/homezone-ai";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -13,12 +13,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const structured = parsePropertySearch(parsedBody.data.query);
-  const matches = getPropertyMatches(structured);
+  const result = await runAISearch(parsedBody.data.query);
 
-  return NextResponse.json({
-    structured,
-    explanation: explainSearch(structured),
-    matches
-  });
+  return NextResponse.json(result);
 }
