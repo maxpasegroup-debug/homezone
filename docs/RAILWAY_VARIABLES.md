@@ -6,13 +6,12 @@ Use Railway PostgreSQL as the production database.
 
 ```env
 DATABASE_URL=
-DIRECT_URL=
 AUTH_SECRET=
 NEXTAUTH_URL=https://your-domain.com
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 ```
 
-`DIRECT_URL` can be the same as `DATABASE_URL` for a simple Railway setup.
+Railway PostgreSQL only needs `DATABASE_URL` for this Prisma setup.
 
 ## Login
 

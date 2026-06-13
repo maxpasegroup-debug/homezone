@@ -3,7 +3,6 @@
 ## Required Credentials
 
 - Railway PostgreSQL `DATABASE_URL`
-- Railway PostgreSQL `DIRECT_URL`
 - Auth.js `AUTH_SECRET`
 - `NEXTAUTH_URL`
 - Google OAuth client ID and secret
@@ -17,7 +16,6 @@
 ## Railway PostgreSQL
 
 - Add `DATABASE_URL`
-- Add `DIRECT_URL`
 - Run `npx prisma generate`
 - Run `npm run db:push` for first launch
 - Use `npm run db:migrate` for future production migrations
