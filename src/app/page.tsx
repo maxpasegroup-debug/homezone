@@ -190,8 +190,8 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button className="hidden sm:inline-flex" variant="outline">
-              Login
+            <Button asChild className="hidden sm:inline-flex" variant="outline">
+              <a href="/auth">Login</a>
             </Button>
             <Button asChild>
               <a href="/search">

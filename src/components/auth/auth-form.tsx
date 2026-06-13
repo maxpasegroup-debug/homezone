@@ -9,7 +9,8 @@ import { Card } from "@/components/ui/card";
 export function AuthForm() {
   const [mode, setMode] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("demo@homezone.ai");
+  const [password, setPassword] = useState("HomeZone@123");
   const [status, setStatus] = useState("");
 
   async function sendOtp() {
@@ -27,6 +28,15 @@ export function AuthForm() {
 
   async function loginWithGoogle() {
     await signIn("google", {
+      callbackUrl: "/dashboard"
+    });
+  }
+
+  async function loginWithDemo() {
+    setStatus("Signing in with demo account...");
+    await signIn("credentials", {
+      email,
+      password,
       callbackUrl: "/dashboard"
     });
   }
@@ -100,6 +110,28 @@ export function AuthForm() {
         <Button className="w-full" onClick={loginWithGoogle} size="lg" variant="outline">
           Continue with Google
         </Button>
+      </div>
+
+      <div className="mt-7 rounded-[1.5rem] border border-violet-100 bg-violet-50 p-5">
+        <p className="text-sm font-bold text-violet-700">
+          Demo dashboard login
+        </p>
+        <div className="mt-4 grid gap-3">
+          <input
+            className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
+            onChange={(event) => setEmail(event.target.value)}
+            value={email}
+          />
+          <input
+            className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
+            onChange={(event) => setPassword(event.target.value)}
+            type="password"
+            value={password}
+          />
+          <Button onClick={loginWithDemo}>
+            Login with Demo Account
+          </Button>
+        </div>
       </div>
 
       {status ? (
