@@ -1,56 +1,77 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
 import { auth } from "@/auth";
+import { auditLog } from "@/lib/audit";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
+import { profileUpdateSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
+import { toPrismaRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
-
-const profileUpdateSchema = z.object({
-  role: z.enum(["BUYER", "OWNER", "BROKER", "BUILDER", "SERVICE_PROVIDER"]),
-  city: z.string().min(2).max(120).optional(),
-  phone: z.string().max(32).optional()
-});
 
 export async function GET() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
   const profile = await getOrCreateProfile(session.user);
 
-  return NextResponse.json({ profile });
+  return ok({ profile });
 }
 
 export async function PATCH(request: Request) {
-  const session = await auth();
+  try {
+    const session = await auth();
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const body = await request.json();
-  const parsed = profileUpdateSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid profile data", details: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
-
-  const profile = await getOrCreateProfile(session.user);
-  const updated = await db.profile.update({
-    where: {
-      id: profile.id
-    },
-    data: {
-      role: parsed.data.role,
-      city: parsed.data.city,
-      phone: parsed.data.phone || undefined,
-      whatsappVerified: Boolean(parsed.data.phone)
+    if (!session?.user?.id) {
+      return unauthorized();
     }
-  });
 
-  return NextResponse.json({ profile: updated });
+    const limit = checkRateLimit({
+      key: rateLimitKey(request, "profile:update", session.user.id),
+      limit: 20,
+      windowMs: 60_000
+    });
+
+    if (!limit.allowed) {
+      return rateLimited(limit.resetAt);
+    }
+
+    const parsed = await parseJson(request, profileUpdateSchema);
+
+    if ("error" in parsed) {
+      return parsed.error;
+    }
+
+    const profile = await getOrCreateProfile(session.user);
+    const phoneChanged = Boolean(parsed.data.phone && parsed.data.phone !== profile.phone);
+    const updated = await db.profile.update({
+      where: {
+        id: profile.id
+      },
+      data: {
+        city: parsed.data.city,
+        phone: parsed.data.phone || undefined,
+        role: toPrismaRole(parsed.data.role),
+        whatsappVerified: phoneChanged ? false : profile.whatsappVerified
+      }
+    });
+
+    await auditLog({
+      action: "profile_updated",
+      actorId: profile.id,
+      entityId: profile.id,
+      entityType: "profile",
+      metadata: {
+        phoneChanged,
+        role: updated.role
+      }
+    });
+
+    return ok({ profile: updated });
+  } catch (error) {
+    return handleApiError(error, {
+      route: "PATCH /api/profile"
+    });
+  }
 }

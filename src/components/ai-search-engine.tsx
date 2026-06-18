@@ -24,17 +24,31 @@ const examples = [
   "I want land near highway for future growth"
 ];
 
+type SearchMatch = {
+  area: string;
+  bedrooms?: number | null;
+  highlights: string[];
+  id: string;
+  location: string;
+  priceLabel: string;
+  score: number;
+  title: string;
+  type: string;
+};
+
 export function AISearchEngine() {
   const [query, setQuery] = useState(examples[0]);
   const [familySize, setFamilySize] = useState("Family of 4");
   const [goal, setGoal] = useState("Live with family");
   const [aiExplanation, setAiExplanation] = useState("");
   const [aiSource, setAiSource] = useState("");
+  const [serverMatches, setServerMatches] = useState<SearchMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState<"English" | "Malayalam" | "Hindi">("English");
 
   const parsed = useMemo(() => parsePropertySearch(query), [query]);
-  const matches = useMemo(() => getPropertyMatches(parsed), [parsed]);
+  const localMatches = useMemo(() => getPropertyMatches(parsed), [parsed]);
+  const matches = serverMatches.length ? serverMatches : localMatches;
 
   async function runSearch() {
     setLoading(true);
@@ -58,6 +72,7 @@ export function AISearchEngine() {
     const data = await response.json();
     setAiExplanation(data.explanation);
     setAiSource(data.source);
+    setServerMatches(Array.isArray(data.matches) ? data.matches : []);
   }
 
   return (
@@ -139,7 +154,7 @@ export function AISearchEngine() {
               ["Language", parsed.language],
               ["Location", parsed.location ?? "Open"],
               ["Type", parsed.propertyType ?? "Any"],
-              ["Budget", parsed.budgetLakhs ? `₹${parsed.budgetLakhs}L` : "Flexible"],
+              ["Budget", parsed.budgetLakhs ? `Rs ${parsed.budgetLakhs}L` : "Flexible"],
               ["Bedrooms", parsed.bedrooms ? `${parsed.bedrooms}BHK` : "Any"]
             ].map(([label, value]) => (
               <div className="flex items-center justify-between rounded-2xl bg-muted px-4 py-3" key={label}>
@@ -161,7 +176,7 @@ export function AISearchEngine() {
                   </p>
                   <h3 className="mt-2 text-2xl font-bold">{listing.title}</h3>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {listing.type} · {listing.area} · {listing.bedrooms ? `${listing.bedrooms}BHK` : "Plot"}
+                    {listing.type} - {listing.area} - {listing.bedrooms ? `${listing.bedrooms}BHK` : "Plot"}
                   </p>
                 </div>
                 <div className="sm:text-right">

@@ -17,8 +17,8 @@ import { Card } from "@/components/ui/card";
 
 const roles = [
   {
-    value: "BUYER",
-    title: "Buyer / Investor",
+    value: "USER",
+    title: "User / Investor",
     text: "Search, save, analyze, and compare properties.",
     icon: UserRound
   },
@@ -56,7 +56,7 @@ export function RoleOnboarding({
   email?: string | null;
 }) {
   const router = useRouter();
-  const [role, setRole] = useState(defaultRole ?? "BUYER");
+  const [role, setRole] = useState(defaultRole === "BUYER" ? "USER" : defaultRole ?? "USER");
   const [city, setCity] = useState("Kochi");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);

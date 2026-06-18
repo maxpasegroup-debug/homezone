@@ -1,4 +1,4 @@
-export type PropertyIntent = "buy" | "rent" | "invest" | "sell" | "market";
+export type PropertyIntent = "BUY" | "RENT" | "LEASE" | "INVEST";
 
 export type PropertyListing = {
   id: string;
@@ -6,7 +6,7 @@ export type PropertyListing = {
   location: string;
   city: string;
   type: string;
-  intent: Exclude<PropertyIntent, "sell" | "market">;
+  intent: PropertyIntent;
   priceLabel: string;
   priceLakhs: number;
   bedrooms: number;
@@ -24,8 +24,8 @@ export const propertyListings: PropertyListing[] = [
     location: "Kakkanad, Kochi",
     city: "Kochi",
     type: "Villa",
-    intent: "buy",
-    priceLabel: "₹78L",
+    intent: "BUY",
+    priceLabel: "Rs 78L",
     priceLakhs: 78,
     bedrooms: 3,
     area: "1,850 sqft",
@@ -40,8 +40,8 @@ export const propertyListings: PropertyListing[] = [
     location: "Edappally, Kochi",
     city: "Kochi",
     type: "Apartment",
-    intent: "buy",
-    priceLabel: "₹58L",
+    intent: "BUY",
+    priceLabel: "Rs 58L",
     priceLakhs: 58,
     bedrooms: 2,
     area: "1,120 sqft",
@@ -56,8 +56,8 @@ export const propertyListings: PropertyListing[] = [
     location: "Ayyanthole, Thrissur",
     city: "Thrissur",
     type: "House",
-    intent: "buy",
-    priceLabel: "₹66L",
+    intent: "BUY",
+    priceLabel: "Rs 66L",
     priceLakhs: 66,
     bedrooms: 3,
     area: "1,650 sqft",
@@ -72,8 +72,8 @@ export const propertyListings: PropertyListing[] = [
     location: "Kazhakkoottam, Trivandrum",
     city: "Trivandrum",
     type: "Flat",
-    intent: "rent",
-    priceLabel: "₹24K/mo",
+    intent: "RENT",
+    priceLabel: "Rs 24K/mo",
     priceLakhs: 0.24,
     bedrooms: 2,
     area: "980 sqft",
@@ -88,8 +88,8 @@ export const propertyListings: PropertyListing[] = [
     location: "Ramanattukara, Calicut",
     city: "Calicut",
     type: "Land",
-    intent: "invest",
-    priceLabel: "₹42L",
+    intent: "INVEST",
+    priceLabel: "Rs 42L",
     priceLakhs: 42,
     bedrooms: 0,
     area: "12 cents",
@@ -104,7 +104,7 @@ export const propertyListings: PropertyListing[] = [
     location: "Dubai Marina, UAE",
     city: "Dubai",
     type: "Apartment",
-    intent: "invest",
+    intent: "INVEST",
     priceLabel: "AED 720K",
     priceLakhs: 163,
     bedrooms: 1,

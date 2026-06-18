@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VoiceInputButton } from "@/components/voice/voice-input-button";
 
-const propertyTypes = ["Villa", "House", "Apartment", "Flat", "Land", "Commercial", "Farm Land", "Luxury"];
-const intents = ["buy", "rent", "invest", "sell"];
+const categories = ["RESIDENTIAL", "COMMERCIAL", "LAND", "INDUSTRIAL", "AGRICULTURAL", "HOSPITALITY", "LUXURY"];
+const currencies = ["INR", "AED", "USD", "GBP", "EUR"];
+const intents = ["BUY", "RENT", "LEASE", "INVEST"];
+const propertyTypes = ["Villa", "House", "Apartment", "Flat", "Land", "Office", "Shop", "Warehouse", "Farm Land", "Hotel", "Luxury"];
 
 export function PropertyForm() {
   const router = useRouter();
@@ -17,11 +19,18 @@ export function PropertyForm() {
   const [form, setForm] = useState({
     title: "3BHK Premium Villa in Kakkanad",
     description: "A calm family villa with covered parking, easy Infopark access, and strong long-term living potential.",
-    intent: "buy",
+    intent: "BUY",
+    category: "RESIDENTIAL",
     propertyType: "Villa",
+    country: "India",
+    state: "Kerala",
     city: "Kochi",
     locality: "Kakkanad",
+    latitude: "",
+    longitude: "",
+    timezone: "Asia/Kolkata",
     price: "7800000",
+    currency: "INR",
     areaValue: "1850",
     areaUnit: "sqft",
     bedrooms: "3",
@@ -44,6 +53,12 @@ export function PropertyForm() {
       },
       body: JSON.stringify({
         ...form,
+        latitude: form.latitude || undefined,
+        longitude: form.longitude || undefined,
+        price: form.price || undefined,
+        areaValue: form.areaValue || undefined,
+        bedrooms: form.bedrooms || undefined,
+        bathrooms: form.bathrooms || undefined,
         amenities: form.amenities
           .split(",")
           .map((item) => item.trim())
@@ -130,6 +145,18 @@ export function PropertyForm() {
           </select>
         </label>
         <label className="space-y-2">
+          <span className="text-sm font-semibold">Category</span>
+          <select
+            className="h-12 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
+            onChange={(event) => updateField("category", event.target.value)}
+            value={form.category}
+          >
+            {categories.map((category) => (
+              <option key={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-2">
           <span className="text-sm font-semibold">Property type</span>
           <select
             className="h-12 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
@@ -141,7 +168,19 @@ export function PropertyForm() {
             ))}
           </select>
         </label>
-        {(["city", "locality", "price", "areaValue", "areaUnit", "bedrooms", "bathrooms"] as const).map((field) => (
+        <label className="space-y-2">
+          <span className="text-sm font-semibold">Currency</span>
+          <select
+            className="h-12 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
+            onChange={(event) => updateField("currency", event.target.value)}
+            value={form.currency}
+          >
+            {currencies.map((currency) => (
+              <option key={currency}>{currency}</option>
+            ))}
+          </select>
+        </label>
+        {(["country", "state", "city", "locality", "timezone", "latitude", "longitude", "price", "areaValue", "areaUnit", "bedrooms", "bathrooms"] as const).map((field) => (
           <label className="space-y-2" key={field}>
             <span className="text-sm font-semibold capitalize">{field}</span>
             <input

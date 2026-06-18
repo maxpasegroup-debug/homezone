@@ -8,12 +8,30 @@ datasource db {
 }
 
 enum UserRole {
-  BUYER
+  USER
   OWNER
   BROKER
   BUILDER
   SERVICE_PROVIDER
   ADMIN
+  SUPER_ADMIN
+}
+
+enum PropertyIntent {
+  BUY
+  RENT
+  LEASE
+  INVEST
+}
+
+enum PropertyCategory {
+  RESIDENTIAL
+  COMMERCIAL
+  LAND
+  INDUSTRIAL
+  AGRICULTURAL
+  HOSPITALITY
+  LUXURY
 }
 
 enum ListingStatus {
@@ -87,7 +105,7 @@ model Profile {
   fullName         String?
   phone            String?            @unique
   whatsappVerified Boolean            @default(false)
-  role             UserRole           @default(BUYER)
+  role             UserRole           @default(USER)
   country          String             @default("India")
   city             String?
   avatarUrl        String?
@@ -110,12 +128,14 @@ model Property {
   owner         Profile?         @relation("PropertyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   title         String
   description   String?
-  intent        String
+  intent        PropertyIntent
+  category      PropertyCategory @default(RESIDENTIAL)
   propertyType  String
   country       String           @default("India")
   state         String?
   city          String
   locality      String?
+  timezone      String?
   address       String?
   latitude      Decimal?
   longitude     Decimal?
@@ -143,7 +163,18 @@ model Property {
   updatedAt     DateTime         @updatedAt
 
   @@index([city])
+  @@index([country, city])
+  @@index([country, state, city])
+  @@index([intent])
+  @@index([category])
+  @@index([currency])
+  @@index([price])
+  @@index([bedrooms])
+  @@index([bathrooms])
+  @@index([verified])
+  @@index([latitude, longitude])
   @@index([status])
+  @@index([status, createdAt])
   @@index([ownerId])
 }
 
@@ -178,7 +209,10 @@ model Lead {
   updatedAt   DateTime  @updatedAt
 
   @@index([assignedTo])
+  @@index([userId])
+  @@index([propertyId])
   @@index([stage])
+  @@index([createdAt])
 }
 
 model PropertyReel {
@@ -193,6 +227,11 @@ model PropertyReel {
   savesCount   Int           @default(0)
   status       ListingStatus @default(PENDING_REVIEW)
   createdAt    DateTime      @default(now())
+
+  @@index([propertyId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model StudioRequest {
@@ -208,6 +247,10 @@ model StudioRequest {
   status      String    @default("requested")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([requesterId])
+  @@index([propertyId])
+  @@index([status])
 }
 
 model ServiceRequest {
@@ -221,6 +264,10 @@ model ServiceRequest {
   status      String   @default("requested")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([requesterId])
+  @@index([category])
+  @@index([status])
 }
 
 model ServiceProvider {
@@ -233,6 +280,10 @@ model ServiceProvider {
   verified     Boolean  @default(false)
   priceLabel   String?
   createdAt    DateTime @default(now())
+
+  @@index([profileId])
+  @@index([category])
+  @@index([verified])
 }
 
 model BuilderProject {
@@ -264,6 +315,10 @@ model AiReport {
   input      Json      @default("{}")
   output     Json      @default("{}")
   createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([reportType])
 }
 
 model AuditLog {
@@ -274,4 +329,27 @@ model AuditLog {
   entityId   String?
   metadata   Json     @default("{}")
   createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  userId     String?
+  phone      String
+  codeHash   String
+  purpose    String    @default("PHONE_VERIFICATION")
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([phone])
+  @@index([phone, purpose])
+  @@index([expiresAt])
 }

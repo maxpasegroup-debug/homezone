@@ -2,12 +2,25 @@ import Link from "next/link";
 import { ArrowRight, BedDouble, Bookmark, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getMarketplaceProperties } from "@/lib/properties/queries";
+import { getMarketplaceProperties, parseMarketplaceFilters } from "@/lib/properties/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function PropertiesPage() {
-  const properties = await getMarketplaceProperties();
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+const categories = ["RESIDENTIAL", "COMMERCIAL", "LAND", "INDUSTRIAL", "AGRICULTURAL", "HOSPITALITY", "LUXURY"];
+const purposes = ["BUY", "RENT", "LEASE", "INVEST"];
+
+function valueOf(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] : value ?? "";
+}
+
+export default async function PropertiesPage({ searchParams }: PageProps) {
+  const params = (await searchParams) ?? {};
+  const filters = parseMarketplaceFilters(params);
+  const properties = await getMarketplaceProperties(filters);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
@@ -33,6 +46,65 @@ export default async function PropertiesPage() {
           </Button>
         </div>
 
+        <form className="mt-8 grid gap-3 rounded-[1.5rem] border border-violet-100 bg-white p-4 shadow-sm md:grid-cols-4 xl:grid-cols-8">
+          <input
+            className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
+            defaultValue={valueOf(params.keyword ?? params.q)}
+            name="keyword"
+            placeholder="Keyword"
+          />
+          <input
+            className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
+            defaultValue={valueOf(params.country)}
+            name="country"
+            placeholder="Country"
+          />
+          <input
+            className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
+            defaultValue={valueOf(params.city)}
+            name="city"
+            placeholder="City"
+          />
+          <select
+            className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
+            defaultValue={valueOf(params.purpose ?? params.intent)}
+            name="purpose"
+          >
+            <option value="">Purpose</option>
+            {purposes.map((purpose) => (
+              <option key={purpose}>{purpose}</option>
+            ))}
+          </select>
+          <select
+            className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
+            defaultValue={valueOf(params.category)}
+            name="category"
+          >
+            <option value="">Category</option>
+            {categories.map((category) => (
+              <option key={category}>{category}</option>
+            ))}
+          </select>
+          <input
+            className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
+            defaultValue={valueOf(params.maxPrice)}
+            name="maxPrice"
+            placeholder="Max price"
+          />
+          <label className="flex h-11 items-center gap-2 rounded-2xl border border-border px-3 text-sm font-semibold">
+            <input
+              defaultChecked={valueOf(params.verifiedOnly) === "true"}
+              name="verifiedOnly"
+              type="checkbox"
+              value="true"
+            />
+            Verified
+          </label>
+          <Button className="h-11" type="submit">
+            Filter
+          </Button>
+        </form>
+
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {properties.map((property) => (
             <Card className="overflow-hidden shadow-sm transition hover:-translate-y-1 hover:shadow-soft" key={property.id}>
@@ -50,9 +122,12 @@ export default async function PropertiesPage() {
                   {property.location}
                 </p>
                 <p className="mt-3 text-3xl font-bold">{property.priceLabel}</p>
+                <p className="mt-2 text-xs font-bold uppercase text-muted-foreground">
+                  {property.intent} / {property.category}
+                </p>
                 <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                   <BedDouble className="h-4 w-4" />
-                  {property.bedrooms ? `${property.bedrooms}BHK` : property.type} · {property.area}
+                  {property.bedrooms ? `${property.bedrooms}BHK` : property.type} - {property.area}
                 </p>
                 <div className="mt-5 flex gap-2">
                   <Button asChild className="flex-1">

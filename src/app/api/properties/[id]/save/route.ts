@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { auditLog } from "@/lib/audit";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { handleApiError, notFound, ok, rateLimited, unauthorized } from "@/lib/api/response";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 
@@ -10,37 +12,60 @@ type RouteContext = {
 };
 
 export async function POST(_request: Request, context: RouteContext) {
-  const session = await auth();
+  try {
+    const session = await auth();
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await context.params;
-  const profile = await getOrCreateProfile(session.user);
-  const property = await db.property.findUnique({
-    where: {
-      id
+    if (!session?.user?.id) {
+      return unauthorized();
     }
-  });
 
-  if (!property) {
-    return NextResponse.json({ error: "Property not found" }, { status: 404 });
-  }
+    const limit = checkRateLimit({
+      key: rateLimitKey(_request, "properties:save", session.user.id),
+      limit: 30,
+      windowMs: 60_000
+    });
 
-  await db.savedProperty.upsert({
-    where: {
-      userId_propertyId: {
+    if (!limit.allowed) {
+      return rateLimited(limit.resetAt);
+    }
+
+    const { id } = await context.params;
+    const profile = await getOrCreateProfile(session.user);
+    const property = await db.property.findUnique({
+      where: {
+        id
+      }
+    });
+
+    if (!property) {
+      return notFound("Property not found");
+    }
+
+    await db.savedProperty.upsert({
+      where: {
+        userId_propertyId: {
+          userId: profile.id,
+          propertyId: id
+        }
+      },
+      update: {},
+      create: {
         userId: profile.id,
         propertyId: id
       }
-    },
-    update: {},
-    create: {
-      userId: profile.id,
-      propertyId: id
-    }
-  });
+    });
 
-  return NextResponse.json({ ok: true });
+    await auditLog({
+      action: "property_saved",
+      actorId: profile.id,
+      entityId: id,
+      entityType: "property"
+    });
+
+    return ok({ ok: true });
+  } catch (error) {
+    return handleApiError(error, {
+      route: "POST /api/properties/[id]/save"
+    });
+  }
 }
