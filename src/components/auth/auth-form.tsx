@@ -9,9 +9,11 @@ import { Card } from "@/components/ui/card";
 type AuthFormProps = {
   authError?: string;
   googleEnabled: boolean;
+  initialFlow?: "signin" | "signup";
 };
 
-export function AuthForm({ authError, googleEnabled }: AuthFormProps) {
+export function AuthForm({ authError, googleEnabled, initialFlow = "signin" }: AuthFormProps) {
+  const [flow, setFlow] = useState<"signin" | "signup">(initialFlow);
   const [mode, setMode] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -22,7 +24,7 @@ export function AuthForm({ authError, googleEnabled }: AuthFormProps) {
   async function sendOtp() {
     if (mode === "email") {
       setStatus(
-        `Email login for ${email} is ready to connect through Auth.js email provider. Use Google now, or add SMTP variables for magic links.`
+        "Email magic-link sign in is not configured yet. Please use Google or contact HomeZone support."
       );
       return;
     }
@@ -94,12 +96,31 @@ export function AuthForm({ authError, googleEnabled }: AuthFormProps) {
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
         <ShieldCheck className="h-7 w-7" />
       </div>
+      <div className="mt-6 grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
+        <button
+          className={`rounded-full px-4 py-3 text-sm font-bold ${
+            flow === "signin" ? "bg-white text-violet-700 shadow-sm" : ""
+          }`}
+          onClick={() => setFlow("signin")}
+        >
+          Sign in
+        </button>
+        <button
+          className={`rounded-full px-4 py-3 text-sm font-bold ${
+            flow === "signup" ? "bg-white text-violet-700 shadow-sm" : ""
+          }`}
+          onClick={() => setFlow("signup")}
+        >
+          Sign up
+        </button>
+      </div>
       <h1 className="mt-6 text-4xl font-bold tracking-tight">
-        Verify your HomeZone account
+        {flow === "signup" ? "Create your HomeZone account" : "Sign in to HomeZone"}
       </h1>
       <p className="mt-3 leading-7 text-muted-foreground">
-        Browse freely. Contacting, saving, listing, dashboards, Studio,
-        services, and Pro tools require a verified account.
+        {flow === "signup"
+          ? "Create an account to save properties, contact owners, publish listings, and access your dashboard."
+          : "Access your saved properties, listings, inquiries, dashboards, Studio, services, and Pro tools."}
       </p>
 
       <div className="mt-7 grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
@@ -174,7 +195,7 @@ export function AuthForm({ authError, googleEnabled }: AuthFormProps) {
         ) : null}
         {googleEnabled ? (
           <Button className="w-full" onClick={loginWithGoogle} size="lg" variant="outline">
-            Continue with Google
+            {flow === "signup" ? "Sign up with Google" : "Continue with Google"}
           </Button>
         ) : (
           <Button className="w-full" disabled size="lg" variant="outline">
