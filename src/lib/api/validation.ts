@@ -62,6 +62,7 @@ export const aiSearchSchema = z.object({
 });
 
 export const assistantSchema = z.object({
+<<<<<<< HEAD
   language: z.enum(["AUTO", "ENGLISH", "MALAYALAM"]).default("AUTO"),
   message: z.string().min(2).max(2000)
 });
@@ -94,14 +95,23 @@ export const leadSourceSchema = z.enum(["PROPERTY", "REEL", "SEARCH", "DASHBOARD
 
 export const contactActionSchema = z.enum(["CALL", "WHATSAPP", "INQUIRY"]);
 
+=======
+  message: z.string().min(2).max(2000)
+});
+
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 export const leadSchema = z.object({
   name: z.string().min(2),
   phone: phoneSchema,
   message: z.string().min(2).max(1000),
   propertyId: idSchema.optional(),
+<<<<<<< HEAD
   reelId: idSchema.optional(),
   source: leadSourceSchema.default("PROPERTY"),
   contactAction: contactActionSchema.default("INQUIRY")
+=======
+  source: z.string().default("HomeZone")
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 });
 
 export const serviceRequestSchema = z.object({

@@ -39,6 +39,7 @@ export const logger = {
 };
 
 export function captureException(error: unknown, context?: LogContext) {
+<<<<<<< HEAD
   const eventId = crypto.randomUUID();
   logger.error(error instanceof Error ? error.message : "Unknown server error", {
     ...context,
@@ -48,4 +49,10 @@ export function captureException(error: unknown, context?: LogContext) {
   });
 
   return eventId;
+=======
+  logger.error(error instanceof Error ? error.message : "Unknown server error", {
+    ...context,
+    stack: error instanceof Error ? error.stack : undefined
+  });
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 }

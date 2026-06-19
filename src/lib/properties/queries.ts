@@ -20,8 +20,11 @@ export type MarketplaceProperty = {
   priceLabel: string;
   priceValue?: number | null;
   currency?: string;
+<<<<<<< HEAD
   featured?: boolean;
   featuredUntil?: Date | null;
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   bedrooms?: number | null;
   bathrooms?: number | null;
   area: string;
@@ -32,10 +35,14 @@ export type MarketplaceProperty = {
   rentalYield: string;
   highlights: string[];
   mediaUrls: string[];
+<<<<<<< HEAD
   premium?: boolean;
   premiumUntil?: Date | null;
   verified?: boolean;
   verificationStatus?: string;
+=======
+  verified?: boolean;
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   status?: string;
 };
 
@@ -138,6 +145,7 @@ function buildMarketplaceWhere(filters: MarketplaceFilters): Prisma.PropertyWher
   }
 
   return where;
+<<<<<<< HEAD
 }
 
 function isActiveBoost(enabled?: boolean | null, until?: Date | null) {
@@ -174,6 +182,8 @@ function rankMarketplaceProperty(property: {
     Math.min(10, (property._count?.leads ?? 0) * 2 + (property._count?.reels ?? 0)) +
     freshnessScore(property.createdAt)
   );
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 }
 
 export function fallbackMarketplaceProperties(): MarketplaceProperty[] {
@@ -190,18 +200,25 @@ export function fallbackMarketplaceProperties(): MarketplaceProperty[] {
     priceLabel: property.priceLabel,
     priceValue: property.priceLakhs,
     currency: property.city === "Dubai" ? "AED" : "INR",
+<<<<<<< HEAD
     featured: false,
     featuredUntil: null,
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     bedrooms: property.bedrooms,
     area: property.area,
     score: property.score,
     rentalYield: property.rentalYield,
     highlights: property.highlights,
     mediaUrls: [],
+<<<<<<< HEAD
     premium: false,
     premiumUntil: null,
     verified: false,
     verificationStatus: "PENDING",
+=======
+    verified: false,
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     status: "DEMO"
   }));
 }
@@ -209,6 +226,7 @@ export function fallbackMarketplaceProperties(): MarketplaceProperty[] {
 export async function getMarketplaceProperties(filters: MarketplaceFilters = {}) {
   try {
     const properties = await db.property.findMany({
+<<<<<<< HEAD
       include: {
         _count: {
           select: {
@@ -217,6 +235,8 @@ export async function getMarketplaceProperties(filters: MarketplaceFilters = {})
           }
         }
       },
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       where: buildMarketplaceWhere(filters),
       orderBy: {
         createdAt: "desc"
@@ -246,8 +266,11 @@ export async function getMarketplaceProperties(filters: MarketplaceFilters = {})
       priceLabel: formatCurrency(property.price, property.currency),
       priceValue: property.price ? Number(property.price) : null,
       currency: property.currency,
+<<<<<<< HEAD
       featured: property.featured,
       featuredUntil: property.featuredUntil,
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       bedrooms: property.bedrooms,
       bathrooms: property.bathrooms,
       latitude: property.latitude ? Number(property.latitude) : null,
@@ -263,10 +286,14 @@ export async function getMarketplaceProperties(filters: MarketplaceFilters = {})
         ? property.amenities
         : [property.aiSummary ?? "Submitted for HomeZone review"],
       mediaUrls: property.mediaUrls,
+<<<<<<< HEAD
       premium: property.premium,
       premiumUntil: property.premiumUntil,
       verified: property.verified,
       verificationStatus: property.verificationStatus,
+=======
+      verified: property.verified,
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       status: property.status
     }));
   } catch (error) {
@@ -301,8 +328,11 @@ export async function getMarketplaceProperty(id: string) {
         priceLabel: formatCurrency(property.price, property.currency),
         priceValue: property.price ? Number(property.price) : null,
         currency: property.currency,
+<<<<<<< HEAD
         featured: property.featured,
         featuredUntil: property.featuredUntil,
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         bedrooms: property.bedrooms,
         bathrooms: property.bathrooms,
         latitude: property.latitude ? Number(property.latitude) : null,
@@ -318,10 +348,14 @@ export async function getMarketplaceProperty(id: string) {
           ? property.amenities
           : [property.aiSummary ?? "Submitted for HomeZone review"],
         mediaUrls: property.mediaUrls,
+<<<<<<< HEAD
         premium: property.premium,
         premiumUntil: property.premiumUntil,
         verified: property.verified,
         verificationStatus: property.verificationStatus,
+=======
+        verified: property.verified,
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         status: property.status
       } satisfies MarketplaceProperty;
     }

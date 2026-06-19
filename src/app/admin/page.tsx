@@ -17,14 +17,17 @@ export default async function AdminPage() {
         </Link>
         <div className="mt-10">
           <AdminControlCenter
-            analytics={data.analytics}
-            counts={data.counts}
-            pendingBrokerProfiles={data.pendingBrokerProfiles}
-            pendingBuilderProfiles={data.pendingBuilderProfiles}
-            pendingProperties={data.pendingProperties}
-            pendingVerificationProperties={data.pendingVerificationProperties}
-            pendingReels={data.pendingReels}
-            reports={data.reports}
+            counts={{
+              builders: buildersCount,
+              brokers: brokersCount,
+              properties: propertiesCount,
+              providers: providersCount,
+              reels: reelsCount,
+              reports: reportsCount
+            }}
+            pendingProperties={pendingProperties}
+            pendingReels={pendingReels}
+            reports={reports}
           />
         </div>
       </section>

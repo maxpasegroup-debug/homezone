@@ -9,8 +9,11 @@
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types tests/phase1.test.ts",
+<<<<<<< HEAD
     "ops:env": "node --experimental-strip-types scripts/audit-production-env.ts",
     "ops:create-admin": "node --experimental-strip-types scripts/create-admin.ts",
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy"

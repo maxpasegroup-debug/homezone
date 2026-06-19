@@ -15,10 +15,13 @@ import {
   EmptyState,
   MetricCard
 } from "@/components/dashboard/dashboard-primitives";
+<<<<<<< HEAD
 import { ListingBadges } from "@/components/payments/listing-badges";
 import { PaymentButton } from "@/components/payments/payment-button";
 import { PaymentHistory } from "@/components/payments/payment-history";
 import { VerificationBadge } from "@/components/trust/verification-badge";
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 import type { getUserDashboardData } from "@/lib/dashboard/queries";
 
 type UserDashboardData = Awaited<ReturnType<typeof getUserDashboardData>>;
@@ -116,12 +119,15 @@ export function HomeZoneDashboard({
             {data.savedProperties.map((item) => (
               <div className="rounded-2xl bg-muted p-4" key={item.propertyId}>
                 <h3 className="font-bold">{item.property.title}</h3>
+<<<<<<< HEAD
                 <div className="mt-2">
                   <VerificationBadge
                     entity="property"
                     status={item.property.verificationStatus}
                   />
                 </div>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
                 <p className="mt-1 text-sm font-semibold text-muted-foreground">
                   {[item.property.locality, item.property.city]
                     .filter(Boolean)
@@ -142,6 +148,7 @@ export function HomeZoneDashboard({
         </DashboardSection>
 
         <DashboardSection eyebrow="Saved Reels" title="Saved video walkthroughs">
+<<<<<<< HEAD
           <div className="space-y-3">
             {data.savedReels.map((item) => (
               <div className="rounded-2xl bg-muted p-4" key={item.reelId}>
@@ -164,6 +171,12 @@ export function HomeZoneDashboard({
               />
             ) : null}
           </div>
+=======
+          <EmptyState
+            text="Saved reels require a future SavedReel persistence model. Phase 2B intentionally shows a real empty state without adding that model."
+            title="No saved reels yet"
+          />
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         </DashboardSection>
       </section>
 
@@ -197,6 +210,7 @@ export function HomeZoneDashboard({
                 <p className="text-xs font-bold text-violet-700">
                   {listing.status.replaceAll("_", " ")}
                 </p>
+<<<<<<< HEAD
                 <div className="mt-2">
                   <VerificationBadge
                     entity="property"
@@ -211,10 +225,13 @@ export function HomeZoneDashboard({
                     premiumUntil={listing.premiumUntil}
                   />
                 </div>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
                 <h3 className="mt-2 font-bold">{listing.title}</h3>
                 <p className="mt-1 text-sm font-semibold text-muted-foreground">
                   {[listing.locality, listing.city].filter(Boolean).join(", ")}
                 </p>
+<<<<<<< HEAD
                 <div className="mt-4 flex flex-wrap gap-2">
                   <PaymentButton
                     label="Feature"
@@ -229,6 +246,8 @@ export function HomeZoneDashboard({
                     variant="outline"
                   />
                 </div>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               </div>
             ))}
             {!data.listings.length ? (
@@ -243,10 +262,13 @@ export function HomeZoneDashboard({
           </div>
         </DashboardSection>
       </section>
+<<<<<<< HEAD
 
       <DashboardSection eyebrow="Payments" title="Payment history">
         <PaymentHistory payments={data.payments} />
       </DashboardSection>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     </div>
   );
 }

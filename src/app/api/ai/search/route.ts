@@ -24,6 +24,7 @@ export async function POST(request: Request) {
       return parsed.error;
     }
 
+<<<<<<< HEAD
     const session = await auth();
     const profile = session?.user ? await getOrCreateProfile(session.user) : null;
     const result = await runAIPropertySearch({
@@ -43,6 +44,12 @@ export async function POST(request: Request) {
         status: "failed"
       }
     });
+=======
+    const result = await runAISearch(parsed.data.query);
+
+    return ok(result);
+  } catch (error) {
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     return handleApiError(error, {
       route: "POST /api/ai/search"
     });

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+<<<<<<< HEAD
 import { getLaunchReadinessSummary } from "@/lib/launch/readiness";
 
 const recentTake = 5;
@@ -7,16 +8,26 @@ const recentWindowMs = 30 * 24 * 60 * 60 * 1000;
 function recentSince() {
   return new Date(Date.now() - recentWindowMs);
 }
+=======
+
+const recentTake = 5;
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 
 export async function getUserDashboardData(profileId: string) {
   const [
     profile,
     savedProperties,
+<<<<<<< HEAD
     savedReels,
     inquiries,
     listings,
     ownedReels,
     payments,
+=======
+    inquiries,
+    listings,
+    ownedReels,
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     recentActivity
   ] = await Promise.all([
     db.profile.findUnique({
@@ -43,6 +54,7 @@ export async function getUserDashboardData(profileId: string) {
       },
       take: recentTake
     }),
+<<<<<<< HEAD
     db.savedReel.findMany({
       where: {
         userId: profileId
@@ -59,6 +71,8 @@ export async function getUserDashboardData(profileId: string) {
       },
       take: recentTake
     }),
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     db.lead.findMany({
       where: {
         userId: profileId
@@ -89,6 +103,7 @@ export async function getUserDashboardData(profileId: string) {
       },
       take: recentTake
     }),
+<<<<<<< HEAD
     db.payment.findMany({
       where: {
         payerId: profileId
@@ -98,6 +113,8 @@ export async function getUserDashboardData(profileId: string) {
       },
       take: recentTake
     }),
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     db.auditLog.findMany({
       where: {
         actorId: profileId
@@ -115,16 +132,27 @@ export async function getUserDashboardData(profileId: string) {
       listings: listings.length,
       ownedReels: ownedReels.length,
       savedProperties: savedProperties.length,
+<<<<<<< HEAD
       savedReels: savedReels.length
+=======
+      savedReels: 0
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     },
     inquiries,
     listings,
     ownedReels,
+<<<<<<< HEAD
     payments,
     profile,
     recentActivity,
     savedProperties,
     savedReels
+=======
+    profile,
+    recentActivity,
+    savedProperties,
+    savedReels: []
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   };
 }
 
@@ -149,6 +177,7 @@ export async function getBrokerDashboardData(profileId: string) {
     leadCount,
     listingCount,
     publishedCount,
+<<<<<<< HEAD
     pendingCount,
     payments,
     followerCount,
@@ -161,6 +190,9 @@ export async function getBrokerDashboardData(profileId: string) {
     reelEngagement,
     propertyPerformance,
     propertyViews
+=======
+    pendingCount
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   ] =
     await Promise.all([
       db.profile.findUnique({
@@ -220,6 +252,7 @@ export async function getBrokerDashboardData(profileId: string) {
           ownerId: profileId,
           status: "PENDING_REVIEW"
         }
+<<<<<<< HEAD
       }),
       db.payment.findMany({
         where: {
@@ -316,11 +349,14 @@ export async function getBrokerDashboardData(profileId: string) {
             equals: profileId
           }
         }
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       })
     ]);
 
   return {
     analytics: {
+<<<<<<< HEAD
       followerCount,
       followersGained,
       leadCount,
@@ -332,15 +368,25 @@ export async function getBrokerDashboardData(profileId: string) {
       publishedCount,
       reportedReels,
       reelLeadCount,
+=======
+      leadCount,
+      pendingCount,
+      publishedCount,
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       savedLeadCount: 0,
       totalListings: listingCount
     },
     leads,
+<<<<<<< HEAD
     leadsBySource,
     listings,
     payments,
     profile,
     reelPerformance,
+=======
+    listings,
+    profile,
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     savedLeads: []
   };
 }
@@ -368,6 +414,7 @@ export async function getBuilderDashboardData(profileId: string) {
     inventoryCount,
     leadCount,
     mediaCount,
+<<<<<<< HEAD
     projectCount,
     payments,
     followerCount,
@@ -380,6 +427,9 @@ export async function getBuilderDashboardData(profileId: string) {
     reelEngagement,
     propertyPerformance,
     propertyViews
+=======
+    projectCount
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   ] =
     await Promise.all([
       db.profile.findUnique({
@@ -468,6 +518,7 @@ export async function getBuilderDashboardData(profileId: string) {
         where: {
           builderId: profileId
         }
+<<<<<<< HEAD
       }),
       db.payment.findMany({
         where: {
@@ -588,17 +639,23 @@ export async function getBuilderDashboardData(profileId: string) {
             equals: profileId
           }
         }
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       })
     ]);
 
   return {
     analytics: {
+<<<<<<< HEAD
       followerCount,
       followersGained,
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       inventoryCount,
       leadCount,
       mediaCount,
       projectCount,
+<<<<<<< HEAD
       propertyPerformance,
       propertyViews,
       reelEngagement,
@@ -615,6 +672,15 @@ export async function getBuilderDashboardData(profileId: string) {
     profile,
     projects,
     reelPerformance
+=======
+      reelCount: reels.length
+    },
+    inventory,
+    leads,
+    media: reels,
+    profile,
+    projects
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   };
 }
 
@@ -628,6 +694,7 @@ export async function getAdminDashboardData() {
     pendingReels,
     reports,
     reportsCount,
+<<<<<<< HEAD
     pendingVerificationProperties,
     pendingBrokerProfiles,
     pendingBuilderProfiles,
@@ -648,6 +715,13 @@ export async function getAdminDashboardData() {
     aiLeadAssistant,
     aiFailures,
     launchReadiness
+=======
+    unverifiedBrokers,
+    unverifiedBuilders,
+    publishedProperties,
+    leadsCount,
+    reelsCount
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   ] = await Promise.all([
     db.profile.count(),
     db.profile.count({
@@ -705,6 +779,7 @@ export async function getAdminDashboardData() {
         action: "user_report"
       }
     }),
+<<<<<<< HEAD
     db.property.findMany({
       where: {
         verificationStatus: "PENDING"
@@ -777,12 +852,22 @@ export async function getAdminDashboardData() {
       where: {
         role: "BROKER",
         verificationStatus: "VERIFIED"
+=======
+    db.profile.count({
+      where: {
+        role: "BROKER",
+        whatsappVerified: false
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       }
     }),
     db.profile.count({
       where: {
         role: "BUILDER",
+<<<<<<< HEAD
         verificationStatus: "VERIFIED"
+=======
+        whatsappVerified: false
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       }
     }),
     db.property.count({
@@ -791,6 +876,7 @@ export async function getAdminDashboardData() {
       }
     }),
     db.lead.count(),
+<<<<<<< HEAD
     db.propertyReel.count(),
     db.lead.groupBy({
       by: ["source"],
@@ -880,11 +966,15 @@ export async function getAdminDashboardData() {
       }
     }),
     getLaunchReadinessSummary()
+=======
+    db.propertyReel.count()
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   ]);
 
   return {
     analytics: {
       leads: leadsCount,
+<<<<<<< HEAD
       leadSources,
       publishedProperties,
       reels: reelsCount,
@@ -903,6 +993,10 @@ export async function getAdminDashboardData() {
       verifiedBrokers,
       verifiedBuilders,
       verifiedProperties
+=======
+      publishedProperties,
+      reels: reelsCount
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     },
     counts: {
       brokers: brokersCount,
@@ -910,6 +1004,7 @@ export async function getAdminDashboardData() {
       properties: propertiesCount,
       reports: reportsCount,
       users: usersCount,
+<<<<<<< HEAD
       verificationQueue:
         pendingVerificationProperties.length +
         pendingBrokerProfiles.length +
@@ -919,6 +1014,11 @@ export async function getAdminDashboardData() {
     pendingBuilderProfiles,
     pendingProperties,
     pendingVerificationProperties,
+=======
+      verificationQueue: unverifiedBrokers + unverifiedBuilders
+    },
+    pendingProperties,
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     pendingReels,
     reports
   };

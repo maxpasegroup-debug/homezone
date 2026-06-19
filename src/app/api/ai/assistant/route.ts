@@ -1,11 +1,17 @@
+<<<<<<< HEAD
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { handleApiError, ok, parseJson, rateLimited } from "@/lib/api/response";
 import { assistantSchema } from "@/lib/api/validation";
 import { answerPropertyQuestion } from "@/lib/ai/homezone-ai";
+<<<<<<< HEAD
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 
 export async function POST(request: Request) {
   try {
@@ -25,6 +31,7 @@ export async function POST(request: Request) {
       return parsed.error;
     }
 
+<<<<<<< HEAD
     const session = await auth();
     const profile = session?.user ? await getOrCreateProfile(session.user) : null;
     const result = await answerPropertyQuestion(parsed.data.message);
@@ -64,6 +71,12 @@ export async function POST(request: Request) {
         status: "failed"
       }
     });
+=======
+    const result = await answerPropertyQuestion(parsed.data.message);
+
+    return ok(result);
+  } catch (error) {
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     return handleApiError(error, {
       route: "POST /api/ai/assistant"
     });

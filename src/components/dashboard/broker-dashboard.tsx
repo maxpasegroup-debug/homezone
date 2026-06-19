@@ -4,8 +4,12 @@ import {
   BarChart3,
   Bookmark,
   Home,
+<<<<<<< HEAD
   MessageSquare,
   Users
+=======
+  MessageSquare
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,10 +19,13 @@ import {
   EmptyState,
   MetricCard
 } from "@/components/dashboard/dashboard-primitives";
+<<<<<<< HEAD
 import { ListingBadges } from "@/components/payments/listing-badges";
 import { PaymentButton } from "@/components/payments/payment-button";
 import { PaymentHistory } from "@/components/payments/payment-history";
 import { VerificationBadge } from "@/components/trust/verification-badge";
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 import type { getBrokerDashboardData } from "@/lib/dashboard/queries";
 
 type BrokerDashboardData = Awaited<ReturnType<typeof getBrokerDashboardData>>;
@@ -34,7 +41,11 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
         title="Broker workspace"
       />
 
+<<<<<<< HEAD
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+=======
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         <MetricCard
           icon={Home}
           label="Listings"
@@ -46,6 +57,7 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
           value={data.analytics.leadCount}
         />
         <MetricCard
+<<<<<<< HEAD
           icon={Users}
           label="Followers"
           note={`+${data.analytics.followersGained} / 30d`}
@@ -55,6 +67,12 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
           icon={Bookmark}
           label="Reported reels"
           value={data.analytics.reportedReels}
+=======
+          icon={Bookmark}
+          label="Saved leads"
+          note="Pending model"
+          value={data.analytics.savedLeadCount}
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         />
         <MetricCard
           icon={BarChart3}
@@ -64,7 +82,11 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
         <MetricCard
           icon={BadgeCheck}
           label="Verification"
+<<<<<<< HEAD
           value={profile?.verificationStatus ?? "PENDING"}
+=======
+          value={profile?.whatsappVerified ? "Verified" : "Pending"}
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         />
       </section>
 
@@ -76,6 +98,7 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
                 <p className="text-xs font-bold text-violet-700">
                   {listing.status.replaceAll("_", " ")}
                 </p>
+<<<<<<< HEAD
                 <div className="mt-2">
                   <VerificationBadge
                     entity="property"
@@ -90,6 +113,8 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
                     premiumUntil={listing.premiumUntil}
                   />
                 </div>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
                 <h3 className="mt-2 font-bold">{listing.title}</h3>
                 <p className="mt-1 text-sm font-semibold text-muted-foreground">
                   {[listing.locality, listing.city].filter(Boolean).join(", ")}
@@ -97,6 +122,7 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
                 <p className="mt-2 text-sm text-muted-foreground">
                   {listing._count.leads} leads
                 </p>
+<<<<<<< HEAD
                 <div className="mt-4 flex flex-wrap gap-2">
                   <PaymentButton
                     label="Feature"
@@ -111,6 +137,8 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
                     variant="outline"
                   />
                 </div>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               </div>
             ))}
             {!data.listings.length ? (
@@ -137,9 +165,12 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
                   {lead.property?.title ?? lead.message ?? "General inquiry"}
                 </p>
                 <p className="mt-2 text-sm font-semibold">Score {lead.aiScore}</p>
+<<<<<<< HEAD
                 <p className="mt-1 text-xs font-bold text-muted-foreground">
                   Source: {lead.source}
                 </p>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               </div>
             ))}
             {!data.leads.length ? (
@@ -153,6 +184,7 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
+<<<<<<< HEAD
         <DashboardSection eyebrow="Analytics" title="Lead sources">
           <div className="grid gap-3 sm:grid-cols-2">
             <DetailRow label="Reel leads" value={data.analytics.reelLeadCount} />
@@ -215,6 +247,8 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         <DashboardSection eyebrow="Saved Leads" title="Saved lead shortlist">
           <EmptyState
             text="Saved leads require future persistence. Phase 2B intentionally keeps this as an empty state without adding a new Prisma model."
@@ -235,6 +269,7 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
             <DetailRow label="Role" value={profile?.role ?? "BROKER"} />
             <DetailRow label="City" value={profile?.city ?? "Not set"} />
             <DetailRow
+<<<<<<< HEAD
               label="Broker verification"
               value={
                 <VerificationBadge
@@ -245,11 +280,15 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
             />
             <DetailRow
               label="Phone verification"
+=======
+              label="Verification"
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               value={profile?.whatsappVerified ? "Verified" : "Not verified"}
             />
           </div>
         </DashboardSection>
       </section>
+<<<<<<< HEAD
 
       <section className="grid gap-6 xl:grid-cols-2">
         <DashboardSection eyebrow="Broker Plans" title="Subscription plans">
@@ -266,6 +305,8 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
           <PaymentHistory payments={data.payments} />
         </DashboardSection>
       </section>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     </div>
   );
 }

@@ -4,8 +4,12 @@ import {
   Building2,
   Film,
   Home,
+<<<<<<< HEAD
   MessageSquare,
   Users
+=======
+  MessageSquare
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,10 +19,13 @@ import {
   EmptyState,
   MetricCard
 } from "@/components/dashboard/dashboard-primitives";
+<<<<<<< HEAD
 import { ListingBadges } from "@/components/payments/listing-badges";
 import { PaymentButton } from "@/components/payments/payment-button";
 import { PaymentHistory } from "@/components/payments/payment-history";
 import { VerificationBadge } from "@/components/trust/verification-badge";
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 import type { getBuilderDashboardData } from "@/lib/dashboard/queries";
 
 type BuilderDashboardData = Awaited<ReturnType<typeof getBuilderDashboardData>>;
@@ -34,7 +41,11 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
         title="Builder workspace"
       />
 
+<<<<<<< HEAD
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+=======
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         <MetricCard
           icon={Building2}
           label="Projects"
@@ -50,6 +61,7 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
           label="Leads"
           value={data.analytics.leadCount}
         />
+<<<<<<< HEAD
         <MetricCard
           icon={Users}
           label="Followers"
@@ -66,6 +78,13 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
           icon={BadgeCheck}
           label="Verification"
           value={profile?.verificationStatus ?? "PENDING"}
+=======
+        <MetricCard icon={Film} label="Media items" value={data.analytics.mediaCount} />
+        <MetricCard
+          icon={BadgeCheck}
+          label="Verification"
+          value={profile?.whatsappVerified ? "Verified" : "Pending"}
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         />
       </section>
 
@@ -102,6 +121,7 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
                 <p className="text-xs font-bold text-violet-700">
                   {property.status.replaceAll("_", " ")}
                 </p>
+<<<<<<< HEAD
                 <div className="mt-2">
                   <VerificationBadge
                     entity="property"
@@ -116,6 +136,8 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
                     premiumUntil={property.premiumUntil}
                   />
                 </div>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
                 <h3 className="mt-2 font-bold">{property.title}</h3>
                 <p className="mt-1 text-sm font-semibold text-muted-foreground">
                   {[property.locality, property.city].filter(Boolean).join(", ")}
@@ -123,6 +145,7 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
                 <p className="mt-2 text-sm text-muted-foreground">
                   {property._count.leads} leads, {property._count.reels} reels
                 </p>
+<<<<<<< HEAD
                 <div className="mt-4 flex flex-wrap gap-2">
                   <PaymentButton
                     label="Feature"
@@ -137,6 +160,8 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
                     variant="outline"
                   />
                 </div>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               </div>
             ))}
             {!data.inventory.length ? (
@@ -164,9 +189,12 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {lead.property?.title ?? lead.message ?? "General inquiry"}
                 </p>
+<<<<<<< HEAD
                 <p className="mt-2 text-xs font-bold text-muted-foreground">
                   Source: {lead.source}
                 </p>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               </div>
             ))}
             {!data.leads.length ? (
@@ -187,7 +215,11 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
                 </p>
                 <h3 className="mt-2 font-bold">{reel.title}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
+<<<<<<< HEAD
                   {reel.viewsCount} views, {reel.likesCount} likes, {reel.savesCount} saves, {reel.sharesCount} shares, {reel.leadsCount} leads
+=======
+                  {reel.likesCount} likes, {reel.savesCount} saves
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
                 </p>
               </div>
             ))}
@@ -214,6 +246,7 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
             />
             <DetailRow label="Leads" value={data.analytics.leadCount} />
             <DetailRow label="Reels" value={data.analytics.reelCount} />
+<<<<<<< HEAD
             <DetailRow label="Followers" value={data.analytics.followerCount} />
             <DetailRow label="Followers gained" value={data.analytics.followersGained} />
             <DetailRow label="Reported reels" value={data.analytics.reportedReels} />
@@ -240,6 +273,8 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
                 value={item._count._all}
               />
             ))}
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
           </div>
         </DashboardSection>
 
@@ -256,6 +291,7 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
             <DetailRow label="Role" value={profile?.role ?? "BUILDER"} />
             <DetailRow label="City" value={profile?.city ?? "Not set"} />
             <DetailRow
+<<<<<<< HEAD
               label="Builder verification"
               value={
                 <VerificationBadge
@@ -266,11 +302,15 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
             />
             <DetailRow
               label="Phone verification"
+=======
+              label="Verification"
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               value={profile?.whatsappVerified ? "Verified" : "Not verified"}
             />
           </div>
         </DashboardSection>
       </section>
+<<<<<<< HEAD
 
       <section className="grid gap-6 xl:grid-cols-2">
         <DashboardSection eyebrow="Lead Analytics" title="Leads by property and reel">
@@ -311,6 +351,8 @@ export function BuilderDashboard({ data }: { data: BuilderDashboardData }) {
           <PaymentHistory payments={data.payments} />
         </DashboardSection>
       </section>
+=======
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     </div>
   );
 }

@@ -13,8 +13,12 @@ const adminPrefixes = ["/admin", "/api/admin"];
 
 const publicApiPrefixes = [
   "/api/auth",
+<<<<<<< HEAD
   "/api/ai",
   "/api/payments/webhook"
+=======
+  "/api/ai"
+>>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 ];
 
 function applySecurityHeaders(response: NextResponse) {
