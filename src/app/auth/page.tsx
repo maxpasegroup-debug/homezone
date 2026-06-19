@@ -1,7 +1,20 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
+import { env } from "@/lib/env";
 
-export default function AuthPage() {
+type AuthPageProps = {
+  searchParams?: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function AuthPage({ searchParams }: AuthPageProps) {
+  const params = await searchParams;
+  const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  const authError = params?.error
+    ? "Login is not configured correctly yet. Please check Google OAuth and Auth.js environment variables."
+    : undefined;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
       <section className="container py-10 sm:py-16">
@@ -9,7 +22,7 @@ export default function AuthPage() {
           HomeZone
         </Link>
         <div className="mt-10">
-          <AuthForm />
+          <AuthForm authError={authError} googleEnabled={googleEnabled} />
         </div>
       </section>
     </main>

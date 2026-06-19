@@ -6,13 +6,18 @@ import { Mail, MessageCircle, Phone, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-export function AuthForm() {
+type AuthFormProps = {
+  authError?: string;
+  googleEnabled: boolean;
+};
+
+export function AuthForm({ authError, googleEnabled }: AuthFormProps) {
   const [mode, setMode] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [email, setEmail] = useState("demo@homezone.ai");
   const [password, setPassword] = useState("HomeZone@123");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(authError ?? "");
 
   async function sendOtp() {
     if (mode === "email") {
@@ -65,6 +70,11 @@ export function AuthForm() {
   }
 
   async function loginWithGoogle() {
+    if (!googleEnabled) {
+      setStatus("Google login is not configured yet. Please contact HomeZone support.");
+      return;
+    }
+
     await signIn("google", {
       callbackUrl: "/onboarding"
     });
@@ -162,9 +172,15 @@ export function AuthForm() {
             Verify OTP
           </Button>
         ) : null}
-        <Button className="w-full" onClick={loginWithGoogle} size="lg" variant="outline">
-          Continue with Google
-        </Button>
+        {googleEnabled ? (
+          <Button className="w-full" onClick={loginWithGoogle} size="lg" variant="outline">
+            Continue with Google
+          </Button>
+        ) : (
+          <Button className="w-full" disabled size="lg" variant="outline">
+            Google login not configured
+          </Button>
+        )}
       </div>
 
       {process.env.NODE_ENV !== "production" ? (
