@@ -1,13 +1,8 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-<<<<<<< HEAD
 import { forbidden, handleApiError, notFound, ok, parseJson, rateLimited, unauthorized, validationError } from "@/lib/api/response";
 import { reelCreateSchema, reelFeedSchema } from "@/lib/api/validation";
-=======
-import { forbidden, handleApiError, notFound, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
-import { reelCreateSchema } from "@/lib/api/validation";
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
@@ -59,7 +54,6 @@ export async function GET(request: Request) {
     take: parsed.data.take + 1
   });
 
-<<<<<<< HEAD
   const hasMore = reels.length > parsed.data.take;
   const visibleReels = hasMore ? reels.slice(0, parsed.data.take) : reels;
   const nextCursor = hasMore ? visibleReels.at(-1)?.id ?? null : null;
@@ -68,9 +62,6 @@ export async function GET(request: Request) {
     nextCursor,
     reels: visibleReels
   });
-=======
-  return ok({ reels });
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 }
 
 export async function POST(request: Request) {

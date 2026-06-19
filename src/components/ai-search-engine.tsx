@@ -77,7 +77,6 @@ export function AISearchEngine() {
     setAiExplanation(data.explanation);
     setAiSource(data.source);
     setServerMatches(Array.isArray(data.matches) ? data.matches : []);
-<<<<<<< HEAD
   }
 
   async function runAIAction(endpoint: string, body: Record<string, unknown>) {
@@ -128,8 +127,6 @@ export function AISearchEngine() {
       propertyId: matches[0]?.id
     });
     setLeadDraft(data?.draft ?? "Draft unavailable right now.");
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   }
 
   return (

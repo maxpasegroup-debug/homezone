@@ -25,12 +25,9 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().default("gpt-4.1-mini"),
   OTP_DEV_LOG_CODES: booleanString,
   OTP_PEPPER: z.string().min(16).optional(),
-<<<<<<< HEAD
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   SENTRY_DSN: z.string().url().optional(),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(25_000_000),
   WHATSAPP_OTP_API_KEY: z.string().optional(),
@@ -47,7 +44,6 @@ export const env = parsedEnv.data;
 
 const productionRequiredKeys = [
   "AUTH_SECRET",
-<<<<<<< HEAD
   "CLOUDINARY_API_KEY",
   "CLOUDINARY_API_SECRET",
   "CLOUDINARY_CLOUD_NAME",
@@ -94,11 +90,6 @@ const launchEnvGroups = [
     keys: ["SENTRY_DSN"] as const,
     name: "Monitoring"
   }
-=======
-  "DATABASE_URL",
-  "NEXTAUTH_URL",
-  "OTP_PEPPER"
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 ] as const;
 
 export function getProductionEnvIssues() {
@@ -109,7 +100,6 @@ export function getProductionEnvIssues() {
   return productionRequiredKeys.filter((key) => !env[key]);
 }
 
-<<<<<<< HEAD
 export function getProductionEnvAudit() {
   const groups = launchEnvGroups.map((group) => {
     const keys = group.keys.map((key) => ({
@@ -134,8 +124,6 @@ export function getProductionEnvAudit() {
   };
 }
 
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 export function assertProductionEnv() {
   const missing = getProductionEnvIssues();
 

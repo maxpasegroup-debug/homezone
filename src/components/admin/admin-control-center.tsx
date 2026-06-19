@@ -1,11 +1,7 @@
 import {
   AlertTriangle,
   BadgeCheck,
-<<<<<<< HEAD
   Bot,
-=======
-  BarChart3,
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   Building2,
   FileCheck,
   Flag,
@@ -21,11 +17,8 @@ import { VerificationBadge } from "@/components/trust/verification-badge";
 
 export function AdminControlCenter({
   analytics,
-<<<<<<< HEAD
   pendingBrokerProfiles = [],
   pendingBuilderProfiles = [],
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   pendingProperties = [],
   pendingVerificationProperties = [],
   pendingReels = [],
@@ -34,7 +27,6 @@ export function AdminControlCenter({
 }: {
   analytics?: {
     leads: number;
-<<<<<<< HEAD
     leadSources: {
       source: string;
       _count: {
@@ -80,10 +72,6 @@ export function AdminControlCenter({
     verifiedBrokers: number;
     verifiedBuilders: number;
     verifiedProperties: number;
-=======
-    publishedProperties: number;
-    reels: number;
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   };
   counts?: {
     brokers: number;
@@ -99,7 +87,6 @@ export function AdminControlCenter({
     locality: string | null;
     status: string;
     title: string;
-<<<<<<< HEAD
   }[];
   pendingVerificationProperties?: {
     city: string;
@@ -130,8 +117,6 @@ export function AdminControlCenter({
     user: {
       email: string | null;
     };
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   }[];
   pendingReels?: {
     id: string;
@@ -187,7 +172,6 @@ export function AdminControlCenter({
 
   const analyticsCards = [
     {
-<<<<<<< HEAD
       count: counts?.verificationQueue ?? 0,
       icon: BadgeCheck,
       label: "Pending verifications"
@@ -216,21 +200,6 @@ export function AdminControlCenter({
       count: analytics?.aiUsage.searches ?? 0,
       icon: Bot,
       label: "AI searches"
-=======
-      count: analytics?.publishedProperties ?? 0,
-      icon: Home,
-      label: "Published properties"
-    },
-    {
-      count: analytics?.leads ?? 0,
-      icon: BarChart3,
-      label: "Lead records"
-    },
-    {
-      count: analytics?.reels ?? 0,
-      icon: Video,
-      label: "Property reels"
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     }
   ];
 
@@ -285,11 +254,7 @@ export function AdminControlCenter({
         })}
       </div>
 
-<<<<<<< HEAD
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-=======
-      <section className="grid gap-5 md:grid-cols-3">
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         {analyticsCards.map((item) => {
           const ItemIcon = item.icon;
           return (
@@ -306,7 +271,6 @@ export function AdminControlCenter({
         })}
       </section>
 
-<<<<<<< HEAD
       <section className="grid gap-8 xl:grid-cols-2">
         <Card className="p-6 shadow-soft sm:p-8">
           <p className="flex items-center gap-2 text-sm font-semibold text-violet-700">
@@ -536,12 +500,6 @@ export function AdminControlCenter({
         <Card className="p-6 shadow-soft sm:p-8">
           <p className="text-sm font-semibold text-violet-700">
             Listing Moderation Queue
-=======
-      <section className="grid gap-8 xl:grid-cols-2">
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Verification Queue
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
           </p>
           <h2 className="mt-2 text-3xl font-bold">Pending properties</h2>
           <div className="mt-6 space-y-4">
@@ -598,12 +556,9 @@ export function AdminControlCenter({
               <p className="text-xs font-bold text-violet-700">
                 {report.entityType ?? "unknown"} /{" "}
                 {report.createdAt.toLocaleDateString()}
-<<<<<<< HEAD
               </p>
               <p className="mt-2 font-bold">
                 {report.entityType === "reel" ? "Reel report" : report.action}
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
               </p>
               <pre className="mt-3 overflow-auto rounded-2xl bg-white p-3 text-xs text-muted-foreground">
                 {JSON.stringify(report.metadata, null, 2)}

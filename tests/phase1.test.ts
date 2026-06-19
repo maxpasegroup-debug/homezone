@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { checkRateLimit, clearRateLimitBucketsForTests } from "../src/lib/api/rate-limit.ts";
-<<<<<<< HEAD
 import {
   currencySchema,
   marketplaceFilterSchema,
@@ -19,10 +18,6 @@ import { isAdminRole, normalizeRole } from "../src/lib/auth/roles.ts";
 import { detectAILanguage, parseAIPropertyFilters } from "../src/lib/ai/companion-utils.ts";
 import { createInvoiceNumber, getPaymentProduct, isAllowedForRole } from "../src/lib/payments/catalog.ts";
 import { profileVerificationEvent, propertyVerificationEvent } from "../src/lib/trust/verification.ts";
-=======
-import { currencySchema, marketplaceFilterSchema, propertyCreateSchema, profileUpdateSchema } from "../src/lib/api/validation.ts";
-import { isAdminRole, normalizeRole } from "../src/lib/auth/roles.ts";
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 
 function run(name: string, assertion: () => void) {
   assertion();
@@ -91,7 +86,6 @@ run("rate limiter blocks after configured limit", () => {
   assert.equal(checkRateLimit({ key: "test", limit: 2, windowMs: 60_000 }).allowed, true);
   assert.equal(checkRateLimit({ key: "test", limit: 2, windowMs: 60_000 }).allowed, false);
 });
-<<<<<<< HEAD
 
 run("verification schemas accept Phase 2C trust statuses", () => {
   assert.equal(propertyVerificationSchema.safeParse({ status: "VERIFIED" }).success, true);
@@ -216,5 +210,3 @@ run("Phase 6 intelligence audit events are explicit", () => {
 run("AI parser handles production rupee search input", () => {
   assert.equal(parseAIPropertyFilters("Show villas in Kochi under ₹1 Cr").maxPrice, 10_000_000);
 });
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814

@@ -1,11 +1,7 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-<<<<<<< HEAD
 import { handleApiError, notFound, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
-=======
-import { handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 import { leadSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
@@ -36,7 +32,6 @@ export async function POST(request: Request) {
 
     const profile = await getOrCreateProfile(session.user);
 
-<<<<<<< HEAD
     if (parsed.data.propertyId) {
       const property = await db.property.findUnique({
         where: {
@@ -100,38 +95,17 @@ export async function POST(request: Request) {
 
     await auditLog({
       action: "LEAD_CREATED",
-=======
-    const lead = await db.lead.create({
-      data: {
-        propertyId: parsed.data.propertyId,
-        userId: profile.id,
-        name: parsed.data.name,
-        phone: parsed.data.phone,
-        message: parsed.data.message,
-        source: parsed.data.source,
-        aiScore: 60
-      }
-    });
-
-    await auditLog({
-      action: "lead_created",
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
       actorId: profile.id,
       entityId: lead.id,
       entityType: "lead",
       metadata: {
-<<<<<<< HEAD
         contactAction: parsed.data.contactAction,
         propertyId: parsed.data.propertyId,
         reelId: parsed.data.reelId,
-=======
-        propertyId: parsed.data.propertyId,
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
         source: parsed.data.source
       }
     });
 
-<<<<<<< HEAD
     if (parsed.data.contactAction === "CALL") {
       await auditLog({
         action: "CALL_CLICKED",
@@ -158,8 +132,6 @@ export async function POST(request: Request) {
       });
     }
 
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
     return ok({ ok: true });
   } catch (error) {
     return handleApiError(error, {

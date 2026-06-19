@@ -2,11 +2,8 @@ import Link from "next/link";
 import { ArrowRight, BedDouble, Bookmark, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-<<<<<<< HEAD
 import { ListingBadges } from "@/components/payments/listing-badges";
 import { VerificationBadge } from "@/components/trust/verification-badge";
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 import { getMarketplaceProperties, parseMarketplaceFilters } from "@/lib/properties/queries";
 
 export const dynamic = "force-dynamic";

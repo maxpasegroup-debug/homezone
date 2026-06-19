@@ -164,13 +164,10 @@ model Profile {
   fullName         String?
   phone            String?            @unique
   whatsappVerified Boolean            @default(false)
-<<<<<<< HEAD
   verificationStatus ProfileVerificationStatus @default(PENDING)
   verifiedAt       DateTime?
   verifiedBy       String?
   verificationNotes String?
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   role             UserRole           @default(USER)
   country          String             @default("India")
   city             String?
@@ -260,13 +257,10 @@ model Property {
   @@index([bedrooms])
   @@index([bathrooms])
   @@index([verified])
-<<<<<<< HEAD
   @@index([featured, featuredUntil])
   @@index([premium, premiumUntil])
   @@index([verificationStatus])
   @@index([verifiedBy])
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   @@index([latitude, longitude])
   @@index([status])
   @@index([status, createdAt])
@@ -309,12 +303,9 @@ model Lead {
   @@index([assignedTo])
   @@index([userId])
   @@index([propertyId])
-<<<<<<< HEAD
   @@index([reelId])
   @@index([source])
   @@index([contactAction])
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   @@index([stage])
   @@index([createdAt])
 }
@@ -341,7 +332,6 @@ model PropertyReel {
   @@index([propertyId])
   @@index([ownerId])
   @@index([status])
-<<<<<<< HEAD
   @@index([viewsCount])
   @@index([likesCount])
   @@index([savesCount])
@@ -383,8 +373,6 @@ model ProfileFollow {
 
   @@id([followerId, targetId])
   @@index([targetId])
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
   @@index([createdAt])
 }
 
@@ -407,10 +395,7 @@ model StudioRequest {
   @@index([requesterId])
   @@index([propertyId])
   @@index([status])
-<<<<<<< HEAD
   @@index([paymentStatus])
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 }
 
 model ServiceRequest {
@@ -479,7 +464,6 @@ model AiReport {
   @@index([userId])
   @@index([propertyId])
   @@index([reportType])
-<<<<<<< HEAD
 }
 
 model Payment {
@@ -534,8 +518,6 @@ model Subscription {
   @@index([product])
   @@index([status])
   @@index([endsAt])
-=======
->>>>>>> e77e92e1bc1b4f2793fb53eb7c6506954b3cd814
 }
 
 model AuditLog {
