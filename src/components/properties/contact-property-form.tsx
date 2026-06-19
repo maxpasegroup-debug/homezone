@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, MessageCircle } from "lucide-react";
+import { Loader2, MessageCircle, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
@@ -11,7 +11,7 @@ export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function submitLead() {
+  async function submitLead(contactAction: "CALL" | "INQUIRY" | "WHATSAPP") {
     setLoading(true);
     setStatus("");
 
@@ -25,7 +25,8 @@ export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
         name,
         phone,
         message,
-        source: "Property Detail"
+        source: "PROPERTY",
+        contactAction
       })
     });
 
@@ -42,7 +43,13 @@ export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
       return;
     }
 
-    setStatus("Inquiry sent. It will appear in your dashboard.");
+    setStatus(
+      contactAction === "CALL"
+        ? "Call request saved. It will appear in your dashboard."
+        : contactAction === "WHATSAPP"
+          ? "WhatsApp request saved. It will appear in your dashboard."
+          : "Inquiry sent. It will appear in your dashboard."
+    );
   }
 
   return (
@@ -62,10 +69,20 @@ export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
         onChange={(event) => setMessage(event.target.value)}
         value={message}
       />
-      <Button className="w-full" disabled={loading} onClick={submitLead} size="lg">
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-        Contact Owner
-      </Button>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Button disabled={loading} onClick={() => submitLead("CALL")} size="lg" variant="outline">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+          Call
+        </Button>
+        <Button disabled={loading} onClick={() => submitLead("WHATSAPP")} size="lg" variant="outline">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+          WhatsApp
+        </Button>
+        <Button disabled={loading} onClick={() => submitLead("INQUIRY")} size="lg">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+          Inquiry
+        </Button>
+      </div>
       {status ? (
         <p className="rounded-2xl bg-violet-50 p-3 text-sm font-bold text-violet-700">
           {status}

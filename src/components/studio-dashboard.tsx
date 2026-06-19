@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  ArrowRight,
   CalendarDays,
   CheckCircle2,
   FileImage,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PaymentButton } from "@/components/payments/payment-button";
 import {
   creativeOutputs,
   studioPackages,
@@ -23,6 +23,12 @@ import {
 
 const propertyTypes = ["Villa", "Apartment", "Land", "Commercial", "Builder Project"];
 const campaignGoals = ["Sell faster", "Generate leads", "Launch project", "Find tenants"];
+const studioProductByService = {
+  "Drone Shoot": "STUDIO_DRONE",
+  Photography: "STUDIO_PHOTOGRAPHY",
+  "Reels Creation": "STUDIO_REELS",
+  "Walkthrough Video": "STUDIO_VIDEOGRAPHY"
+} as const;
 
 export function StudioDashboard() {
   const [selectedService, setSelectedService] = useState("Photography");
@@ -148,10 +154,18 @@ export function StudioDashboard() {
             </div>
           </div>
 
-          <Button className="mt-6 w-full" size="lg">
-            Request Studio Booking
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <div className="mt-6">
+            <PaymentButton
+              city={location}
+              label="Pay for Studio Booking"
+              notes={`${propertyType} / ${goal}`}
+              product={
+                studioProductByService[
+                  selectedService as keyof typeof studioProductByService
+                ] ?? "STUDIO_PHOTOGRAPHY"
+              }
+            />
+          </div>
         </Card>
 
         <Card className="overflow-hidden shadow-soft">
@@ -251,6 +265,21 @@ export function StudioDashboard() {
                     {item}
                   </p>
                 ))}
+              </div>
+              <div className="mt-5">
+                <PaymentButton
+                  city={location}
+                  label="Pay now"
+                  notes={pack.name}
+                  product={
+                    pack.name === "Reel Launch"
+                      ? "STUDIO_REELS"
+                      : pack.name === "Builder Spotlight"
+                        ? "STUDIO_DRONE"
+                        : "STUDIO_PHOTOGRAPHY"
+                  }
+                  variant="outline"
+                />
               </div>
             </Card>
           ))}

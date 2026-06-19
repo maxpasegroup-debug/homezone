@@ -1,10 +1,11 @@
 export const userRoles = [
-  "buyer",
+  "user",
   "owner",
   "broker",
   "builder",
   "service_provider",
-  "admin"
+  "admin",
+  "super_admin"
 ] as const;
 
 export type UserRole = (typeof userRoles)[number];

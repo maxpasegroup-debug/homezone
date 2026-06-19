@@ -54,6 +54,9 @@ export default async function DashboardReelsPage() {
                   {reel.status.replace("_", " ")}
                 </p>
                 <h2 className="mt-4 text-xl font-bold">{reel.title}</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {reel.viewsCount} views, {reel.likesCount} likes, {reel.savesCount} saves, {reel.sharesCount} shares, {reel.leadsCount} leads
+                </p>
               </div>
             </Card>
           ))}

@@ -58,6 +58,10 @@ export default async function InquiriesPage() {
                       Property: {inquiry.property.title}
                     </p>
                   ) : null}
+                  <p className="mt-2 text-xs font-bold text-muted-foreground">
+                    Source: {inquiry.source}
+                    {inquiry.contactAction ? ` / ${inquiry.contactAction}` : ""}
+                  </p>
                 </div>
                 <p className="text-3xl font-bold">{inquiry.aiScore}</p>
               </div>

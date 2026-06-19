@@ -20,11 +20,10 @@ export function parsePropertySearch(input: string): StructuredSearch {
   const foundType = typeWords.find((word) => text.includes(word));
   const foundLocation = locations.find((place) => text.includes(place));
 
-  let intent: PropertyIntent = "buy";
-  if (/(rent|lease|വാടക|kiraya)/i.test(input)) intent = "rent";
-  if (/(invest|investment|yield|നിക്ഷേപ|nivesh)/i.test(input)) intent = "invest";
-  if (/(sell|sale my|വിൽക്ക|bech)/i.test(input)) intent = "sell";
-  if (/(market|promote|ad|reel|shoot)/i.test(input)) intent = "market";
+  let intent: PropertyIntent = "BUY";
+  if (/(lease|long-term lease)/i.test(input)) intent = "LEASE";
+  if (/(rent|വാടക|kiraya)/i.test(input)) intent = "RENT";
+  if (/(invest|investment|yield|നിക്ഷേപ|nivesh)/i.test(input)) intent = "INVEST";
 
   let budgetLakhs: number | undefined;
   if (budgetMatch) {
@@ -50,10 +49,6 @@ export function parsePropertySearch(input: string): StructuredSearch {
 }
 
 export function getPropertyMatches(search: StructuredSearch): PropertyListing[] {
-  if (search.intent === "sell" || search.intent === "market") {
-    return propertyListings.slice(0, 3);
-  }
-
   return propertyListings
     .map((listing) => {
       let points = listing.score;
@@ -71,9 +66,15 @@ export function getPropertyMatches(search: StructuredSearch): PropertyListing[] 
 
 export function explainSearch(search: StructuredSearch) {
   const pieces = [
-    search.intent === "rent" ? "rental homes" : search.intent === "invest" ? "investment options" : "properties to buy",
+    search.intent === "RENT"
+      ? "rental homes"
+      : search.intent === "LEASE"
+        ? "lease-ready properties"
+        : search.intent === "INVEST"
+          ? "investment options"
+          : "properties to buy",
     search.location ? `near ${search.location}` : "in preferred cities",
-    search.budgetLakhs ? `within about ₹${search.budgetLakhs}L` : "with flexible budget",
+    search.budgetLakhs ? `within about Rs ${search.budgetLakhs}L` : "with flexible budget",
     search.bedrooms ? `${search.bedrooms}BHK fit` : "matching your lifestyle"
   ];
 

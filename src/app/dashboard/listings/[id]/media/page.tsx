@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PropertyMediaManager } from "@/components/properties/property-media-manager";
 import { getOrCreateProfile } from "@/lib/auth/profile";
+import { isAdminRole } from "@/lib/auth/roles";
 import { getSessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
@@ -30,7 +31,7 @@ export default async function ListingMediaPage({ params }: PageProps) {
     notFound();
   }
 
-  if (property.ownerId !== profile.id && profile.role !== "ADMIN") {
+  if (property.ownerId !== profile.id && !isAdminRole(profile.role)) {
     redirect("/dashboard/listings");
   }
 

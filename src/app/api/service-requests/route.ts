@@ -1,43 +1,62 @@
-import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { auditLog } from "@/lib/audit";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { serviceRequestSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const parsedBody = serviceRequestSchema.safeParse(body);
+  try {
+    const session = await auth();
 
-  if (!parsedBody.success) {
-    return NextResponse.json(
-      {
-        error: "Invalid service request",
-        details: parsedBody.error.flatten()
-      },
-      { status: 400 }
-    );
-  }
-
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json(
-      { error: "Verified account required" },
-      { status: 401 }
-    );
-  }
-
-  const profile = await getOrCreateProfile(session.user);
-
-  await db.serviceRequest.create({
-    data: {
-      requesterId: profile.id,
-      category: parsedBody.data.category,
-      city: parsedBody.data.city,
-      budget: parsedBody.data.budget,
-      message: parsedBody.data.message
+    if (!session?.user?.id) {
+      return unauthorized("Verified account required");
     }
-  });
 
-  return NextResponse.json({ ok: true });
+    const limit = checkRateLimit({
+      key: rateLimitKey(request, "service-requests:create", session.user.id),
+      limit: 10,
+      windowMs: 60_000
+    });
+
+    if (!limit.allowed) {
+      return rateLimited(limit.resetAt);
+    }
+
+    const parsed = await parseJson(request, serviceRequestSchema);
+
+    if ("error" in parsed) {
+      return parsed.error;
+    }
+
+    const profile = await getOrCreateProfile(session.user);
+
+    const serviceRequest = await db.serviceRequest.create({
+      data: {
+        requesterId: profile.id,
+        category: parsed.data.category,
+        city: parsed.data.city,
+        budget: parsed.data.budget,
+        message: parsed.data.message
+      }
+    });
+
+    await auditLog({
+      action: "service_request_created",
+      actorId: profile.id,
+      entityId: serviceRequest.id,
+      entityType: "service_request",
+      metadata: {
+        category: parsed.data.category,
+        city: parsed.data.city
+      }
+    });
+
+    return ok({ ok: true });
+  } catch (error) {
+    return handleApiError(error, {
+      route: "POST /api/service-requests"
+    });
+  }
 }

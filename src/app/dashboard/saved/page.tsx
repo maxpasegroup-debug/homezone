@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { VerificationBadge } from "@/components/trust/verification-badge";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -40,6 +41,12 @@ export default async function SavedPage() {
           {saved.map((item) => (
             <Card className="p-6 shadow-sm" key={item.propertyId}>
               <h2 className="text-2xl font-bold">{item.property.title}</h2>
+              <div className="mt-3">
+                <VerificationBadge
+                  entity="property"
+                  status={item.property.verificationStatus}
+                />
+              </div>
               <p className="mt-2 text-sm font-semibold text-violet-700">
                 {[item.property.locality, item.property.city].filter(Boolean).join(", ")}
               </p>

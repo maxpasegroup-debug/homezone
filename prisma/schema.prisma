@@ -8,12 +8,30 @@ datasource db {
 }
 
 enum UserRole {
-  BUYER
+  USER
   OWNER
   BROKER
   BUILDER
   SERVICE_PROVIDER
   ADMIN
+  SUPER_ADMIN
+}
+
+enum PropertyIntent {
+  BUY
+  RENT
+  LEASE
+  INVEST
+}
+
+enum PropertyCategory {
+  RESIDENTIAL
+  COMMERCIAL
+  LAND
+  INDUSTRIAL
+  AGRICULTURAL
+  HOSPITALITY
+  LUXURY
 }
 
 enum ListingStatus {
@@ -24,6 +42,52 @@ enum ListingStatus {
   ARCHIVED
 }
 
+enum PropertyVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum ProfileVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentProduct {
+  FEATURED_LISTING
+  PREMIUM_LISTING
+  BROKER_MONTHLY
+  BROKER_YEARLY
+  BUILDER_MONTHLY
+  BUILDER_YEARLY
+  STUDIO_PHOTOGRAPHY
+  STUDIO_VIDEOGRAPHY
+  STUDIO_DRONE
+  STUDIO_REELS
+}
+
+enum PaymentProvider {
+  RAZORPAY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
 enum LeadStage {
   NEW
   QUALIFIED
@@ -32,6 +96,19 @@ enum LeadStage {
   WON
   LOST
   NURTURE
+}
+
+enum LeadSource {
+  PROPERTY
+  REEL
+  SEARCH
+  DASHBOARD
+}
+
+enum ContactAction {
+  CALL
+  WHATSAPP
+  INQUIRY
 }
 
 model User {
@@ -87,7 +164,11 @@ model Profile {
   fullName         String?
   phone            String?            @unique
   whatsappVerified Boolean            @default(false)
-  role             UserRole           @default(BUYER)
+  verificationStatus ProfileVerificationStatus @default(PENDING)
+  verifiedAt       DateTime?
+  verifiedBy       String?
+  verificationNotes String?
+  role             UserRole           @default(USER)
   country          String             @default("India")
   city             String?
   avatarUrl        String?
@@ -96,12 +177,22 @@ model Profile {
   assignedLeads    Lead[]             @relation("AssignedLeads")
   userLeads        Lead[]             @relation("UserLeads")
   savedProperties  SavedProperty[]
+  reelLikes        ReelLike[]
+  savedReels       SavedReel[]
+  following        ProfileFollow[]    @relation("ProfileFollowing")
+  followers        ProfileFollow[]    @relation("ProfileFollowers")
   studioRequests   StudioRequest[]
   serviceRequests  ServiceRequest[]
   builderProjects  BuilderProject[]
   aiReports        AiReport[]
+  payments         Payment[]
+  subscriptions    Subscription[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+
+  @@index([role, verificationStatus])
+  @@index([verificationStatus])
+  @@index([verifiedBy])
 }
 
 model Property {
@@ -110,12 +201,14 @@ model Property {
   owner         Profile?         @relation("PropertyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   title         String
   description   String?
-  intent        String
+  intent        PropertyIntent
+  category      PropertyCategory @default(RESIDENTIAL)
   propertyType  String
   country       String           @default("India")
   state         String?
   city          String
   locality      String?
+  timezone      String?
   address       String?
   latitude      Decimal?
   longitude     Decimal?
@@ -130,20 +223,47 @@ model Property {
   videoUrl      String?
   status        ListingStatus    @default(DRAFT)
   verified      Boolean          @default(false)
+  featured      Boolean          @default(false)
+  featuredUntil DateTime?
+  premium       Boolean          @default(false)
+  premiumUntil  DateTime?
+  verificationStatus PropertyVerificationStatus @default(PENDING)
+  verifiedAt    DateTime?
+  verifiedBy    String?
+  verificationNotes String?
   aiSummary     String?
   propertyScore Int?
   riskScore     Int?
   savedBy       SavedProperty[]
   leads         Lead[]
   reels         PropertyReel[]
+  callClicks    Int              @default(0)
+  whatsappClicks Int             @default(0)
+  inquirySubmissions Int         @default(0)
   studioRequests StudioRequest[]
   aiReports     AiReport[]
+  payments      Payment[]
   publishedAt   DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   @@index([city])
+  @@index([country, city])
+  @@index([country, state, city])
+  @@index([intent])
+  @@index([category])
+  @@index([currency])
+  @@index([price])
+  @@index([bedrooms])
+  @@index([bathrooms])
+  @@index([verified])
+  @@index([featured, featuredUntil])
+  @@index([premium, premiumUntil])
+  @@index([verificationStatus])
+  @@index([verifiedBy])
+  @@index([latitude, longitude])
   @@index([status])
+  @@index([status, createdAt])
   @@index([ownerId])
 }
 
@@ -160,16 +280,19 @@ model SavedProperty {
 model Lead {
   id          String    @id @default(cuid())
   propertyId  String?
+  reelId      String?
   assignedTo  String?
   userId      String?
   property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  reel        PropertyReel? @relation(fields: [reelId], references: [id], onDelete: SetNull)
   assigned    Profile?  @relation("AssignedLeads", fields: [assignedTo], references: [id], onDelete: SetNull)
   user        Profile?  @relation("UserLeads", fields: [userId], references: [id], onDelete: SetNull)
   name        String
   phone       String?
   email       String?
   message     String?
-  source      String    @default("HomeZone")
+  source      LeadSource @default(PROPERTY)
+  contactAction ContactAction?
   stage       LeadStage @default(NEW)
   aiScore     Int       @default(0)
   nextAction  String?
@@ -178,7 +301,13 @@ model Lead {
   updatedAt   DateTime  @updatedAt
 
   @@index([assignedTo])
+  @@index([userId])
+  @@index([propertyId])
+  @@index([reelId])
+  @@index([source])
+  @@index([contactAction])
   @@index([stage])
+  @@index([createdAt])
 }
 
 model PropertyReel {
@@ -189,10 +318,62 @@ model PropertyReel {
   title        String
   videoUrl     String
   thumbnailUrl String?
+  viewsCount   Int           @default(0)
   likesCount   Int           @default(0)
   savesCount   Int           @default(0)
+  sharesCount  Int           @default(0)
+  leadsCount   Int           @default(0)
   status       ListingStatus @default(PENDING_REVIEW)
+  likes        ReelLike[]
+  savedBy      SavedReel[]
+  leads        Lead[]
   createdAt    DateTime      @default(now())
+
+  @@index([propertyId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([viewsCount])
+  @@index([likesCount])
+  @@index([savesCount])
+  @@index([sharesCount])
+  @@index([leadsCount])
+  @@index([createdAt])
+}
+
+model ReelLike {
+  userId    String
+  reelId    String
+  user      Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reel      PropertyReel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@id([userId, reelId])
+  @@index([reelId])
+  @@index([createdAt])
+}
+
+model SavedReel {
+  userId    String
+  reelId    String
+  user      Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reel      PropertyReel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@id([userId, reelId])
+  @@index([reelId])
+  @@index([createdAt])
+}
+
+model ProfileFollow {
+  followerId String
+  targetId   String
+  follower   Profile  @relation("ProfileFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  target     Profile  @relation("ProfileFollowers", fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([followerId, targetId])
+  @@index([targetId])
+  @@index([createdAt])
 }
 
 model StudioRequest {
@@ -201,13 +382,20 @@ model StudioRequest {
   propertyId  String?
   requester   Profile?  @relation(fields: [requesterId], references: [id], onDelete: SetNull)
   property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  payments    Payment[]
   serviceType String
   city        String?
   budget      String?
   notes       String?
   status      String    @default("requested")
+  paymentStatus PaymentStatus @default(PENDING)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([requesterId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([paymentStatus])
 }
 
 model ServiceRequest {
@@ -221,6 +409,10 @@ model ServiceRequest {
   status      String   @default("requested")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([requesterId])
+  @@index([category])
+  @@index([status])
 }
 
 model ServiceProvider {
@@ -233,6 +425,10 @@ model ServiceProvider {
   verified     Boolean  @default(false)
   priceLabel   String?
   createdAt    DateTime @default(now())
+
+  @@index([profileId])
+  @@index([category])
+  @@index([verified])
 }
 
 model BuilderProject {
@@ -264,6 +460,64 @@ model AiReport {
   input      Json      @default("{}")
   output     Json      @default("{}")
   createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([reportType])
+}
+
+model Payment {
+  id                  String          @id @default(cuid())
+  payerId             String?
+  payer               Profile?        @relation(fields: [payerId], references: [id], onDelete: SetNull)
+  propertyId          String?
+  property            Property?       @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  studioRequestId     String?
+  studioRequest       StudioRequest?  @relation(fields: [studioRequestId], references: [id], onDelete: SetNull)
+  subscriptionId      String?
+  subscription        Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  product             PaymentProduct
+  provider            PaymentProvider @default(RAZORPAY)
+  status              PaymentStatus   @default(CREATED)
+  amount              Int
+  currency            String          @default("INR")
+  description         String?
+  invoiceNumber       String          @unique
+  invoiceMetadata     Json            @default("{}")
+  razorpayOrderId     String?         @unique
+  razorpayPaymentId   String?         @unique
+  razorpaySignature   String?
+  razorpayWebhookEventId String?      @unique
+  failureReason       String?
+  paidAt              DateTime?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([payerId])
+  @@index([propertyId])
+  @@index([studioRequestId])
+  @@index([subscriptionId])
+  @@index([product])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id          String             @id @default(cuid())
+  profileId   String?
+  profile     Profile?           @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  product     PaymentProduct
+  status      SubscriptionStatus @default(ACTIVE)
+  startsAt    DateTime           @default(now())
+  endsAt      DateTime
+  payments    Payment[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([profileId])
+  @@index([product])
+  @@index([status])
+  @@index([endsAt])
 }
 
 model AuditLog {
@@ -274,4 +528,27 @@ model AuditLog {
   entityId   String?
   metadata   Json     @default("{}")
   createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  userId     String?
+  phone      String
+  codeHash   String
+  purpose    String    @default("PHONE_VERIFICATION")
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([phone])
+  @@index([phone, purpose])
+  @@index([expiresAt])
 }

@@ -1,4 +1,7 @@
 import { explainSearch, getPropertyMatches, parsePropertySearch } from "@/lib/ai-search";
+import { env, isProduction } from "@/lib/env";
+import { logger } from "@/lib/logging/logger";
+import { getMarketplaceProperties } from "@/lib/properties/queries";
 
 type OpenAITextOptions = {
   system: string;
@@ -11,8 +14,8 @@ export async function generateOpenAIText({
   user,
   temperature = 0.4
 }: OpenAITextOptions) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL ?? "gpt-4.1-mini";
+  const apiKey = env.OPENAI_API_KEY;
+  const model = env.OPENAI_MODEL;
 
   if (!apiKey) {
     return null;
@@ -38,9 +41,21 @@ export async function generateOpenAIText({
       ],
       temperature
     })
+  }).catch((error) => {
+    logger.warn("OpenAI request threw", {
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+    return null;
   });
 
+  if (!response) {
+    return null;
+  }
+
   if (!response.ok) {
+    logger.warn("OpenAI request failed", {
+      status: response.status
+    });
     return null;
   }
 
@@ -64,6 +79,14 @@ export async function answerPropertyQuestion(question: string) {
     };
   }
 
+  if (isProduction()) {
+    return {
+      answer:
+        "HomeZone AI is temporarily unavailable. Please try again later or continue with standard property search.",
+      source: "unavailable"
+    };
+  }
+
   return {
     answer:
       "HomeZone AI demo response: I can help you search, compare, analyze, and understand property. For a serious decision, verify price, documents, location, rental demand, and visit the property before payment.",
@@ -73,7 +96,12 @@ export async function answerPropertyQuestion(question: string) {
 
 export async function runAISearch(query: string) {
   const structured = parsePropertySearch(query);
-  const matches = getPropertyMatches(structured);
+  const matches = await getMarketplaceProperties({
+    city: structured.location,
+    keyword: structured.propertyType ?? structured.raw,
+    maxPrice: structured.budgetLakhs ? structured.budgetLakhs * 100000 : undefined,
+    purpose: structured.intent
+  });
   const localExplanation = explainSearch(structured);
 
   const aiSummary = await generateOpenAIText({
@@ -85,7 +113,7 @@ export async function runAISearch(query: string) {
   return {
     structured,
     explanation: aiSummary ?? localExplanation,
-    matches,
-    source: aiSummary ? "openai" : "fallback"
+    matches: matches.length ? matches : getPropertyMatches(structured),
+    source: aiSummary ? "openai" : "database"
   };
 }

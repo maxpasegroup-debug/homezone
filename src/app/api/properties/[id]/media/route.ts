@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { auditLog } from "@/lib/audit";
+import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
+import { forbidden, handleApiError, notFound, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { propertyMediaSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
+import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 
 type RouteContext = {
@@ -11,52 +14,75 @@ type RouteContext = {
 };
 
 export async function PATCH(request: Request, context: RouteContext) {
-  const session = await auth();
+  try {
+    const session = await auth();
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await context.params;
-  const parsed = propertyMediaSchema.safeParse(await request.json());
-
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid media data", details: parsed.error.flatten() },
-      { status: 400 }
-    );
-  }
-
-  const profile = await getOrCreateProfile(session.user);
-  const property = await db.property.findUnique({
-    where: {
-      id
+    if (!session?.user?.id) {
+      return unauthorized();
     }
-  });
 
-  if (!property) {
-    return NextResponse.json({ error: "Property not found" }, { status: 404 });
-  }
+    const limit = checkRateLimit({
+      key: rateLimitKey(request, "properties:media", session.user.id),
+      limit: 30,
+      windowMs: 60_000
+    });
 
-  if (property.ownerId !== profile.id && profile.role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+    if (!limit.allowed) {
+      return rateLimited(limit.resetAt);
+    }
 
-  const updated = await db.property.update({
-    where: {
-      id
-    },
-    data:
-      parsed.data.mediaType === "video"
-        ? {
-            videoUrl: parsed.data.mediaUrl
-          }
-        : {
-            mediaUrls: {
-              push: parsed.data.mediaUrl
+    const { id } = await context.params;
+    const parsed = await parseJson(request, propertyMediaSchema);
+
+    if ("error" in parsed) {
+      return parsed.error;
+    }
+
+    const profile = await getOrCreateProfile(session.user);
+    const property = await db.property.findUnique({
+      where: {
+        id
+      }
+    });
+
+    if (!property) {
+      return notFound("Property not found");
+    }
+
+    if (property.ownerId !== profile.id && !isAdminRole(profile.role)) {
+      return forbidden();
+    }
+
+    const updated = await db.property.update({
+      where: {
+        id
+      },
+      data:
+        parsed.data.mediaType === "video"
+          ? {
+              videoUrl: parsed.data.mediaUrl
             }
-          }
-  });
+          : {
+              mediaUrls: {
+                push: parsed.data.mediaUrl
+              }
+            }
+    });
 
-  return NextResponse.json({ property: updated });
+    await auditLog({
+      action: "property_media_attached",
+      actorId: profile.id,
+      entityId: id,
+      entityType: "property",
+      metadata: {
+        mediaType: parsed.data.mediaType
+      }
+    });
+
+    return ok({ property: updated });
+  } catch (error) {
+    return handleApiError(error, {
+      route: "PATCH /api/properties/[id]/media"
+    });
+  }
 }

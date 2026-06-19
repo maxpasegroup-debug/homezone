@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 
 export function ReportButton({
   entityId,
-  entityType
+  entityType,
+  size = "lg"
 }: {
   entityId: string;
   entityType: "property" | "reel" | "provider" | "builder";
+  size?: "default" | "lg" | "sm";
 }) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
@@ -54,7 +56,7 @@ export function ReportButton({
 
   return (
     <div>
-      <Button disabled={loading} onClick={report} size="lg" variant="outline">
+      <Button disabled={loading} onClick={report} size={size} variant="outline">
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flag className="h-4 w-4" />}
         Report
       </Button>

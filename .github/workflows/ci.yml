@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      AUTH_SECRET: ci-auth-secret-at-least-sixteen-chars
+      DATABASE_URL: postgresql://user:password@localhost:5432/homezone
+      HOMEZONE_ENFORCE_ENV: "false"
+      NEXTAUTH_URL: http://localhost:3000
+      OTP_PEPPER: ci-otp-pepper-at-least-sixteen-chars
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build

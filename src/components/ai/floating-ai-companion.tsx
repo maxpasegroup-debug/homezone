@@ -35,6 +35,7 @@ export function FloatingAICompanion() {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
+        language: /[\u0D00-\u0D7F]/.test(question) ? "MALAYALAM" : "AUTO",
         message: question
       })
     });

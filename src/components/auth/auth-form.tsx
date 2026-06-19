@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 export function AuthForm() {
   const [mode, setMode] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
   const [email, setEmail] = useState("demo@homezone.ai");
   const [password, setPassword] = useState("HomeZone@123");
   const [status, setStatus] = useState("");
@@ -21,9 +22,46 @@ export function AuthForm() {
       return;
     }
 
+    const response = await fetch("/api/auth/otp/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ phone })
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setStatus(data?.error ?? "Could not send OTP.");
+      return;
+    }
+
     setStatus(
-      `WhatsApp OTP request prepared for ${phone}. Connect WHATSAPP_OTP_PROVIDER and WHATSAPP_OTP_API_KEY to send real OTP messages.`
+      data?.devCode
+        ? `Development OTP for ${phone}: ${data.devCode}`
+        : "OTP request recorded. Connect a WhatsApp/SMS provider to deliver codes."
     );
+  }
+
+  async function verifyOtp() {
+    const response = await fetch("/api/auth/otp/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        code: otpCode,
+        phone
+      })
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setStatus(data?.error ?? "Could not verify OTP.");
+      return;
+    }
+
+    setStatus("Phone verified. Continue to onboarding.");
   }
 
   async function loginWithGoogle() {
@@ -75,18 +113,30 @@ export function AuthForm() {
 
       <div className="mt-6 space-y-4">
         {mode === "phone" ? (
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold">Phone number</span>
-            <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
-              <Phone className="h-5 w-5 text-violet-700" />
+          <div className="space-y-4">
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold">Phone number</span>
+              <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
+                <Phone className="h-5 w-5 text-violet-700" />
+                <input
+                  className="w-full bg-transparent font-semibold outline-none"
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="+91 98765 43210"
+                  value={phone}
+                />
+              </div>
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold">OTP code</span>
               <input
-                className="w-full bg-transparent font-semibold outline-none"
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="+91 98765 43210"
-                value={phone}
+                className="h-14 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
+                inputMode="numeric"
+                onChange={(event) => setOtpCode(event.target.value)}
+                placeholder="6-digit code"
+                value={otpCode}
               />
-            </div>
-          </label>
+            </label>
+          </div>
         ) : (
           <label className="block space-y-2">
             <span className="text-sm font-semibold">Email address</span>
@@ -107,32 +157,39 @@ export function AuthForm() {
           <MessageCircle className="h-4 w-4" />
           Send OTP
         </Button>
+        {mode === "phone" ? (
+          <Button className="w-full" onClick={verifyOtp} size="lg" variant="outline">
+            Verify OTP
+          </Button>
+        ) : null}
         <Button className="w-full" onClick={loginWithGoogle} size="lg" variant="outline">
           Continue with Google
         </Button>
       </div>
 
-      <div className="mt-7 rounded-[1.5rem] border border-violet-100 bg-violet-50 p-5">
-        <p className="text-sm font-bold text-violet-700">
-          Demo dashboard login
-        </p>
-        <div className="mt-4 grid gap-3">
-          <input
-            className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
-            onChange={(event) => setEmail(event.target.value)}
-            value={email}
-          />
-          <input
-            className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
-            onChange={(event) => setPassword(event.target.value)}
-            type="password"
-            value={password}
-          />
-          <Button onClick={loginWithDemo}>
-            Login with Demo Account
-          </Button>
+      {process.env.NODE_ENV !== "production" ? (
+        <div className="mt-7 rounded-[1.5rem] border border-violet-100 bg-violet-50 p-5">
+          <p className="text-sm font-bold text-violet-700">
+            Demo dashboard login
+          </p>
+          <div className="mt-4 grid gap-3">
+            <input
+              className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
+              onChange={(event) => setEmail(event.target.value)}
+              value={email}
+            />
+            <input
+              className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              value={password}
+            />
+            <Button onClick={loginWithDemo}>
+              Login with Demo Account
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {status ? (
         <p className="mt-5 rounded-2xl bg-violet-50 p-4 text-sm font-semibold text-violet-700">

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
+import { isAdminRole } from "@/lib/auth/roles";
 import { getSessionUser } from "@/lib/auth/session";
 
 export async function requireAdminProfile() {
@@ -11,7 +12,7 @@ export async function requireAdminProfile() {
 
   const profile = await getOrCreateProfile(user);
 
-  if (profile.role !== "ADMIN") {
+  if (!isAdminRole(profile.role)) {
     redirect("/dashboard");
   }
 

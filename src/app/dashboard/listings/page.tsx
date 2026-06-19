@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ListingBadges } from "@/components/payments/listing-badges";
+import { PaymentButton } from "@/components/payments/payment-button";
+import { VerificationBadge } from "@/components/trust/verification-badge";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -53,6 +56,20 @@ export default async function ListingsPage() {
               <p className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">
                 {property.status.replace("_", " ")}
               </p>
+              <div className="mt-3">
+                <VerificationBadge
+                  entity="property"
+                  status={property.verificationStatus}
+                />
+              </div>
+              <div className="mt-3">
+                <ListingBadges
+                  featured={property.featured}
+                  featuredUntil={property.featuredUntil}
+                  premium={property.premium}
+                  premiumUntil={property.premiumUntil}
+                />
+              </div>
               <h2 className="mt-5 text-2xl font-bold">{property.title}</h2>
               <p className="mt-2 text-sm font-semibold text-violet-700">
                 {[property.locality, property.city].filter(Boolean).join(", ")}
@@ -69,6 +86,20 @@ export default async function ListingsPage() {
                     Upload Media
                   </Link>
                 </Button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <PaymentButton
+                  label="Feature"
+                  product="FEATURED_LISTING"
+                  propertyId={property.id}
+                  variant="outline"
+                />
+                <PaymentButton
+                  label="Premium"
+                  product="PREMIUM_LISTING"
+                  propertyId={property.id}
+                  variant="outline"
+                />
               </div>
             </Card>
           ))}

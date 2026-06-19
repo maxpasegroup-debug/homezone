@@ -6,6 +6,9 @@ import { ContactPropertyForm } from "@/components/properties/contact-property-fo
 import { ReportButton } from "@/components/reports/report-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ListingBadges } from "@/components/payments/listing-badges";
+import { PropertyViewTracker } from "@/components/properties/property-view-tracker";
+import { VerificationBadge } from "@/components/trust/verification-badge";
 import { getMarketplaceProperty } from "@/lib/properties/queries";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +29,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
+      <PropertyViewTracker propertyId={property.id} />
       <section className="container py-10 sm:py-16">
         <Link className="text-sm font-bold text-violet-700" href="/properties">
           HomeZone Properties
@@ -74,6 +78,20 @@ export default async function PropertyDetailPage({ params }: PageProps) {
                 <MapPin className="h-4 w-4" />
                 {property.location}
               </p>
+              <div className="mt-3">
+                <VerificationBadge
+                  entity="property"
+                  status={property.verificationStatus}
+                />
+              </div>
+              <div className="mt-3">
+                <ListingBadges
+                  featured={property.featured}
+                  featuredUntil={property.featuredUntil}
+                  premium={property.premium}
+                  premiumUntil={property.premiumUntil}
+                />
+              </div>
               <p className="mt-4 text-5xl font-bold">{property.priceLabel}</p>
               <p className="mt-2 text-sm font-semibold text-emerald-600">
                 HomeZone Score {property.score}/100
