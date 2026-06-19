@@ -31,6 +31,8 @@
     "zod": "^3.25.64"
   },
   "devDependencies": {
+    "@emnapi/core": "^1.11.1",
+    "@emnapi/runtime": "^1.11.1",
     "@types/node": "^20.14.15",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
