@@ -5,6 +5,21 @@ const booleanString = z
   .optional()
   .transform((value) => value === "true");
 
+const optionalString = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().optional()
+);
+
+const optionalEmail = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().email().optional()
+);
+
+const optionalPort = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.coerce.number().int().positive().optional()
+);
+
 const envSchema = z.object({
   AUTH_SECRET: z.string().min(16).optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
@@ -29,6 +44,11 @@ const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   SENTRY_DSN: z.string().url().optional(),
+  SMTP_HOST: optionalString,
+  SMTP_PASSWORD: optionalString,
+  SMTP_PORT: optionalPort,
+  SMTP_USER: optionalString,
+  EMAIL_FROM: optionalEmail,
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(25_000_000),
   WHATSAPP_OTP_API_KEY: z.string().optional(),
   WHATSAPP_OTP_PROVIDER: z.string().optional()
@@ -138,4 +158,8 @@ export function isProduction() {
 
 export function isDemoLoginEnabled() {
   return !isProduction() && env.DEMO_LOGIN_ENABLED !== false;
+}
+
+export function isEmailLoginEnabled() {
+  return Boolean(env.SMTP_HOST && env.SMTP_PORT && env.SMTP_USER && env.SMTP_PASSWORD && env.EMAIL_FROM);
 }

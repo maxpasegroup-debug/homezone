@@ -8,24 +8,48 @@ import { Card } from "@/components/ui/card";
 
 type AuthFormProps = {
   authError?: string;
+  emailEnabled: boolean;
   googleEnabled: boolean;
   initialFlow?: "signin" | "signup";
 };
 
-export function AuthForm({ authError, googleEnabled, initialFlow = "signin" }: AuthFormProps) {
+export function AuthForm({
+  authError,
+  emailEnabled,
+  googleEnabled,
+  initialFlow = "signin"
+}: AuthFormProps) {
   const [flow, setFlow] = useState<"signin" | "signup">(initialFlow);
   const [mode, setMode] = useState<"phone" | "email">("phone");
   const [phone, setPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
-  const [email, setEmail] = useState("demo@homezone.ai");
-  const [password, setPassword] = useState("HomeZone@123");
+  const demoLoginVisible = process.env.NODE_ENV !== "production";
+  const [email, setEmail] = useState(demoLoginVisible ? "demo@homezone.ai" : "");
+  const [password, setPassword] = useState(demoLoginVisible ? "HomeZone@123" : "");
   const [status, setStatus] = useState(authError ?? "");
 
   async function sendOtp() {
     if (mode === "email") {
-      setStatus(
-        "Email magic-link sign in is not configured yet. Please use Google or contact HomeZone support."
-      );
+      if (!emailEnabled) {
+        setStatus(
+          "Email magic-link sign in needs SMTP variables in Railway. Please use Google or contact HomeZone support."
+        );
+        return;
+      }
+
+      setStatus(`Sending a secure sign-in link to ${email}...`);
+      const result = await signIn("nodemailer", {
+        callbackUrl: "/onboarding",
+        email,
+        redirect: false
+      });
+
+      if (result?.error) {
+        setStatus("Could not send the sign-in link. Please try again later.");
+        return;
+      }
+
+      setStatus(`Check ${email} for your secure HomeZone sign-in link.`);
       return;
     }
 
@@ -169,24 +193,36 @@ export function AuthForm({ authError, googleEnabled, initialFlow = "signin" }: A
             </label>
           </div>
         ) : (
-          <label className="block space-y-2">
-            <span className="text-sm font-semibold">Email address</span>
-            <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
-              <Mail className="h-5 w-5 text-violet-700" />
-              <input
-                className="w-full bg-transparent font-semibold outline-none"
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                type="email"
-                value={email}
-              />
-            </div>
-          </label>
+          <div className="space-y-3">
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold">Email address</span>
+              <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
+                <Mail className="h-5 w-5 text-violet-700" />
+                <input
+                  className="w-full bg-transparent font-semibold outline-none"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={email}
+                />
+              </div>
+            </label>
+            {!emailEnabled ? (
+              <p className="rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+                Email magic-link login needs SMTP variables in Railway.
+              </p>
+            ) : null}
+          </div>
         )}
 
-        <Button className="w-full" onClick={sendOtp} size="lg">
+        <Button
+          className="w-full"
+          disabled={mode === "email" && !emailEnabled}
+          onClick={sendOtp}
+          size="lg"
+        >
           <MessageCircle className="h-4 w-4" />
-          Send OTP
+          {mode === "email" ? "Send magic link" : "Send OTP"}
         </Button>
         {mode === "phone" ? (
           <Button className="w-full" onClick={verifyOtp} size="lg" variant="outline">
@@ -204,7 +240,7 @@ export function AuthForm({ authError, googleEnabled, initialFlow = "signin" }: A
         )}
       </div>
 
-      {process.env.NODE_ENV !== "production" ? (
+      {demoLoginVisible ? (
         <div className="mt-7 rounded-[1.5rem] border border-violet-100 bg-violet-50 p-5">
           <p className="text-sm font-bold text-violet-700">
             Demo dashboard login

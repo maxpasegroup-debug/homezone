@@ -20,6 +20,20 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 ```
 
+## Email Magic Links
+
+Set these if you want passwordless email sign-in.
+
+```env
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+EMAIL_FROM=no-reply@your-domain.com
+```
+
+Use port `465` for secure SMTP, or `587` for STARTTLS providers.
+
 ## AI
 
 ```env

@@ -2,9 +2,10 @@ import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
+import Nodemailer from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
-import { env, isDemoLoginEnabled } from "@/lib/env";
+import { env, isDemoLoginEnabled, isEmailLoginEnabled } from "@/lib/env";
 import { normalizeRole } from "@/lib/auth/roles";
 
 const providers: Provider[] = [];
@@ -14,6 +15,23 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET
+    })
+  );
+}
+
+if (isEmailLoginEnabled()) {
+  providers.push(
+    Nodemailer({
+      from: env.EMAIL_FROM,
+      server: {
+        auth: {
+          pass: env.SMTP_PASSWORD,
+          user: env.SMTP_USER
+        },
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        secure: env.SMTP_PORT === 465
+      }
     })
   );
 }

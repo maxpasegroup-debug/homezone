@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
-import { env } from "@/lib/env";
+import { env, isEmailLoginEnabled } from "@/lib/env";
 
 type AuthPageProps = {
   searchParams?: Promise<{
@@ -12,6 +12,7 @@ type AuthPageProps = {
 export default async function AuthPage({ searchParams }: AuthPageProps) {
   const params = await searchParams;
   const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  const emailEnabled = isEmailLoginEnabled();
   const initialFlow = params?.flow === "signup" ? "signup" : "signin";
   const authError = params?.error
     ? "Login is not configured correctly yet. Please check Google OAuth and Auth.js environment variables."
@@ -24,7 +25,12 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
           HomeZone
         </Link>
         <div className="mt-10">
-          <AuthForm authError={authError} googleEnabled={googleEnabled} initialFlow={initialFlow} />
+          <AuthForm
+            authError={authError}
+            emailEnabled={emailEnabled}
+            googleEnabled={googleEnabled}
+            initialFlow={initialFlow}
+          />
         </div>
       </section>
     </main>
