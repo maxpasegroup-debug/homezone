@@ -37,6 +37,8 @@ AUTH_URL=https://maxpase.com
 NEXT_PUBLIC_SITE_URL=https://maxpase.com
 ```
 
+HomeZone also sets Auth.js `trustHost: true` in code so Railway/custom-domain requests are trusted by Auth.js.
+
 Generate `AUTH_SECRET` locally:
 
 ```bash

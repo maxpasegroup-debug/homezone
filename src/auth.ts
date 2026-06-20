@@ -109,6 +109,7 @@ if (isDemoLoginEnabled()) {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
   providers,
+  trustHost: true,
   session: {
     strategy: "jwt"
   },
