@@ -75,6 +75,24 @@ export function AuthForm({
   }
 
   async function verifyOtp() {
+    if (otpCode.trim().length === 4) {
+      setStatus("Signing in with demo mobile OTP...");
+      const result = await signIn("mobile-demo", {
+        callbackUrl: "/onboarding",
+        code: otpCode.trim(),
+        phone,
+        redirect: false
+      });
+
+      if (result?.error) {
+        setStatus("Demo mobile login is not enabled or the OTP is invalid.");
+        return;
+      }
+
+      window.location.href = result?.url ?? "/onboarding";
+      return;
+    }
+
     const response = await fetch("/api/auth/otp/verify", {
       method: "POST",
       headers: {

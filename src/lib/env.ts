@@ -36,6 +36,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().optional(),
   DEMO_EMAIL: z.string().email().optional(),
   DEMO_LOGIN_ENABLED: booleanString,
+  DEMO_MOBILE_LOGIN_ENABLED: booleanString,
+  DEMO_MOBILE_OTP: optionalString,
+  DEMO_MOBILE_PHONE: optionalString,
   DEMO_PASSWORD: z.string().optional(),
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
@@ -166,6 +169,10 @@ export function isProduction() {
 
 export function isDemoLoginEnabled() {
   return !isProduction() && env.DEMO_LOGIN_ENABLED !== false;
+}
+
+export function isDemoMobileLoginEnabled() {
+  return env.DEMO_MOBILE_LOGIN_ENABLED === true && Boolean(env.DEMO_MOBILE_PHONE && env.DEMO_MOBILE_OTP);
 }
 
 export function isEmailLoginEnabled() {

@@ -7,6 +7,25 @@ export function normalizePhone(phone: string) {
   return phone.replace(/[^\d+]/g, "").trim();
 }
 
+export function isDemoMobileOtp(phone: string, code: string) {
+  const normalizedPhone = normalizePhone(phone);
+  const demoPhone = normalizePhone(env.DEMO_MOBILE_PHONE ?? "");
+  const demoCode = env.DEMO_MOBILE_OTP?.trim();
+
+  if (!demoPhone || !demoCode) {
+    return false;
+  }
+
+  const localPhone = normalizedPhone.startsWith("+91")
+    ? normalizedPhone.slice(3)
+    : normalizedPhone;
+  const localDemoPhone = demoPhone.startsWith("+91")
+    ? demoPhone.slice(3)
+    : demoPhone;
+
+  return localPhone === localDemoPhone && code === demoCode;
+}
+
 export function createOtpCode() {
   const max = 10 ** OTP_LENGTH;
   return crypto.randomInt(0, max).toString().padStart(OTP_LENGTH, "0");

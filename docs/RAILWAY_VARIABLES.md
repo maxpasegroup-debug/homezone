@@ -20,6 +20,21 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 ```
 
+Optional demo mobile login:
+
+```env
+DEMO_MOBILE_LOGIN_ENABLED=true
+DEMO_MOBILE_PHONE=8089239823
+DEMO_MOBILE_OTP=2255
+```
+
+Use only for local testing or a controlled demo environment. With the values above, the demo mobile credentials are:
+
+```text
+Phone: 8089239823
+OTP: 2255
+```
+
 ## Email Magic Links
 
 Set these if you want passwordless email sign-in.

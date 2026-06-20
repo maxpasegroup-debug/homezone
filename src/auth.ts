@@ -5,7 +5,8 @@ import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
-import { env, isDemoLoginEnabled, isEmailLoginEnabled } from "@/lib/env";
+import { env, isDemoLoginEnabled, isDemoMobileLoginEnabled, isEmailLoginEnabled } from "@/lib/env";
+import { isDemoMobileOtp, normalizePhone } from "@/lib/auth/otp";
 import { normalizeRole } from "@/lib/auth/roles";
 
 const providers: Provider[] = [];
@@ -105,6 +106,74 @@ if (isDemoLoginEnabled()) {
     })
   );
 }
+
+providers.push(
+  Credentials({
+    id: "mobile-demo",
+    name: "Demo Mobile OTP",
+    credentials: {
+      code: { label: "OTP", type: "text" },
+      phone: { label: "Phone", type: "tel" }
+    },
+    async authorize(credentials) {
+      const phone = normalizePhone(String(credentials?.phone ?? ""));
+      const code = String(credentials?.code ?? "").trim();
+
+      if (!isDemoMobileLoginEnabled() || !isDemoMobileOtp(phone, code)) {
+        return null;
+      }
+
+      const user = await db.user.upsert({
+        where: {
+          email: "mobile-demo@homezone.ai"
+        },
+        update: {
+          name: "HomeZone Mobile Demo User"
+        },
+        create: {
+          email: "mobile-demo@homezone.ai",
+          name: "HomeZone Mobile Demo User",
+          profile: {
+            create: {
+              city: "Kochi",
+              country: "India",
+              fullName: "HomeZone Mobile Demo User",
+              phone,
+              role: "USER",
+              whatsappVerified: true
+            }
+          }
+        }
+      });
+
+      await db.profile.upsert({
+        where: {
+          userId: user.id
+        },
+        update: {
+          phone,
+          whatsappVerified: true
+        },
+        create: {
+          city: "Kochi",
+          country: "India",
+          fullName: user.name,
+          phone,
+          role: "USER",
+          userId: user.id,
+          whatsappVerified: true
+        }
+      });
+
+      return {
+        email: user.email,
+        id: user.id,
+        image: user.image,
+        name: user.name
+      };
+    }
+  })
+);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
