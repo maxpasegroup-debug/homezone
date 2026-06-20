@@ -6,12 +6,20 @@ const booleanString = z
   .transform((value) => value === "true");
 
 const optionalString = z.preprocess(
-  (value) => (value === "" ? undefined : value),
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  },
   z.string().optional()
 );
 
 const optionalEmail = z.preprocess(
-  (value) => (value === "" ? undefined : value),
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed;
+  },
   z.string().email().optional()
 );
 
@@ -29,8 +37,8 @@ const envSchema = z.object({
   DEMO_EMAIL: z.string().email().optional(),
   DEMO_LOGIN_ENABLED: booleanString,
   DEMO_PASSWORD: z.string().optional(),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
   HOMEZONE_ENFORCE_ENV: booleanString,
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
