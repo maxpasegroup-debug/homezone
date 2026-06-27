@@ -19,13 +19,14 @@ export function AuthForm({
   googleEnabled,
   initialFlow = "signin"
 }: AuthFormProps) {
+  const demoLoginVisible = process.env.NODE_ENV !== "production";
+  const demoMobilePhone = "8089239823";
+  const demoMobileOtp = "2255";
   const [flow, setFlow] = useState<"signin" | "signup">(initialFlow);
   const [mode, setMode] = useState<"phone" | "email">("phone");
-  const [phone, setPhone] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const demoLoginVisible = process.env.NODE_ENV !== "production";
+  const [phone, setPhone] = useState(demoLoginVisible ? demoMobilePhone : "");
+  const [otpCode, setOtpCode] = useState(demoLoginVisible ? demoMobileOtp : "");
   const [email, setEmail] = useState(demoLoginVisible ? "demo@homezone.ai" : "");
-  const [password, setPassword] = useState(demoLoginVisible ? "HomeZone@123" : "");
   const [status, setStatus] = useState(authError ?? "");
 
   async function sendOtp() {
@@ -124,15 +125,6 @@ export function AuthForm({
     });
   }
 
-  async function loginWithDemo() {
-    setStatus("Signing in with demo account...");
-    await signIn("credentials", {
-      email,
-      password,
-      callbackUrl: "/onboarding"
-    });
-  }
-
   return (
     <Card className="mx-auto max-w-xl p-6 shadow-soft sm:p-8">
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
@@ -205,7 +197,7 @@ export function AuthForm({
                 className="h-14 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
                 inputMode="numeric"
                 onChange={(event) => setOtpCode(event.target.value)}
-                placeholder="6-digit code"
+                placeholder="4-digit demo or 6-digit code"
                 value={otpCode}
               />
             </label>
@@ -257,30 +249,6 @@ export function AuthForm({
           </Button>
         )}
       </div>
-
-      {demoLoginVisible ? (
-        <div className="mt-7 rounded-[1.5rem] border border-violet-100 bg-violet-50 p-5">
-          <p className="text-sm font-bold text-violet-700">
-            Demo dashboard login
-          </p>
-          <div className="mt-4 grid gap-3">
-            <input
-              className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
-              onChange={(event) => setEmail(event.target.value)}
-              value={email}
-            />
-            <input
-              className="h-12 rounded-2xl border border-violet-100 bg-white px-4 text-sm font-semibold outline-none"
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              value={password}
-            />
-            <Button onClick={loginWithDemo}>
-              Login with Demo Account
-            </Button>
-          </div>
-        </div>
-      ) : null}
 
       {status ? (
         <p className="mt-5 rounded-2xl bg-violet-50 p-4 text-sm font-semibold text-violet-700">

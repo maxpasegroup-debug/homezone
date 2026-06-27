@@ -3,7 +3,7 @@ import { z } from "zod";
 const booleanString = z
   .enum(["true", "false"])
   .optional()
-  .transform((value) => value === "true");
+  .transform((value) => (value === undefined ? undefined : value === "true"));
 
 const optionalString = z.preprocess(
   (value) => {
@@ -172,7 +172,11 @@ export function isDemoLoginEnabled() {
 }
 
 export function isDemoMobileLoginEnabled() {
-  return env.DEMO_MOBILE_LOGIN_ENABLED === true && Boolean(env.DEMO_MOBILE_PHONE && env.DEMO_MOBILE_OTP);
+  if (isProduction()) {
+    return env.DEMO_MOBILE_LOGIN_ENABLED === true && Boolean(env.DEMO_MOBILE_PHONE && env.DEMO_MOBILE_OTP);
+  }
+
+  return env.DEMO_MOBILE_LOGIN_ENABLED !== false;
 }
 
 export function isEmailLoginEnabled() {

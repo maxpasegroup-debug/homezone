@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { env, isProduction } from "@/lib/env";
 
 const OTP_LENGTH = 6;
+const LOCAL_DEMO_MOBILE_PHONE = "8089239823";
+const LOCAL_DEMO_MOBILE_OTP = "2255";
 
 export function normalizePhone(phone: string) {
   return phone.replace(/[^\d+]/g, "").trim();
@@ -9,8 +11,8 @@ export function normalizePhone(phone: string) {
 
 export function isDemoMobileOtp(phone: string, code: string) {
   const normalizedPhone = normalizePhone(phone);
-  const demoPhone = normalizePhone(env.DEMO_MOBILE_PHONE ?? "");
-  const demoCode = env.DEMO_MOBILE_OTP?.trim();
+  const demoPhone = normalizePhone(env.DEMO_MOBILE_PHONE ?? (!isProduction() ? LOCAL_DEMO_MOBILE_PHONE : ""));
+  const demoCode = env.DEMO_MOBILE_OTP?.trim() ?? (!isProduction() ? LOCAL_DEMO_MOBILE_OTP : "");
 
   if (!demoPhone || !demoCode) {
     return false;

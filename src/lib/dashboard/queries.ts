@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { getDemoProfile, isDemoUserId } from "@/lib/auth/profile";
+import { env } from "@/lib/env";
 import { getLaunchReadinessSummary } from "@/lib/launch/readiness";
 
 const recentTake = 5;
@@ -9,6 +11,35 @@ function recentSince() {
 }
 
 export async function getUserDashboardData(profileId: string) {
+  if (isDemoUserId(profileId) && !env.DATABASE_URL) {
+    return {
+      counts: {
+        inquiries: 0,
+        listings: 0,
+        ownedReels: 0,
+        savedProperties: 0,
+        savedReels: 0
+      },
+      inquiries: [],
+      listings: [],
+      ownedReels: [],
+      payments: [],
+      profile: {
+        ...getDemoProfile({
+          email: profileId === "homezone-mobile-demo-user" ? "mobile-demo@homezone.ai" : "demo@homezone.ai",
+          id: profileId,
+          name: profileId === "homezone-mobile-demo-user" ? "HomeZone Mobile Demo User" : "HomeZone Demo User"
+        }),
+        user: {
+          email: profileId === "homezone-mobile-demo-user" ? "mobile-demo@homezone.ai" : "demo@homezone.ai"
+        }
+      },
+      recentActivity: [],
+      savedProperties: [],
+      savedReels: []
+    };
+  }
+
   const [
     profile,
     savedProperties,

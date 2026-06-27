@@ -10,6 +10,9 @@ import { isDemoMobileOtp, normalizePhone } from "@/lib/auth/otp";
 import { normalizeRole } from "@/lib/auth/roles";
 
 const providers: Provider[] = [];
+const DEMO_USER_ID = "homezone-demo-user";
+const MOBILE_DEMO_USER_ID = "homezone-mobile-demo-user";
+const MOBILE_DEMO_EMAIL = "mobile-demo@homezone.ai";
 
 if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
   providers.push(
@@ -55,52 +58,10 @@ if (isDemoLoginEnabled()) {
           return null;
         }
 
-        const user = await db.user.upsert({
-          where: {
-            email
-          },
-          update: {
-            name: "HomeZone Demo User"
-          },
-          create: {
-            email,
-            name: "HomeZone Demo User",
-            profile: {
-              create: {
-                fullName: "HomeZone Demo User",
-                phone: "+919999999999",
-                whatsappVerified: true,
-                role: "USER",
-                country: "India",
-                city: "Kochi"
-              }
-            }
-          }
-        });
-
-        await db.profile.upsert({
-          where: {
-            userId: user.id
-          },
-          update: {
-            whatsappVerified: true
-          },
-          create: {
-            userId: user.id,
-            fullName: user.name,
-            phone: "+919999999999",
-            whatsappVerified: true,
-            role: "USER",
-            country: "India",
-            city: "Kochi"
-          }
-        });
-
         return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image
+          id: DEMO_USER_ID,
+          email,
+          name: "HomeZone Demo User"
         };
       }
     })
@@ -123,53 +84,10 @@ providers.push(
         return null;
       }
 
-      const user = await db.user.upsert({
-        where: {
-          email: "mobile-demo@homezone.ai"
-        },
-        update: {
-          name: "HomeZone Mobile Demo User"
-        },
-        create: {
-          email: "mobile-demo@homezone.ai",
-          name: "HomeZone Mobile Demo User",
-          profile: {
-            create: {
-              city: "Kochi",
-              country: "India",
-              fullName: "HomeZone Mobile Demo User",
-              phone,
-              role: "USER",
-              whatsappVerified: true
-            }
-          }
-        }
-      });
-
-      await db.profile.upsert({
-        where: {
-          userId: user.id
-        },
-        update: {
-          phone,
-          whatsappVerified: true
-        },
-        create: {
-          city: "Kochi",
-          country: "India",
-          fullName: user.name,
-          phone,
-          role: "USER",
-          userId: user.id,
-          whatsappVerified: true
-        }
-      });
-
       return {
-        email: user.email,
-        id: user.id,
-        image: user.image,
-        name: user.name
+        email: MOBILE_DEMO_EMAIL,
+        id: MOBILE_DEMO_USER_ID,
+        name: "HomeZone Mobile Demo User"
       };
     }
   })
@@ -178,6 +96,7 @@ providers.push(
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
   providers,
+  secret: env.AUTH_SECRET ?? (env.NODE_ENV === "production" ? undefined : "development-only-auth-secret-change-before-deploy"),
   trustHost: true,
   session: {
     strategy: "jwt"
@@ -190,6 +109,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user?.id) {
         token.id = user.id;
+      }
+      if (token.id === DEMO_USER_ID || token.id === MOBILE_DEMO_USER_ID) {
+        token.role = "USER";
+        token.whatsappVerified = true;
+        return token;
       }
       if (token.id) {
         const profile = await db.profile.findUnique({
