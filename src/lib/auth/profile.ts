@@ -1,5 +1,4 @@
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 
 const DEMO_USER_ID = "homezone-demo-user";
 const MOBILE_DEMO_USER_ID = "homezone-mobile-demo-user";
@@ -41,7 +40,7 @@ export async function getOrCreateProfile(user: {
   email?: string | null;
   image?: string | null;
 }) {
-  if (isDemoUserId(user.id) && !env.DATABASE_URL) {
+  if (isDemoUserId(user.id)) {
     return getDemoProfile(user);
   }
 
