@@ -32,6 +32,7 @@ export function PropertyAnalyzer() {
   const [analysisMode, setAnalysisMode] = useState("Buyer safety");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [reportReady, setReportReady] = useState(true);
+  const [aiReport, setAiReport] = useState("");
 
   const overallScore = useMemo(() => {
     return Math.round(
@@ -40,13 +41,33 @@ export function PropertyAnalyzer() {
     );
   }, []);
 
-  function runAnalysis() {
+  async function runAnalysis() {
     setIsAnalyzing(true);
     setReportReady(false);
-    window.setTimeout(() => {
-      setIsAnalyzing(false);
-      setReportReady(true);
-    }, 900);
+
+    const response = await fetch("/api/ai/analyzer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        propertyName: property,
+        analysisMode,
+        location: property.split(",")[1]?.trim() ?? "Kerala",
+        notes: "Generated from HomeZone Analyzer UI"
+      })
+    });
+
+    setIsAnalyzing(false);
+
+    if (response.status === 401) {
+      window.location.href = "/auth";
+      return;
+    }
+
+    const data = await response.json().catch(() => null);
+    setAiReport(data?.output?.summary ?? "Analyzer report generated.");
+    setReportReady(true);
   }
 
   return (
@@ -119,11 +140,11 @@ export function PropertyAnalyzer() {
               Analyzer context
             </p>
             <p className="mt-3 text-lg font-bold">
-              {property} · {analysisMode}
+              {property} / {analysisMode}
             </p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Phase 4 UI is ready for OpenAI document/image analysis, Supabase
-              Storage uploads, and country-wise legal disclaimer logic.
+              HomeZone combines OpenAI analysis, Cloudinary media handling,
+              and country-wise legal disclaimer logic for safer decisions.
             </p>
           </div>
 
@@ -157,8 +178,8 @@ export function PropertyAnalyzer() {
               <div className="rounded-[1.5rem] bg-white/10 p-5">
                 <p className="text-sm text-white/65">AI Summary</p>
                 <p className="mt-2 max-w-sm text-xl font-bold leading-8">
-                  Strong property for family living with good demand. Verify
-                  approvals before payment.
+                  {aiReport ||
+                    "Strong property for family living with good demand. Verify approvals before payment."}
                 </p>
               </div>
             </div>
@@ -279,7 +300,7 @@ export function PropertyAnalyzer() {
               licensed property, legal, and finance professionals.
             </p>
           </div>
-          <Button>
+          <Button disabled>
             Share Report
             <ArrowRight className="h-4 w-4" />
           </Button>

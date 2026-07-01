@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
@@ -30,13 +31,15 @@ const userNeeds = [
   "I want to renovate my house"
 ];
 
-const budgets = ["Under ₹10K", "₹10K - ₹50K", "₹50K - ₹2L", "₹2L+"];
+const budgets = ["Under INR 10K", "INR 10K - INR 50K", "INR 50K - INR 2L", "INR 2L+"];
 
 export function ServicesMarketplace() {
   const [selectedCategory, setSelectedCategory] = useState("Interior Design");
   const [need, setNeed] = useState(userNeeds[0]);
   const [city, setCity] = useState("Kochi");
-  const [budget, setBudget] = useState("₹50K - ₹2L");
+  const [budget, setBudget] = useState("INR 50K - INR 2L");
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const matchingProviders = useMemo(() => {
     const exact = featuredProviders.filter(
@@ -44,6 +47,39 @@ export function ServicesMarketplace() {
     );
     return exact.length ? exact : featuredProviders;
   }, [selectedCategory]);
+
+  async function requestService() {
+    setLoading(true);
+    setStatus("");
+
+    const response = await fetch("/api/service-requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        category: selectedCategory,
+        city,
+        budget,
+        message: need
+      })
+    });
+
+    setLoading(false);
+
+    if (response.status === 401) {
+      window.location.href = "/auth";
+      return;
+    }
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      setStatus(data?.error ?? "Could not create service request.");
+      return;
+    }
+
+    setStatus("Service request created. Track it from your dashboard.");
+  }
 
   return (
     <div className="space-y-8">
@@ -69,9 +105,9 @@ export function ServicesMarketplace() {
               value={city}
             />
           </div>
-          <Button className="min-h-16" size="lg">
+          <Button className="min-h-16" disabled size="lg">
             <Wand2 className="h-5 w-5" />
-            Match Services
+            AI Match Ready
           </Button>
         </div>
       </Card>
@@ -114,7 +150,7 @@ export function ServicesMarketplace() {
                 Verified help for {selectedCategory.toLowerCase()}.
               </h2>
             </div>
-            <Button variant="outline">
+            <Button disabled variant="outline">
               View All
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -138,7 +174,7 @@ export function ServicesMarketplace() {
                       ) : null}
                     </div>
                     <p className="mt-2 text-sm font-semibold text-muted-foreground">
-                      {provider.category} · {provider.city}
+                      {provider.category} / {provider.city}
                     </p>
                     <p className="mt-2 flex items-center gap-2 text-sm font-bold text-amber-600">
                       <Star className="h-4 w-4 fill-amber-400" />
@@ -159,10 +195,10 @@ export function ServicesMarketplace() {
                     WhatsApp quote after account verification
                   </p>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline">
+                    <Button disabled size="sm" variant="outline">
                       Save
                     </Button>
-                    <Button size="sm">
+                    <Button onClick={requestService} size="sm">
                       Request Quote
                     </Button>
                   </div>
@@ -260,7 +296,13 @@ export function ServicesMarketplace() {
             </p>
           </div>
 
-          <Button className="mt-6 w-full" size="lg">
+          {status ? (
+            <p className="mt-5 rounded-2xl bg-violet-50 p-4 text-sm font-bold text-violet-700">
+              {status}
+            </p>
+          ) : null}
+
+          <Button className="mt-6 w-full" disabled={loading} onClick={requestService} size="lg">
             Request Service
             <ArrowRight className="h-4 w-4" />
           </Button>
@@ -310,7 +352,9 @@ export function ServicesMarketplace() {
             Users browse services freely. Quotes, booking, and provider contact
             require WhatsApp-verified account creation.
           </p>
-          <Button variant="outline">Verify Account</Button>
+          <Button asChild variant="outline">
+            <Link href="/auth">Verify Account</Link>
+          </Button>
         </div>
       </Card>
     </div>

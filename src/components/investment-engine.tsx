@@ -23,17 +23,44 @@ import {
   priceTrend
 } from "@/lib/investment-data";
 
-const budgets = ["₹40L - ₹70L", "₹70L - ₹1Cr", "₹1Cr - ₹2Cr", "₹2Cr+"];
+const budgets = ["INR 40L - INR 70L", "INR 70L - INR 1Cr", "INR 1Cr - INR 2Cr", "INR 2Cr+"];
 
 export function InvestmentEngine() {
   const [selectedArea, setSelectedArea] = useState(investmentAreas[0].name);
   const [profile, setProfile] = useState("Rental income");
-  const [budget, setBudget] = useState("₹70L - ₹1Cr");
+  const [budget, setBudget] = useState("INR 70L - INR 1Cr");
+  const [report, setReport] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const area = useMemo(
     () => investmentAreas.find((item) => item.name === selectedArea) ?? investmentAreas[0],
     [selectedArea]
   );
+
+  async function generateReport() {
+    setLoading(true);
+    const response = await fetch("/api/investment/report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        area: area.name,
+        city: area.city,
+        profile,
+        budget
+      })
+    });
+    setLoading(false);
+
+    if (response.status === 401) {
+      window.location.href = "/auth";
+      return;
+    }
+
+    const data = await response.json().catch(() => null);
+    setReport(data?.output?.summary ?? "Investment report generated.");
+  }
 
   return (
     <div className="space-y-8">
@@ -104,8 +131,8 @@ export function InvestmentEngine() {
             </p>
           </div>
 
-          <Button className="mt-6 w-full" size="lg">
-            Generate Investment Report
+          <Button className="mt-6 w-full" disabled={loading} onClick={generateReport} size="lg">
+            {loading ? "Generating..." : "Generate Investment Report"}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </Card>
@@ -258,12 +285,21 @@ export function InvestmentEngine() {
               demand, and legal status before investing.
             </p>
           </div>
-          <Button variant="outline">
+          <Button disabled variant="outline">
             <CheckCircle2 className="h-4 w-4" />
             Save Report
           </Button>
         </div>
       </Card>
+
+      {report ? (
+        <Card className="p-6 shadow-soft sm:p-8">
+          <p className="text-sm font-semibold text-violet-700">
+            Saved AI Investment Report
+          </p>
+          <p className="mt-3 text-lg font-bold leading-8">{report}</p>
+        </Card>
+      ) : null}
     </div>
   );
 }

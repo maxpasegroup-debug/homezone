@@ -27,7 +27,7 @@ export async function getUserDashboardData(profileId: string) {
         ...getDemoProfile({
           email: profileId === "homezone-mobile-demo-user" ? "mobile-demo@homezone.ai" : "demo@homezone.ai",
           id: profileId,
-          name: profileId === "homezone-mobile-demo-user" ? "HomeZone Mobile Demo User" : "HomeZone Demo User"
+          name: profileId === "homezone-mobile-demo-user" ? "HomeZone Mobile User" : "HomeZone Local User"
         }),
         user: {
           email: profileId === "homezone-mobile-demo-user" ? "mobile-demo@homezone.ai" : "demo@homezone.ai"
@@ -657,6 +657,7 @@ export async function getAdminDashboardData() {
     pendingProperties,
     pendingReels,
     reports,
+    studioRequests,
     reportsCount,
     pendingVerificationProperties,
     pendingBrokerProfiles,
@@ -677,6 +678,12 @@ export async function getAdminDashboardData() {
     aiAreaQueries,
     aiLeadAssistant,
     aiFailures,
+    pendingProviders,
+    studioCount,
+    leadsOperationalCount,
+    pendingTasksCount,
+    serviceRequestsCount,
+    serviceQuotesCount,
     launchReadiness
   ] = await Promise.all([
     db.profile.count(),
@@ -729,6 +736,12 @@ export async function getAdminDashboardData() {
         createdAt: "desc"
       },
       take: 20
+    }),
+    db.studioRequest.findMany({
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 12
     }),
     db.auditLog.count({
       where: {
@@ -909,6 +922,34 @@ export async function getAdminDashboardData() {
         }
       }
     }),
+    db.serviceProvider.count({
+      where: {
+        verified: false
+      }
+    }),
+    db.studioRequest.count({
+      where: {
+        status: {
+          not: "delivered"
+        }
+      }
+    }),
+    db.lead.count(),
+    db.leadTask.count({
+      where: {
+        completedAt: null
+      }
+    }),
+    db.serviceRequest.count({
+      where: {
+        status: "requested"
+      }
+    }),
+    db.serviceQuote.count({
+      where: {
+        status: "sent"
+      }
+    }),
     getLaunchReadinessSummary()
   ]);
 
@@ -937,8 +978,15 @@ export async function getAdminDashboardData() {
     counts: {
       brokers: brokersCount,
       builders: buildersCount,
+      leads: leadsOperationalCount,
       properties: propertiesCount,
+      providers: pendingProviders,
+      quotes: serviceQuotesCount,
       reports: reportsCount,
+      reels: reelsCount,
+      serviceRequests: serviceRequestsCount,
+      studio: studioCount,
+      tasks: pendingTasksCount,
       users: usersCount,
       verificationQueue:
         pendingVerificationProperties.length +
@@ -950,6 +998,7 @@ export async function getAdminDashboardData() {
     pendingProperties,
     pendingVerificationProperties,
     pendingReels,
-    reports
+    reports,
+    studioRequests
   };
 }

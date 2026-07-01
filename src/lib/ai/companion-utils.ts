@@ -21,7 +21,7 @@ export function detectAILanguage(text: string, preferred: AILanguage = "AUTO") {
 }
 
 function parseBudget(text: string) {
-  const normalized = text.toLowerCase().replace(/₹|â‚¹|Ã¢â€šÂ¹/g, "rs ");
+  const normalized = text.toLowerCase().replace(/₹/g, "rs ");
   const aedMatch = normalized.match(/(?:aed|\u062F\.\u0625)\s*(\d+(?:\.\d+)?)\s*(m|million|k|thousand)?/);
   if (aedMatch) {
     const value = Number(aedMatch[1]);

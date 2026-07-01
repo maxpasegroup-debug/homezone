@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   FileImage,
@@ -35,10 +37,46 @@ export function StudioDashboard() {
   const [propertyType, setPropertyType] = useState("Villa");
   const [goal, setGoal] = useState("Sell faster");
   const [location, setLocation] = useState("Kochi");
+  const [budget, setBudget] = useState("INR 4,999 - INR 9,999");
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const aiPreview = useMemo(() => {
     return `${propertyType} in ${location}: premium visuals, short reels, and WhatsApp-ready copy focused on "${goal.toLowerCase()}".`;
   }, [goal, location, propertyType]);
+
+  async function requestStudioBooking() {
+    setLoading(true);
+    setStatus("");
+
+    const response = await fetch("/api/studio-requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        serviceType: selectedService,
+        city: location,
+        budget,
+        notes: aiPreview
+      })
+    });
+
+    setLoading(false);
+
+    if (response.status === 401) {
+      window.location.href = "/auth";
+      return;
+    }
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      setStatus(data?.error ?? "Could not create studio request.");
+      return;
+    }
+
+    setStatus("Studio request created. Track it from your dashboard.");
+  }
 
   return (
     <div className="space-y-8">
@@ -134,6 +172,20 @@ export function StudioDashboard() {
                 ))}
               </select>
             </label>
+
+            <label className="space-y-2 sm:col-span-2">
+              <span className="text-sm font-semibold">Budget range</span>
+              <select
+                className="h-12 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
+                onChange={(event) => setBudget(event.target.value)}
+                value={budget}
+              >
+                <option>INR 999 - INR 4,999</option>
+                <option>INR 4,999 - INR 9,999</option>
+                <option>INR 9,999 - INR 25,000</option>
+                <option>Custom builder package</option>
+              </select>
+            </label>
           </div>
 
           <div className="mt-6 rounded-[1.5rem] border border-dashed border-violet-200 bg-violet-50/70 p-6">
@@ -144,10 +196,10 @@ export function StudioDashboard() {
                   Upload property photos
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Phase 3 UI is ready for Supabase Storage integration.
+                  Upload property media through the HomeZone Cloudinary media pipeline.
                 </p>
               </div>
-              <Button variant="outline">
+              <Button disabled variant="outline">
                 <FileImage className="h-4 w-4" />
                 Add Photos
               </Button>
@@ -166,6 +218,17 @@ export function StudioDashboard() {
               }
             />
           </div>
+
+          {status ? (
+            <p className="mt-5 rounded-2xl bg-violet-50 p-4 text-sm font-bold text-violet-700">
+              {status}
+            </p>
+          ) : null}
+
+          <Button className="mt-6 w-full" disabled={loading} onClick={requestStudioBooking} size="lg">
+            Request Studio Booking
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </Card>
 
         <Card className="overflow-hidden shadow-soft">
@@ -202,7 +265,7 @@ export function StudioDashboard() {
               );
             })}
 
-            <Button size="lg" variant="secondary">
+            <Button disabled size="lg" variant="secondary">
               <Wand2 className="h-4 w-4" />
               Generate Preview
             </Button>
@@ -237,7 +300,7 @@ export function StudioDashboard() {
               )
             )}
           </div>
-          <Button className="mt-6" size="lg">
+          <Button className="mt-6" disabled size="lg">
             <Play className="h-4 w-4" />
             Request Promotion
           </Button>
@@ -308,7 +371,9 @@ export function StudioDashboard() {
             <MessageCircle className="h-4 w-4 text-emerald-600" />
             WhatsApp verification is required before confirming paid studio work.
           </p>
-          <Button variant="outline">Verify Account</Button>
+          <Button asChild variant="outline">
+            <Link href="/auth">Verify Account</Link>
+          </Button>
         </div>
       </Card>
     </div>

@@ -61,7 +61,7 @@ if (isDemoLoginEnabled()) {
         return {
           id: DEMO_USER_ID,
           email,
-          name: "HomeZone Demo User"
+          name: "HomeZone Local User"
         };
       }
     })
@@ -87,7 +87,7 @@ providers.push(
       return {
         email: MOBILE_DEMO_EMAIL,
         id: MOBILE_DEMO_USER_ID,
-        name: "HomeZone Mobile Demo User"
+        name: "HomeZone Mobile User"
       };
     }
   })

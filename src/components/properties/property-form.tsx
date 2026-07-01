@@ -203,10 +203,10 @@ export function PropertyForm() {
       <div className="mt-6 rounded-[1.5rem] bg-violet-50 p-5">
         <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
           <Sparkles className="h-4 w-4" />
-          Next: media upload and AI description generation
+          Media and AI support
         </p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Phase C will add Cloudinary image/video uploads and property reels.
+          Add photos, videos, and reels from your listing media workspace after submission.
         </p>
       </div>
 

@@ -19,14 +19,11 @@ export function AuthForm({
   googleEnabled,
   initialFlow = "signin"
 }: AuthFormProps) {
-  const demoLoginVisible = process.env.NODE_ENV !== "production";
-  const demoMobilePhone = "8089239823";
-  const demoMobileOtp = "2255";
   const [flow, setFlow] = useState<"signin" | "signup">(initialFlow);
   const [mode, setMode] = useState<"phone" | "email">("phone");
-  const [phone, setPhone] = useState(demoLoginVisible ? demoMobilePhone : "");
-  const [otpCode, setOtpCode] = useState(demoLoginVisible ? demoMobileOtp : "");
-  const [email, setEmail] = useState(demoLoginVisible ? "demo@homezone.ai" : "");
+  const [phone, setPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [email, setEmail] = useState("");
   const [status, setStatus] = useState(authError ?? "");
 
   async function sendOtp() {
@@ -77,7 +74,7 @@ export function AuthForm({
 
   async function verifyOtp() {
     if (otpCode.trim().length === 4) {
-      setStatus("Signing in with demo mobile OTP...");
+      setStatus("Signing in with mobile OTP...");
       const result = await signIn("mobile-demo", {
         callbackUrl: "/onboarding",
         code: otpCode.trim(),
@@ -86,7 +83,7 @@ export function AuthForm({
       });
 
       if (result?.error) {
-        setStatus("Demo mobile login is not enabled or the OTP is invalid.");
+        setStatus("Mobile login is not enabled or the OTP is invalid.");
         return;
       }
 
@@ -197,7 +194,7 @@ export function AuthForm({
                 className="h-14 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
                 inputMode="numeric"
                 onChange={(event) => setOtpCode(event.target.value)}
-                placeholder="4-digit demo or 6-digit code"
+                placeholder="6-digit code"
                 value={otpCode}
               />
             </label>

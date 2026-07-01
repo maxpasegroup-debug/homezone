@@ -136,10 +136,10 @@ export const operatingSystemFlows = [
 ];
 
 export const launchRoadmap = [
-  "Connect Supabase auth, profiles, listings, leads, and service requests.",
+  "Connect PostgreSQL auth data, profiles, listings, leads, and service requests.",
   "Add WhatsApp OTP verification and gated dashboard/contact actions.",
   "Integrate OpenAI for search parsing, assistant replies, analyzer reports, and creative generation.",
-  "Add Cloudinary/Supabase Storage for property images, reels, documents, and Studio assets.",
+  "Use Cloudinary for property images, reels, documents, and Studio assets.",
   "Connect payments for Pro, Studio, Builder, and service marketplace transactions."
 ];
 

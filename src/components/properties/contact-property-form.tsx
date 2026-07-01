@@ -5,7 +5,7 @@ import { Loader2, MessageCircle, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
-  const [name, setName] = useState("HomeZone Demo User");
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("+91 99999 99999");
   const [message, setMessage] = useState("I am interested in this property. Please contact me.");
   const [status, setStatus] = useState("");

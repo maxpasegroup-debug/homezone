@@ -23,6 +23,7 @@ export function AdminControlCenter({
   pendingVerificationProperties = [],
   pendingReels = [],
   reports = [],
+  studioRequests = [],
   counts
 }: {
   analytics?: {
@@ -76,8 +77,15 @@ export function AdminControlCenter({
   counts?: {
     brokers: number;
     builders: number;
+    leads: number;
     properties: number;
+    providers: number;
+    quotes: number;
     reports: number;
+    reels: number;
+    serviceRequests: number;
+    studio: number;
+    tasks: number;
     users: number;
     verificationQueue: number;
   };
@@ -129,6 +137,14 @@ export function AdminControlCenter({
     entityType: string | null;
     id: string;
     metadata: unknown;
+  }[];
+  studioRequests?: {
+    id: string;
+    serviceType: string;
+    city: string | null;
+    budget: string | null;
+    status: string;
+    createdAt: Date;
   }[];
 }) {
   const overview = [
@@ -203,6 +219,39 @@ export function AdminControlCenter({
     }
   ];
 
+  const operationsCards = [
+    {
+      count: counts?.studio ?? 0,
+      icon: FileCheck,
+      label: "Studio requests"
+    },
+    {
+      count: counts?.leads ?? 0,
+      icon: UsersRound,
+      label: "Pro leads"
+    },
+    {
+      count: counts?.tasks ?? 0,
+      icon: AlertTriangle,
+      label: "Follow-up tasks"
+    },
+    {
+      count: counts?.providers ?? 0,
+      icon: BadgeCheck,
+      label: "Pending providers"
+    },
+    {
+      count: counts?.serviceRequests ?? 0,
+      icon: FileCheck,
+      label: "Service requests"
+    },
+    {
+      count: counts?.quotes ?? 0,
+      icon: FileCheck,
+      label: "Service quotes"
+    }
+  ];
+
   return (
     <div className="space-y-8">
       <Card className="overflow-hidden shadow-soft">
@@ -260,6 +309,23 @@ export function AdminControlCenter({
           return (
             <Card className="p-6 shadow-sm" key={item.label}>
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
+                <ItemIcon className="h-6 w-6" />
+              </span>
+              <h2 className="mt-6 text-3xl font-bold">{item.count}</h2>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                {item.label}
+              </p>
+            </Card>
+          );
+        })}
+      </section>
+
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-6">
+        {operationsCards.map((item) => {
+          const ItemIcon = item.icon;
+          return (
+            <Card className="p-6 shadow-sm" key={item.label}>
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
                 <ItemIcon className="h-6 w-6" />
               </span>
               <h2 className="mt-6 text-3xl font-bold">{item.count}</h2>
@@ -568,6 +634,31 @@ export function AdminControlCenter({
           {!reports.length ? (
             <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground">
               No user reports yet.
+            </p>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card className="p-6 shadow-soft sm:p-8">
+        <p className="text-sm font-semibold text-violet-700">
+          Studio Operations
+        </p>
+        <h2 className="mt-2 text-3xl font-bold">Latest Studio requests</h2>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {(studioRequests ?? []).map((request) => (
+            <div className="rounded-[1.5rem] bg-muted p-5" key={request.id}>
+              <p className="text-xs font-bold text-violet-700">
+                {request.status.replace("_", " ")} / {request.createdAt.toLocaleDateString()}
+              </p>
+              <h3 className="mt-2 text-xl font-bold">{request.serviceType}</h3>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                {request.city ?? "City not set"} / {request.budget ?? "Budget not set"}
+              </p>
+            </div>
+          ))}
+          {!(studioRequests ?? []).length ? (
+            <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground md:col-span-2">
+              No Studio requests yet.
             </p>
           ) : null}
         </div>

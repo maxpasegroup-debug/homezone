@@ -25,6 +25,7 @@ export default async function AdminPage() {
             pendingVerificationProperties={data.pendingVerificationProperties}
             pendingReels={data.pendingReels}
             reports={data.reports}
+            studioRequests={data.studioRequests}
           />
         </div>
       </section>

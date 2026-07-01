@@ -20,7 +20,7 @@ export function getDemoProfile(user: {
     city: "Kochi",
     country: "India",
     createdAt: now,
-    fullName: user.name ?? "HomeZone Mobile Demo User",
+    fullName: user.name ?? "HomeZone Mobile User",
     id: user.id,
     phone: user.id === MOBILE_DEMO_USER_ID ? "8089239823" : "+919999999999",
     role: "USER" as const,

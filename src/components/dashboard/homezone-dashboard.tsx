@@ -2,10 +2,18 @@ import Link from "next/link";
 import {
   Activity,
   BadgeCheck,
+  Bookmark,
+  Building2,
+  Camera,
+  ChartNoAxesCombined,
+  FileCheck,
   Heart,
   Home,
   MessageSquare,
-  PlaySquare
+  MessageSquareText,
+  PlaySquare,
+  UsersRound,
+  Wrench
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +38,79 @@ function formatDate(date: Date) {
     year: "numeric"
   });
 }
+
+const dashboardCards = [
+  {
+    title: "My Listings",
+    value: "0",
+    text: "Add property, submit for review, and track leads.",
+    href: "/dashboard/listings",
+    icon: Home
+  },
+  {
+    title: "Saved Properties",
+    value: "0",
+    text: "Shortlist homes, land, rentals, and investments.",
+    href: "/dashboard/saved",
+    icon: Bookmark
+  },
+  {
+    title: "Inquiries",
+    value: "0",
+    text: "Contact requests, site visits, and service replies.",
+    href: "/dashboard/inquiries",
+    icon: MessageSquareText
+  },
+  {
+    title: "Studio Requests",
+    value: "0",
+    text: "Photography, reels, brochure, and campaign orders.",
+    href: "/dashboard/studio",
+    icon: Camera
+  },
+  {
+    title: "Property Reels",
+    value: "Video",
+    text: "Upload walkthrough reels and manage moderation status.",
+    href: "/dashboard/reels",
+    icon: Camera
+  },
+  {
+    title: "Broker Pro",
+    value: "CRM",
+    text: "Leads, pipeline, WhatsApp automation, and AI scoring.",
+    href: "/dashboard/pro",
+    icon: UsersRound
+  },
+  {
+    title: "Builder Hub",
+    value: "B2B",
+    text: "Projects, campaigns, landing pages, and AI reports.",
+    href: "/dashboard/builder",
+    icon: Building2
+  },
+  {
+    title: "Services",
+    value: "Book",
+    text: "Legal, loans, interiors, movers, solar, and more.",
+    href: "/dashboard/services",
+    icon: Wrench
+  },
+  {
+    title: "Investment",
+    value: "AI",
+    text: "Area score, growth, rental yield, and infrastructure impact.",
+    href: "/invest",
+    icon: ChartNoAxesCombined
+  },
+  {
+    title: "AI Reports",
+    value: "Saved",
+    text: "Review property analyzer and investment reports.",
+    href: "/dashboard/reports",
+    icon: FileCheck
+  }
+] as const;
 
 export function HomeZoneDashboard({
   data,
@@ -243,6 +324,34 @@ export function HomeZoneDashboard({
           </div>
         </DashboardSection>
       </section>
+
+      <DashboardSection eyebrow="HomeZone Tools" title="Your property workspace">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {dashboardCards.map((card) => {
+            const CardIcon = card.icon;
+            return (
+              <Link
+                className="rounded-2xl border border-border bg-white p-5 transition hover:-translate-y-1 hover:shadow-soft"
+                href={card.href}
+                key={card.title}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
+                    <CardIcon className="h-5 w-5" />
+                  </span>
+                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold">
+                    {card.value}
+                  </span>
+                </div>
+                <h3 className="mt-5 font-bold">{card.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {card.text}
+                </p>
+              </Link>
+            );
+          })}
+        </div>
+      </DashboardSection>
 
       <DashboardSection eyebrow="Payments" title="Payment history">
         <PaymentHistory payments={data.payments} />

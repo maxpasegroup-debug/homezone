@@ -41,7 +41,7 @@ HomeZone is a mobile-first, AI-powered real estate platform for buying, selling,
 ## Phase 4
 
 - AI Property Analyzer page at `/analyzer`
-- Document/image upload workflow placeholders
+- Document/image analysis workflow
 - Property Health Report UI
 - Estimated value, risk, rental, and investment metrics
 - HomeZone Property Score
@@ -136,7 +136,7 @@ HomeZone is a mobile-first, AI-powered real estate platform for buying, selling,
 
 ## Phase A Production Core
 
-- Demo credentials login for testing
+- Local credentials login for controlled testing
 - Google Auth.js provider support
 - Automatic user profile creation
 - Role onboarding for buyer, owner, broker, builder, and service provider
@@ -152,11 +152,11 @@ HomeZone is a mobile-first, AI-powered real estate platform for buying, selling,
 - My Listings page at `/dashboard/listings`
 - Saved Properties page at `/dashboard/saved`
 - Inquiries page at `/dashboard/inquiries`
-- Public marketplace reads from PostgreSQL with demo fallback
-- Property detail reads from PostgreSQL with demo fallback
+- Public marketplace reads from PostgreSQL with local development fallback
+- Property detail reads from PostgreSQL with local development fallback
 - Contact owner form creates lead records
 
-## Phase C Media And Reels
+## Media And Reels
 
 - Cloudinary upload API at `/api/media/upload`
 - Attach media to property API at `/api/properties/[id]/media`
@@ -182,7 +182,7 @@ To access `/admin`, set a profile role to `ADMIN` in PostgreSQL.
 
 ## Phase E AI Search And Companion
 
-- OpenAI Responses API wrapper with demo fallback
+- OpenAI Responses API wrapper with local development fallback
 - AI assistant API at `/api/ai/assistant`
 - AI search API upgraded at `/api/ai/search`
 - Floating HomeZone AI companion on every page
@@ -199,6 +199,50 @@ To access `/admin`, set a profile role to `ADMIN` in PostgreSQL.
 - Property listing form voice input
 - Voice transcript to AI search flow
 - Graceful fallback when browser speech recognition is unsupported
+
+## Phase G HomeZone Studio Backend
+
+- Studio request API at `/api/studio-requests`
+- Admin Studio status API at `/api/admin/studio-requests/[id]/status`
+- Studio page creates real booking requests
+- Dashboard Studio tracking page at `/dashboard/studio`
+- Dashboard Studio card links to request tracking
+- Admin dashboard shows Studio request queue and counts
+
+## Phase H Broker Pro CRM
+
+- Lead note and task models in Prisma
+- Pro leads API at `/api/pro/leads`
+- Lead update API at `/api/pro/leads/[id]`
+- Lead notes API at `/api/pro/leads/[id]/notes`
+- Lead tasks API at `/api/pro/leads/[id]/tasks`
+- Live broker CRM page at `/dashboard/pro`
+- Dashboard Broker Pro card links to the live CRM
+- Stage filtering and stage updates
+- Quick lead creation
+- Notes and follow-up tasks
+- Admin counts for leads and pending tasks
+
+## Phase I Builder Hub Backend
+
+- Builder project API at `/api/builder/projects`
+- Builder project update API at `/api/builder/projects/[id]`
+- Live builder dashboard at `/dashboard/builder`
+- Project creation with inventory counts
+- Dashboard Builder Hub card links to live builder workspace
+- Admin builder project counts use real database records
+
+## Phase J Services Marketplace Backend
+
+- Service provider model relation and quote model in Prisma
+- Service provider API at `/api/service-providers`
+- Service quote API at `/api/service-quotes`
+- Services page creates real service requests
+- Dashboard Services page at `/dashboard/services`
+- Provider onboarding form
+- Service request tracking with quote counts
+- Dashboard Services card links to live services workspace
+- Admin counts for service providers, service requests, and quotes
 
 ## Run Locally
 

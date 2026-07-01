@@ -183,6 +183,7 @@ model Profile {
   followers        ProfileFollow[]    @relation("ProfileFollowers")
   studioRequests   StudioRequest[]
   serviceRequests  ServiceRequest[]
+  serviceProviders ServiceProvider[]
   builderProjects  BuilderProject[]
   aiReports        AiReport[]
   payments         Payment[]
@@ -297,6 +298,8 @@ model Lead {
   aiScore     Int       @default(0)
   nextAction  String?
   followUpAt  DateTime?
+  notes       LeadNote[]
+  tasks       LeadTask[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -308,6 +311,31 @@ model Lead {
   @@index([contactAction])
   @@index([stage])
   @@index([createdAt])
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  authorId  String?
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  note      String
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model LeadTask {
+  id          String    @id @default(cuid())
+  leadId      String
+  assignedTo  String?
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  title       String
+  dueAt       DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
+  @@index([assignedTo])
 }
 
 model PropertyReel {
@@ -401,12 +429,15 @@ model StudioRequest {
 model ServiceRequest {
   id          String   @id @default(cuid())
   requesterId String?
+  providerId  String?
   requester   Profile? @relation(fields: [requesterId], references: [id], onDelete: SetNull)
+  provider    ServiceProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
   category    String
   city        String
   budget      String?
   message     String?
   status      String   @default("requested")
+  quotes      ServiceQuote[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -418,17 +449,36 @@ model ServiceRequest {
 model ServiceProvider {
   id           String   @id @default(cuid())
   profileId    String?
+  profile      Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
   businessName String
   category     String
   city         String?
   rating       Decimal  @default(0)
   verified     Boolean  @default(false)
   priceLabel   String?
+  requests     ServiceRequest[]
+  quotes       ServiceQuote[]
   createdAt    DateTime @default(now())
 
   @@index([profileId])
   @@index([category])
   @@index([verified])
+}
+
+model ServiceQuote {
+  id          String          @id @default(cuid())
+  requestId   String
+  providerId  String?
+  request     ServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  provider    ServiceProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  amount      Decimal?
+  currency    String          @default("INR")
+  message     String
+  status      String          @default("sent")
+  createdAt   DateTime        @default(now())
+
+  @@index([requestId])
+  @@index([providerId])
 }
 
 model BuilderProject {

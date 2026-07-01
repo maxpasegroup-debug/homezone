@@ -89,7 +89,7 @@ export async function answerPropertyQuestion(question: string) {
 
   return {
     answer:
-      "HomeZone AI demo response: I can help you search, compare, analyze, and understand property. For a serious decision, verify price, documents, location, rental demand, and visit the property before payment.",
+        "HomeZone AI local response: I can help you search, compare, analyze, and understand property. For a serious decision, verify price, documents, location, rental demand, and visit the property before payment.",
     source: "fallback"
   };
 }

@@ -111,6 +111,20 @@ export const serviceRequestSchema = z.object({
   message: z.string().min(2).max(1000)
 });
 
+export const serviceProviderSchema = z.object({
+  businessName: z.string().min(2).max(160),
+  category: z.string().min(2).max(120),
+  city: z.string().min(2).max(120).optional(),
+  priceLabel: z.string().max(120).optional()
+});
+
+export const serviceQuoteSchema = z.object({
+  requestId: z.string(),
+  amount: z.coerce.number().positive().optional(),
+  currency: z.string().default("INR"),
+  message: z.string().min(2).max(1000)
+});
+
 export const propertyCreateSchema = z.object({
   title: z.string().min(3).max(160),
   description: z.string().min(10).max(2000),
@@ -240,4 +254,54 @@ export const marketplaceFilterSchema = z.object({
     .union([z.literal("true"), z.literal("false"), z.boolean()])
     .optional()
     .transform((value) => value === true || value === "true")
+});
+
+export const studioRequestSchema = z.object({
+  propertyId: z.string().optional(),
+  serviceType: z.string().min(2).max(120),
+  city: z.string().min(2).max(120).optional(),
+  budget: z.string().max(120).optional(),
+  notes: z.string().max(1200).optional()
+});
+
+export const leadUpdateSchema = z.object({
+  stage: z
+    .enum(["NEW", "QUALIFIED", "SITE_VISIT", "NEGOTIATION", "WON", "LOST", "NURTURE"])
+    .optional(),
+  nextAction: z.string().max(240).optional(),
+  followUpAt: z.string().datetime().optional()
+});
+
+export const leadNoteSchema = z.object({
+  note: z.string().min(2).max(1000)
+});
+
+export const leadTaskSchema = z.object({
+  title: z.string().min(2).max(240),
+  dueAt: z.string().datetime().optional()
+});
+
+export const builderProjectSchema = z.object({
+  name: z.string().min(3).max(160),
+  city: z.string().min(2).max(120),
+  locality: z.string().max(160).optional(),
+  description: z.string().min(10).max(2000),
+  unitsCount: z.coerce.number().int().min(0).optional(),
+  availableUnits: z.coerce.number().int().min(0).optional(),
+  campaignStatus: z.string().max(80).default("draft")
+});
+
+export const analyzerReportSchema = z.object({
+  propertyId: z.string().optional(),
+  propertyName: z.string().min(2).max(160),
+  analysisMode: z.string().min(2).max(120),
+  location: z.string().max(160).optional(),
+  notes: z.string().max(2000).optional()
+});
+
+export const investmentReportSchema = z.object({
+  area: z.string().min(2).max(160),
+  city: z.string().min(2).max(120),
+  profile: z.string().min(2).max(120),
+  budget: z.string().min(2).max(120)
 });
