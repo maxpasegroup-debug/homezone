@@ -82,8 +82,10 @@ enum PaymentProduct {
   PREMIUM_LISTING
   BROKER_MONTHLY
   BROKER_YEARLY
+  BROKER_ENTERPRISE
   BUILDER_MONTHLY
   BUILDER_YEARLY
+  BUILDER_ENTERPRISE
   STUDIO_PHOTOGRAPHY
   STUDIO_VIDEOGRAPHY
   STUDIO_DRONE
@@ -226,9 +228,20 @@ model Profile {
   serviceRequests  ServiceRequest[]
   serviceProviders ServiceProvider[]
   builderProjects  BuilderProject[]
+  builderTeam      BuilderTeamMember[] @relation("BuilderTeamOwner")
+  builderMemberships BuilderTeamMember[] @relation("BuilderTeamProfile")
+  builderBookings  BuilderBooking[] @relation("BuilderBookingBuyer")
+  builderActivity  BuilderActivityLog[]
   aiReports        AiReport[]
   payments         Payment[]
   subscriptions    Subscription[]
+  brokerTeam       BrokerTeamMember[] @relation("BrokerTeamOwner")
+  brokerMemberships BrokerTeamMember[] @relation("BrokerTeamProfile")
+  leadAssignmentsMade BrokerLeadAssignment[] @relation("LeadAssignmentActor")
+  brokerCommissions BrokerCommission[] @relation("BrokerCommissionOwner")
+  agentCommissions BrokerCommission[] @relation("BrokerCommissionAgent")
+  automationRules  BrokerAutomationRule[]
+  clientDocuments  BrokerClientDocument[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -413,6 +426,10 @@ model Lead {
   siteVisits  LeadSiteVisit[]
   timeline    LeadTimelineEvent[]
   notifications LeadNotification[]
+  brokerAssignments BrokerLeadAssignment[]
+  commissions  BrokerCommission[]
+  clientDocuments BrokerClientDocument[]
+  builderBookings BuilderBooking[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -438,6 +455,103 @@ model LeadNote {
 
   @@index([leadId])
   @@index([authorId])
+}
+
+model BrokerTeamMember {
+  id        String   @id @default(cuid())
+  brokerId  String
+  profileId String?
+  broker    Profile  @relation("BrokerTeamOwner", fields: [brokerId], references: [id], onDelete: Cascade)
+  profile   Profile? @relation("BrokerTeamProfile", fields: [profileId], references: [id], onDelete: SetNull)
+  name      String
+  email     String?
+  phone     String?
+  role      String   @default("AGENT")
+  permissions String[] @default([])
+  active    Boolean  @default(true)
+  leadAssignments BrokerLeadAssignment[]
+  invitedAt DateTime @default(now())
+  joinedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brokerId])
+  @@index([profileId])
+  @@index([active])
+}
+
+model BrokerLeadAssignment {
+  id          String   @id @default(cuid())
+  leadId      String
+  brokerId    String
+  assigneeId  String?
+  assignedById String?
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignee    BrokerTeamMember? @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignedBy  Profile? @relation("LeadAssignmentActor", fields: [assignedById], references: [id], onDelete: SetNull)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
+  @@index([brokerId])
+  @@index([assigneeId])
+  @@index([createdAt])
+}
+
+model BrokerCommission {
+  id          String   @id @default(cuid())
+  leadId      String?
+  brokerId    String
+  agentId     String?
+  lead        Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  broker      Profile  @relation("BrokerCommissionOwner", fields: [brokerId], references: [id], onDelete: Cascade)
+  agent       Profile? @relation("BrokerCommissionAgent", fields: [agentId], references: [id], onDelete: SetNull)
+  dealValue   Decimal  @default(0)
+  commissionPercent Decimal @default(0)
+  commissionAmount Decimal @default(0)
+  status      String   @default("PENDING")
+  paidAt      DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([brokerId])
+  @@index([agentId])
+  @@index([status])
+}
+
+model BrokerAutomationRule {
+  id        String   @id @default(cuid())
+  brokerId  String
+  broker    Profile  @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  channel   String
+  trigger   String
+  template  String
+  enabled   Boolean  @default(true)
+  provider  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brokerId])
+  @@index([channel])
+  @@index([enabled])
+}
+
+model BrokerClientDocument {
+  id        String   @id @default(cuid())
+  leadId    String
+  brokerId  String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  broker    Profile  @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  title     String
+  fileUrl   String
+  documentType String @default("OTHER")
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([brokerId])
+  @@index([documentType])
 }
 
 model LeadTask {
@@ -758,15 +872,170 @@ model BuilderProject {
   city           String
   locality       String?
   description    String?
+  address        String?
+  amenities      String[] @default([])
+  floorPlanUrls  String[] @default([])
+  masterPlanUrl  String?
+  constructionStatus String @default("PLANNING")
+  completionDate DateTime?
   unitsCount     Int?
   availableUnits Int?
   mediaUrls      String[] @default([])
-  campaignStatus String   @default("draft")
+  status         String   @default("DRAFT")
+  campaignStatus String   @default("DRAFT")
+  featured       Boolean  @default(false)
+  landingPageSlug String? @unique
+  brochureUrl    String?
+  qrCodeUrl      String?
   aiReport       Json     @default("{}")
+  towers         BuilderTower[]
+  units          BuilderUnit[]
+  team           BuilderTeamMember[]
+  bookings       BuilderBooking[]
+  campaigns      BuilderCampaign[]
+  activities     BuilderActivityLog[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([builderId])
+  @@index([status])
+  @@index([campaignStatus])
+  @@index([city])
+}
+
+model BuilderTower {
+  id        String @id @default(cuid())
+  projectId String
+  project   BuilderProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  floors    Int    @default(0)
+  status    String @default("ACTIVE")
+  units     BuilderUnit[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model BuilderUnit {
+  id          String @id @default(cuid())
+  projectId   String
+  towerId     String?
+  project     BuilderProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tower       BuilderTower? @relation(fields: [towerId], references: [id], onDelete: SetNull)
+  unitNumber  String
+  floor       Int?
+  unitType    String
+  areaValue   Decimal?
+  areaUnit    String @default("sqft")
+  bedrooms    Int?
+  bathrooms   Int?
+  facing      String?
+  price       Decimal?
+  status      String @default("AVAILABLE")
+  floorPlanUrl String?
+  imageUrls   String[] @default([])
+  bookings    BuilderBooking[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([projectId, unitNumber])
+  @@index([projectId])
+  @@index([towerId])
+  @@index([status])
+  @@index([floor])
+}
+
+model BuilderTeamMember {
+  id        String @id @default(cuid())
+  builderId String
+  profileId String?
+  projectId String?
+  builder   Profile @relation("BuilderTeamOwner", fields: [builderId], references: [id], onDelete: Cascade)
+  profile   Profile? @relation("BuilderTeamProfile", fields: [profileId], references: [id], onDelete: SetNull)
+  project   BuilderProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name      String
+  email     String?
+  phone     String?
+  role      String @default("SALES")
+  permissions String[] @default([])
+  active    Boolean @default(true)
+  activities BuilderActivityLog[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([builderId])
+  @@index([profileId])
+  @@index([projectId])
+  @@index([active])
+}
+
+model BuilderBooking {
+  id        String @id @default(cuid())
+  projectId String
+  unitId    String
+  leadId    String?
+  buyerId   String?
+  project   BuilderProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  unit      BuilderUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  lead      Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  buyer     Profile? @relation("BuilderBookingBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  status    String @default("RESERVED")
+  bookingAmount Decimal?
+  saleValue Decimal?
+  notes     String?
+  reservedAt DateTime @default(now())
+  confirmedAt DateTime?
+  releasedAt DateTime?
+  soldAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([unitId])
+  @@index([leadId])
+  @@index([buyerId])
+  @@index([status])
+}
+
+model BuilderCampaign {
+  id        String @id @default(cuid())
+  projectId String
+  project   BuilderProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  channel   String
+  budget    Decimal?
+  leadsCount Int @default(0)
+  qrCodeUrl String?
+  landingPageUrl String?
+  brochureDownloads Int @default(0)
+  status    String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([channel])
+  @@index([status])
+}
+
+model BuilderActivityLog {
+  id        String @id @default(cuid())
+  builderId String
+  projectId String?
+  teamMemberId String?
+  builder   Profile @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  project   BuilderProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  teamMember BuilderTeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
+  action    String
+  message   String
+  metadata  Json @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([builderId])
+  @@index([projectId])
+  @@index([teamMemberId])
+  @@index([action])
 }
 
 model AiReport {

@@ -44,6 +44,14 @@ export const paymentProducts: Record<PaymentProduct, PaymentProductConfig> = {
     durationDays: 365,
     subscription: true
   },
+  BROKER_ENTERPRISE: {
+    allowedRoles: ["BROKER", "ADMIN", "SUPER_ADMIN"],
+    amount: 4999900,
+    currency: "INR",
+    description: "Broker enterprise plan",
+    durationDays: 365,
+    subscription: true
+  },
   BUILDER_MONTHLY: {
     allowedRoles: ["BUILDER", "ADMIN", "SUPER_ADMIN"],
     amount: 999900,
@@ -57,6 +65,14 @@ export const paymentProducts: Record<PaymentProduct, PaymentProductConfig> = {
     amount: 9999900,
     currency: "INR",
     description: "Builder yearly plan",
+    durationDays: 365,
+    subscription: true
+  },
+  BUILDER_ENTERPRISE: {
+    allowedRoles: ["BUILDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 24999900,
+    currency: "INR",
+    description: "Builder enterprise plan",
     durationDays: 365,
     subscription: true
   },

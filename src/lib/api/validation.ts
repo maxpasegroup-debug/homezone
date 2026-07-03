@@ -273,8 +273,10 @@ export const paymentProductSchema = z.enum([
   "PREMIUM_LISTING",
   "BROKER_MONTHLY",
   "BROKER_YEARLY",
+  "BROKER_ENTERPRISE",
   "BUILDER_MONTHLY",
   "BUILDER_YEARLY",
+  "BUILDER_ENTERPRISE",
   "STUDIO_PHOTOGRAPHY",
   "STUDIO_VIDEOGRAPHY",
   "STUDIO_DRONE",
@@ -470,14 +472,122 @@ export const leadInboxFilterSchema = z.object({
     .default("ALL")
 });
 
+export const brokerTeamMemberSchema = z.object({
+  active: z.boolean().optional(),
+  email: z.string().email().optional(),
+  name: z.string().min(2).max(120),
+  permissions: z.array(z.enum(["LEADS", "VISITS", "COMMISSIONS", "REPORTS", "ADMIN"])).default(["LEADS"]),
+  phone: phoneSchema.optional(),
+  profileId: idSchema.optional(),
+  role: z.enum(["OWNER", "MANAGER", "AGENT", "TELECALLER"]).default("AGENT")
+});
+
+export const brokerTeamMemberUpdateSchema = brokerTeamMemberSchema.partial();
+
+export const brokerLeadAssignmentSchema = z.object({
+  assigneeId: idSchema.optional(),
+  notes: z.string().max(500).optional()
+});
+
+export const brokerCommissionSchema = z.object({
+  agentId: idSchema.optional(),
+  commissionPercent: z.coerce.number().min(0).max(100),
+  dealValue: z.coerce.number().min(0),
+  notes: z.string().max(500).optional(),
+  status: z.enum(["PENDING", "PAID", "OUTSTANDING"]).default("PENDING")
+});
+
+export const brokerAutomationRuleSchema = z.object({
+  channel: z.enum(["WHATSAPP", "EMAIL", "SMS"]),
+  enabled: z.boolean().default(true),
+  provider: z.string().max(80).optional(),
+  template: z.string().min(5).max(1000),
+  trigger: z.enum(["NEW_LEAD", "FOLLOW_UP_DUE", "VISIT_SCHEDULED", "DEAL_WON"])
+});
+
+export const brokerClientDocumentSchema = z.object({
+  documentType: z.enum(["ID_PROOF", "REQUIREMENT", "OFFER", "AGREEMENT", "PAYMENT", "OTHER"]).default("OTHER"),
+  fileUrl: z.string().url(),
+  title: z.string().min(2).max(160)
+});
+
 export const builderProjectSchema = z.object({
   name: z.string().min(3).max(160),
   city: z.string().min(2).max(120),
   locality: z.string().max(160).optional(),
+  address: z.string().max(240).optional(),
   description: z.string().min(10).max(2000),
+  amenities: z.array(z.string()).default([]),
+  floorPlanUrls: z.array(z.string().url()).max(30).optional(),
+  masterPlanUrl: z.string().url().optional(),
+  mediaUrls: z.array(z.string().url()).max(40).optional(),
+  brochureUrl: z.string().url().optional(),
+  qrCodeUrl: z.string().url().optional(),
+  constructionStatus: z.enum(["PLANNING", "FOUNDATION", "STRUCTURE", "FINISHING", "READY", "COMPLETED"]).default("PLANNING"),
+  completionDate: z.string().datetime().optional(),
+  status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED", "COMPLETED"]).default("DRAFT"),
   unitsCount: z.coerce.number().int().min(0).optional(),
   availableUnits: z.coerce.number().int().min(0).optional(),
-  campaignStatus: z.string().max(80).default("draft")
+  campaignStatus: z.enum(["DRAFT", "ACTIVE", "PAUSED", "COMPLETED"]).default("DRAFT")
+});
+
+export const builderTowerSchema = z.object({
+  floors: z.coerce.number().int().min(0).max(200).default(0),
+  name: z.string().min(1).max(80),
+  status: z.enum(["ACTIVE", "ARCHIVED"]).default("ACTIVE")
+});
+
+export const builderUnitSchema = z.object({
+  areaUnit: z.string().max(20).default("sqft"),
+  areaValue: z.coerce.number().positive().optional(),
+  bathrooms: z.coerce.number().int().min(0).max(20).optional(),
+  bedrooms: z.coerce.number().int().min(0).max(20).optional(),
+  facing: z.string().max(40).optional(),
+  floor: z.coerce.number().int().min(-10).max(200).optional(),
+  floorPlanUrl: z.string().url().optional(),
+  imageUrls: z.array(z.string().url()).max(20).optional(),
+  price: z.coerce.number().positive().optional(),
+  status: z.enum(["AVAILABLE", "RESERVED", "SOLD", "BLOCKED"]).default("AVAILABLE"),
+  towerId: idSchema.optional(),
+  unitNumber: z.string().min(1).max(40),
+  unitType: z.string().min(1).max(80)
+});
+
+export const builderTeamMemberSchema = z.object({
+  active: z.boolean().optional(),
+  email: z.string().email().optional(),
+  name: z.string().min(2).max(120),
+  permissions: z.array(z.enum(["PROJECTS", "LEADS", "INVENTORY", "REPORTS", "ADMIN"])).default(["LEADS"]),
+  phone: phoneSchema.optional(),
+  profileId: idSchema.optional(),
+  projectId: idSchema.optional(),
+  role: z.enum(["OWNER", "MANAGER", "SALES", "MARKETING", "SITE_COORDINATOR"]).default("SALES")
+});
+
+export const builderBookingSchema = z.object({
+  bookingAmount: z.coerce.number().min(0).optional(),
+  buyerId: idSchema.optional(),
+  leadId: idSchema.optional(),
+  notes: z.string().max(500).optional(),
+  saleValue: z.coerce.number().min(0).optional(),
+  unitId: idSchema
+});
+
+export const builderBookingActionSchema = z.object({
+  action: z.enum(["RELEASE", "CONFIRM", "SOLD"]),
+  notes: z.string().max(500).optional(),
+  saleValue: z.coerce.number().min(0).optional()
+});
+
+export const builderCampaignSchema = z.object({
+  brochureDownloads: z.coerce.number().int().min(0).optional(),
+  budget: z.coerce.number().min(0).optional(),
+  channel: z.enum(["HOMEZONE", "META", "GOOGLE", "YOUTUBE", "WHATSAPP", "OFFLINE"]),
+  landingPageUrl: z.string().url().optional(),
+  leadsCount: z.coerce.number().int().min(0).optional(),
+  name: z.string().min(2).max(160),
+  qrCodeUrl: z.string().url().optional(),
+  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED"]).default("ACTIVE")
 });
 
 export const analyzerReportSchema = z.object({

@@ -4,6 +4,7 @@ import { builderProjectSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { addBuilderActivity } from "@/lib/builder/queries";
 
 type RouteContext = {
   params: Promise<{
@@ -45,7 +46,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       where: {
         id
       },
-      data: parsed.data
+      data: {
+        ...parsed.data,
+        completionDate: parsed.data.completionDate ? new Date(parsed.data.completionDate) : undefined
+      }
+    });
+    await addBuilderActivity({
+      action: "PROJECT_UPDATED",
+      builderId: profile.id,
+      message: `Project updated: ${updated.name}.`,
+      projectId: updated.id
     });
 
     return ok({ project: updated });
