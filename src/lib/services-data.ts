@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadgeCheck,
   Banknote,
   Bot,
@@ -26,7 +26,7 @@ export const serviceCategories = [
     text: "Modular kitchens, wardrobes, furnishing, and full-home interiors."
   },
   {
-    title: "Architects",
+    title: "Architecture",
     icon: Building,
     demand: "Verified experts",
     text: "Plans, elevation, approvals, and design consultation."
@@ -36,6 +36,18 @@ export const serviceCategories = [
     icon: Hammer,
     demand: "End-to-end",
     text: "Home construction, renovation, extensions, and project execution."
+  },
+  {
+    title: "Renovation",
+    icon: Wrench,
+    demand: "Project-ready",
+    text: "Civil repair, upgrades, waterproofing, extensions, and remodelling."
+  },
+  {
+    title: "Painting",
+    icon: Paintbrush,
+    demand: "Fast quotes",
+    text: "Interior painting, exterior painting, textures, and finishing."
   },
   {
     title: "Loans",
@@ -78,6 +90,42 @@ export const serviceCategories = [
     icon: Lightbulb,
     demand: "Smart homes",
     text: "Smart locks, lights, security cameras, sensors, and automation."
+  },
+  {
+    title: "Electrical",
+    icon: Lightbulb,
+    demand: "Verified technicians",
+    text: "Wiring, panels, fixtures, safety checks, and maintenance."
+  },
+  {
+    title: "Plumbing",
+    icon: Wrench,
+    demand: "Quick support",
+    text: "Leaks, sanitary work, pumps, fixtures, and repair jobs."
+  },
+  {
+    title: "Landscaping",
+    icon: Leaf,
+    demand: "Outdoor living",
+    text: "Garden design, lawns, irrigation, terrace gardens, and maintenance."
+  },
+  {
+    title: "Furniture",
+    icon: Home,
+    demand: "Custom builds",
+    text: "Loose furniture, custom carpentry, wardrobes, and modular units."
+  },
+  {
+    title: "Loan Assistance",
+    icon: Banknote,
+    demand: "Bank support",
+    text: "Eligibility, documents, loan options, and approval coordination."
+  },
+  {
+    title: "Packers & Movers",
+    icon: Truck,
+    demand: "Move-in ready",
+    text: "Packing, moving, storage, local shifting, and vehicle transport."
   }
 ];
 
@@ -89,7 +137,7 @@ export const featuredProviders = [
     rating: 4.8,
     jobs: 126,
     verified: true,
-    price: "From ₹1.8L",
+    price: "From Rs 1.8L",
     response: "Responds in 20 min"
   },
   {
@@ -99,7 +147,7 @@ export const featuredProviders = [
     rating: 4.9,
     jobs: 312,
     verified: true,
-    price: "From ₹2,999",
+    price: "From Rs 2,999",
     response: "Same-day review"
   },
   {
@@ -109,7 +157,7 @@ export const featuredProviders = [
     rating: 4.7,
     jobs: 204,
     verified: true,
-    price: "From ₹4,500",
+    price: "From Rs 4,500",
     response: "Instant quote"
   },
   {
@@ -119,7 +167,7 @@ export const featuredProviders = [
     rating: 4.6,
     jobs: 88,
     verified: true,
-    price: "From ₹65K",
+    price: "From Rs 65K",
     response: "Free site check"
   }
 ];
@@ -183,3 +231,4 @@ export const trustSignals = [
     icon: Sparkles
   }
 ];
+

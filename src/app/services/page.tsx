@@ -9,7 +9,7 @@ export default function ServicesPage() {
           HomeZone
         </Link>
         <div className="mt-8 max-w-4xl">
-          <p className="text-sm font-semibold text-violet-700">Phase 7</p>
+          <p className="text-sm font-semibold text-violet-700">Services Marketplace</p>
           <h1 className="mt-3 text-balance text-5xl font-bold tracking-tight sm:text-7xl">
             Property Services Marketplace
           </h1>

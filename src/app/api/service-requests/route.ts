@@ -6,6 +6,29 @@ import { serviceRequestSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return unauthorized("Verified account required");
+    const profile = await getOrCreateProfile(session.user);
+    const provider = await db.serviceProvider.findFirst({ where: { profileId: profile.id } });
+    const requests = await db.serviceRequest.findMany({
+      include: {
+        booking: true,
+        provider: true,
+        quotes: { include: { provider: true } }
+      },
+      orderBy: { createdAt: "desc" },
+      where: provider
+        ? { OR: [{ requesterId: profile.id }, { category: provider.category, city: provider.city ?? undefined }] }
+        : { requesterId: profile.id }
+    });
+    return ok({ requests });
+  } catch (error) {
+    return handleApiError(error, { route: "GET /api/service-requests" });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -35,6 +58,7 @@ export async function POST(request: Request) {
     const serviceRequest = await db.serviceRequest.create({
       data: {
         requesterId: profile.id,
+        providerId: parsed.data.providerId,
         category: parsed.data.category,
         city: parsed.data.city,
         budget: parsed.data.budget,

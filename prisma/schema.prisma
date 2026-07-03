@@ -95,6 +95,8 @@ enum PaymentProduct {
   STUDIO_ADS
   STUDIO_VIRTUAL_STAGING
   STUDIO_VOICEOVER
+  SERVICE_BOOKING_DEPOSIT
+  SERVICE_FINAL_PAYMENT
 }
 
 enum StudioOrderStatus {
@@ -227,6 +229,8 @@ model Profile {
   studioNotifications StudioNotification[]
   serviceRequests  ServiceRequest[]
   serviceProviders ServiceProvider[]
+  serviceBookingsAsCustomer ServiceBooking[] @relation("ServiceBookingCustomer")
+  serviceReviews   ServiceReview[]
   builderProjects  BuilderProject[]
   builderTeam      BuilderTeamMember[] @relation("BuilderTeamOwner")
   builderMemberships BuilderTeamMember[] @relation("BuilderTeamProfile")
@@ -821,10 +825,12 @@ model ServiceRequest {
   message     String?
   status      String   @default("requested")
   quotes      ServiceQuote[]
+  booking     ServiceBooking?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([requesterId])
+  @@index([providerId])
   @@index([category])
   @@index([status])
 }
@@ -836,16 +842,30 @@ model ServiceProvider {
   businessName String
   category     String
   city         String?
+  description  String?
+  portfolioUrls String[] @default([])
+  photoUrls    String[] @default([])
+  certifications String[] @default([])
+  experienceYears Int?
+  serviceAreas String[] @default([])
+  availability String?
+  businessHours Json @default("{}")
   rating       Decimal  @default(0)
+  reviewCount  Int      @default(0)
   verified     Boolean  @default(false)
+  suspended    Boolean  @default(false)
   priceLabel   String?
   requests     ServiceRequest[]
   quotes       ServiceQuote[]
+  bookings     ServiceBooking[]
+  reviews      ServiceReview[]
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([profileId])
   @@index([category])
   @@index([verified])
+  @@index([suspended])
 }
 
 model ServiceQuote {
@@ -858,10 +878,69 @@ model ServiceQuote {
   currency    String          @default("INR")
   message     String
   status      String          @default("sent")
+  revision    Int             @default(1)
+  validUntil  DateTime?
+  acceptedAt  DateTime?
+  rejectedAt  DateTime?
+  booking     ServiceBooking?
   createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([requestId])
   @@index([providerId])
+  @@index([status])
+}
+
+model ServiceBooking {
+  id            String          @id @default(cuid())
+  requestId     String          @unique
+  quoteId       String?         @unique
+  providerId    String
+  customerId    String?
+  request       ServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  quote         ServiceQuote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  provider      ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  customer      Profile?        @relation("ServiceBookingCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  payments      Payment[]
+  review        ServiceReview?
+  status        String          @default("UPCOMING")
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  amount        Decimal?
+  currency      String          @default("INR")
+  depositAmount Decimal?
+  commissionRate Decimal        @default(10)
+  commissionAmount Decimal      @default(0)
+  providerPayout Decimal        @default(0)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([providerId])
+  @@index([customerId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model ServiceReview {
+  id          String          @id @default(cuid())
+  bookingId   String          @unique
+  providerId  String
+  reviewerId  String?
+  booking     ServiceBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  provider    ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  reviewer    Profile?        @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+  rating      Int
+  comment     String?
+  photoUrls   String[]        @default([])
+  status      String          @default("PUBLISHED")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([providerId])
+  @@index([reviewerId])
+  @@index([status])
 }
 
 model BuilderProject {
@@ -1062,6 +1141,8 @@ model Payment {
   property            Property?       @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   studioRequestId     String?
   studioRequest       StudioRequest?  @relation(fields: [studioRequestId], references: [id], onDelete: SetNull)
+  serviceBookingId    String?
+  serviceBooking      ServiceBooking? @relation(fields: [serviceBookingId], references: [id], onDelete: SetNull)
   subscriptionId      String?
   subscription        Subscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   product             PaymentProduct
@@ -1084,6 +1165,7 @@ model Payment {
   @@index([payerId])
   @@index([propertyId])
   @@index([studioRequestId])
+  @@index([serviceBookingId])
   @@index([subscriptionId])
   @@index([product])
   @@index([status])

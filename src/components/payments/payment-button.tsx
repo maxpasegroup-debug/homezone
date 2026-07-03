@@ -59,6 +59,7 @@ export function PaymentButton({
   notes,
   product,
   propertyId,
+  serviceBookingId,
   studioRequestId,
   variant = "default"
 }: {
@@ -67,6 +68,7 @@ export function PaymentButton({
   notes?: string;
   product: PaymentProduct;
   propertyId?: string;
+  serviceBookingId?: string;
   studioRequestId?: string;
   variant?: "default" | "outline";
 }) {
@@ -91,6 +93,7 @@ export function PaymentButton({
         notes,
         product,
         propertyId,
+        serviceBookingId,
         studioRequestId
       }),
       headers: {

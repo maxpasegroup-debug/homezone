@@ -108,13 +108,22 @@ export const serviceRequestSchema = z.object({
   category: z.string().min(2),
   city: z.string().min(2),
   budget: z.string().min(2),
-  message: z.string().min(2).max(1000)
+  message: z.string().min(2).max(1000),
+  providerId: idSchema.optional()
 });
 
 export const serviceProviderSchema = z.object({
   businessName: z.string().min(2).max(160),
   category: z.string().min(2).max(120),
   city: z.string().min(2).max(120).optional(),
+  description: z.string().max(2000).optional(),
+  portfolioUrls: z.array(z.string().url()).max(20).optional(),
+  photoUrls: z.array(z.string().url()).max(30).optional(),
+  certifications: z.array(z.string()).max(20).optional(),
+  experienceYears: z.coerce.number().int().min(0).max(100).optional(),
+  serviceAreas: z.array(z.string()).max(30).optional(),
+  availability: z.string().max(120).optional(),
+  businessHours: z.record(z.string(), z.unknown()).optional(),
   priceLabel: z.string().max(120).optional()
 });
 
@@ -122,7 +131,28 @@ export const serviceQuoteSchema = z.object({
   requestId: z.string(),
   amount: z.coerce.number().positive().optional(),
   currency: z.string().default("INR"),
-  message: z.string().min(2).max(1000)
+  message: z.string().min(2).max(1000),
+  revision: z.coerce.number().int().min(1).optional(),
+  validUntil: z.string().datetime().optional()
+});
+
+export const serviceQuoteActionSchema = z.object({
+  action: z.enum(["ACCEPT", "REJECT", "REVISE"]),
+  amount: z.coerce.number().positive().optional(),
+  message: z.string().max(1000).optional(),
+  scheduledAt: z.string().datetime().optional()
+});
+
+export const serviceBookingActionSchema = z.object({
+  action: z.enum(["START", "RESCHEDULE", "COMPLETE", "CANCEL"]),
+  notes: z.string().max(1000).optional(),
+  scheduledAt: z.string().datetime().optional()
+});
+
+export const serviceReviewSchema = z.object({
+  comment: z.string().max(1000).optional(),
+  photoUrls: z.array(z.string().url()).max(10).optional(),
+  rating: z.coerce.number().int().min(1).max(5)
 });
 
 export const propertyCreateSchema = z.object({
@@ -285,7 +315,9 @@ export const paymentProductSchema = z.enum([
   "STUDIO_DESIGN",
   "STUDIO_ADS",
   "STUDIO_VIRTUAL_STAGING",
-  "STUDIO_VOICEOVER"
+  "STUDIO_VOICEOVER",
+  "SERVICE_BOOKING_DEPOSIT",
+  "SERVICE_FINAL_PAYMENT"
 ]);
 
 export const paymentCheckoutSchema = z.object({
@@ -293,6 +325,7 @@ export const paymentCheckoutSchema = z.object({
   notes: z.string().max(1000).optional(),
   product: paymentProductSchema,
   propertyId: idSchema.optional(),
+  serviceBookingId: idSchema.optional(),
   studioRequestId: idSchema.optional()
 });
 

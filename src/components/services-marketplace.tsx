@@ -105,9 +105,9 @@ export function ServicesMarketplace() {
               value={city}
             />
           </div>
-          <Button className="min-h-16" disabled size="lg">
+          <Button className="min-h-16" onClick={requestService} size="lg">
             <Wand2 className="h-5 w-5" />
-            AI Match Ready
+            Smart Match
           </Button>
         </div>
       </Card>
@@ -150,9 +150,11 @@ export function ServicesMarketplace() {
                 Verified help for {selectedCategory.toLowerCase()}.
               </h2>
             </div>
-            <Button disabled variant="outline">
-              View All
-              <ArrowRight className="h-4 w-4" />
+            <Button asChild variant="outline">
+              <Link href="/dashboard/services">
+                View Requests
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
           </div>
 
@@ -195,8 +197,8 @@ export function ServicesMarketplace() {
                     WhatsApp quote after account verification
                   </p>
                   <div className="flex gap-2">
-                    <Button disabled size="sm" variant="outline">
-                      Save
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/dashboard/services">Track</Link>
                     </Button>
                     <Button onClick={requestService} size="sm">
                       Request Quote

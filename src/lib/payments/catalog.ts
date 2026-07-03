@@ -138,6 +138,18 @@ export const paymentProducts: Record<PaymentProduct, PaymentProductConfig> = {
     createsStudioRequest: true,
     currency: "INR",
     description: "Studio AI voice-over service"
+  },
+  SERVICE_BOOKING_DEPOSIT: {
+    allowedRoles: ["USER", "OWNER", "BROKER", "BUILDER", "SERVICE_PROVIDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 99900,
+    currency: "INR",
+    description: "Service booking deposit"
+  },
+  SERVICE_FINAL_PAYMENT: {
+    allowedRoles: ["USER", "OWNER", "BROKER", "BUILDER", "SERVICE_PROVIDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 499900,
+    currency: "INR",
+    description: "Service final payment"
   }
 };
 

@@ -161,6 +161,28 @@ export async function applyPaidEntitlement(payment: Payment) {
       }
     });
   }
+
+  if ((payment.product === "SERVICE_BOOKING_DEPOSIT" || payment.product === "SERVICE_FINAL_PAYMENT") && payment.serviceBookingId) {
+    await db.serviceBooking.update({
+      data: {
+        status: payment.product === "SERVICE_FINAL_PAYMENT" ? "COMPLETED" : "UPCOMING"
+      },
+      where: {
+        id: payment.serviceBookingId
+      }
+    });
+
+    await auditLog({
+      action: "SERVICE_PAYMENT_COMPLETED",
+      actorId: payment.payerId,
+      entityId: payment.serviceBookingId,
+      entityType: "service_booking",
+      metadata: {
+        paymentId: payment.id,
+        product: payment.product
+      }
+    });
+  }
 }
 
 export async function markPaymentPaid({

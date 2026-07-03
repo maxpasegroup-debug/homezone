@@ -35,8 +35,15 @@ export async function POST(request: Request) {
         providerId: provider.id,
         amount: parsed.data.amount,
         currency: parsed.data.currency,
-        message: parsed.data.message
+        message: parsed.data.message,
+        revision: parsed.data.revision,
+        validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : undefined
       }
+    });
+
+    await db.serviceRequest.update({
+      data: { providerId: provider.id, status: "quoted" },
+      where: { id: parsed.data.requestId }
     });
 
     return ok({ quote });

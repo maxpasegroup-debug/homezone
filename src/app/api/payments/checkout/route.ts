@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     }
 
     const propertyId = parsed.data.propertyId;
+    const serviceBookingId = parsed.data.serviceBookingId;
     let studioRequestId = parsed.data.studioRequestId;
 
     if (config.requiresProperty) {
@@ -117,6 +118,25 @@ export async function POST(request: Request) {
       studioRequestId = studioRequest.id;
     }
 
+    if (serviceBookingId) {
+      const booking = await db.serviceBooking.findUnique({
+        include: {
+          provider: true
+        },
+        where: {
+          id: serviceBookingId
+        }
+      });
+      if (
+        !booking ||
+        (booking.customerId !== profile.id &&
+          booking.provider.profileId !== profile.id &&
+          !isAdminRole(profile.role))
+      ) {
+        return forbidden("You can only pay for your own service bookings");
+      }
+    }
+
     const invoiceNumber = createInvoiceNumber();
     const payment = await db.payment.create({
       data: {
@@ -132,6 +152,7 @@ export async function POST(request: Request) {
         payerId: profile.id,
         product,
         propertyId,
+        serviceBookingId,
         status: "CREATED",
         studioRequestId
       }
