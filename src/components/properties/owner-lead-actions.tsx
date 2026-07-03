@@ -15,7 +15,7 @@ export function OwnerLeadActions({ leadId }: { leadId: string }) {
     setLoading("contacted");
     const response = await fetch(`/api/owner/leads/${leadId}`, {
       body: JSON.stringify({
-        stage: "QUALIFIED",
+        stage: "CONTACTED",
         nextAction: "Owner contacted buyer"
       }),
       headers: {
@@ -32,7 +32,7 @@ export function OwnerLeadActions({ leadId }: { leadId: string }) {
     setLoading("archive");
     const response = await fetch(`/api/owner/leads/${leadId}`, {
       body: JSON.stringify({
-        stage: "NURTURE",
+        stage: "ARCHIVED",
         nextAction: "Archived by owner"
       }),
       headers: {

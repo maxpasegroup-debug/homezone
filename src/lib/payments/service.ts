@@ -113,9 +113,42 @@ export async function applyPaidEntitlement(payment: Payment) {
       },
       data: {
         paymentStatus: "PAID",
-        status: "paid"
+        status: "PAID"
       }
     });
+
+    await db.studioTimelineEvent.create({
+      data: {
+        actorId: payment.payerId,
+        eventType: "PAYMENT_RECEIVED",
+        message: "Studio payment received.",
+        metadata: {
+          paymentId: payment.id,
+          product: payment.product
+        },
+        studioRequestId: payment.studioRequestId
+      }
+    });
+    const studioRequest = await db.studioRequest.findUnique({
+      select: {
+        requesterId: true
+      },
+      where: {
+        id: payment.studioRequestId
+      }
+    });
+
+    if (studioRequest?.requesterId) {
+      await db.studioNotification.create({
+        data: {
+          message: "Your payment is verified. HomeZone Studio can now assign the production team.",
+          recipientId: studioRequest.requesterId,
+          studioRequestId: payment.studioRequestId,
+          title: "Studio payment received",
+          type: "PAYMENT_RECEIVED"
+        }
+      });
+    }
 
     await auditLog({
       action: "STUDIO_PAYMENT_COMPLETED",

@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { AdminControlCenter } from "@/components/admin/admin-control-center";
+import { getAdminOperationsData } from "@/lib/admin/operations";
 import { requireAdminProfile } from "@/lib/auth/admin";
-import { getAdminDashboardData } from "@/lib/dashboard/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   await requireAdminProfile();
-  const data = await getAdminDashboardData();
+  const data = await getAdminOperationsData();
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
@@ -16,17 +16,7 @@ export default async function AdminPage() {
           HomeZone
         </Link>
         <div className="mt-10">
-          <AdminControlCenter
-            analytics={data.analytics}
-            counts={data.counts}
-            pendingBrokerProfiles={data.pendingBrokerProfiles}
-            pendingBuilderProfiles={data.pendingBuilderProfiles}
-            pendingProperties={data.pendingProperties}
-            pendingVerificationProperties={data.pendingVerificationProperties}
-            pendingReels={data.pendingReels}
-            reports={data.reports}
-            studioRequests={data.studioRequests}
-          />
+          <AdminControlCenter data={data} />
         </div>
       </section>
     </main>

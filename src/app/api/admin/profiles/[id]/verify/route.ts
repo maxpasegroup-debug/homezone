@@ -62,8 +62,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     });
 
-    if (!existing || (existing.role !== "BROKER" && existing.role !== "BUILDER")) {
-      return forbidden("Only broker and builder profiles can be verified here");
+    if (!existing) {
+      return forbidden("Profile not found");
     }
 
     const now = new Date();
@@ -79,11 +79,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     });
 
+    const action =
+      existing.role === "BROKER" || existing.role === "BUILDER"
+        ? profileVerificationEvent({
+            role: existing.role,
+            status: parsed.data.status
+          })
+        : `${existing.role}_VERIFICATION_${parsed.data.status}`;
+
     await auditLog({
-      action: profileVerificationEvent({
-        role: existing.role,
-        status: parsed.data.status
-      }),
+      action,
       actorId: admin.id,
       entityId: profile.id,
       entityType: existing.role.toLowerCase(),

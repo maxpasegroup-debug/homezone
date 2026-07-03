@@ -1,13 +1,10 @@
-import { z } from "zod";
 import { auth } from "@/auth";
 import { forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { studioStatusSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
-
-const statusSchema = z.object({
-  status: z.enum(["requested", "confirmed", "in_progress", "delivered", "cancelled"])
-});
+import { addStudioTimeline, createStudioNotification } from "@/lib/studio/workflow";
 
 type RouteContext = {
   params: Promise<{
@@ -29,7 +26,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return forbidden();
     }
 
-    const parsed = await parseJson(request, statusSchema);
+    const parsed = await parseJson(request, studioStatusSchema);
 
     if ("error" in parsed) {
       return parsed.error;
@@ -41,8 +38,28 @@ export async function PATCH(request: Request, context: RouteContext) {
         id
       },
       data: {
+        completedAt: parsed.data.status === "COMPLETED" ? new Date() : undefined,
+        deliveredAt: parsed.data.status === "DELIVERED" ? new Date() : undefined,
+        scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : undefined,
         status: parsed.data.status
       }
+    });
+
+    await addStudioTimeline({
+      actorId: profile.id,
+      eventType: "ADMIN_STATUS_UPDATED",
+      message: parsed.data.message ?? `Studio order moved to ${parsed.data.status}.`,
+      metadata: {
+        status: parsed.data.status
+      },
+      studioRequestId: id
+    });
+    await createStudioNotification({
+      message: parsed.data.message ?? `Your Studio order is now ${parsed.data.status.replaceAll("_", " ").toLowerCase()}.`,
+      recipientId: studioRequest.requesterId,
+      studioRequestId: id,
+      title: "Studio order updated",
+      type: "STATUS"
     });
 
     await db.auditLog.create({
@@ -52,6 +69,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         entityType: "studio_request",
         entityId: id,
         metadata: {
+          message: parsed.data.message,
           status: parsed.data.status
         }
       }

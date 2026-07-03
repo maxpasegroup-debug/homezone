@@ -96,11 +96,22 @@ export async function POST(request: Request) {
         data: {
           city: parsed.data.city,
           notes: parsed.data.notes,
+          orderValue: config.amount,
           paymentStatus: "PENDING",
           propertyId,
           requesterId: profile.id,
           serviceType: product,
-          status: "payment_pending"
+          status: "PAYMENT_PENDING",
+          timeline: {
+            create: {
+              actorId: profile.id,
+              eventType: "PAYMENT_ORDER_CREATED",
+              message: "Studio order created from payment checkout.",
+              metadata: {
+                product
+              }
+            }
+          }
         }
       });
       studioRequestId = studioRequest.id;

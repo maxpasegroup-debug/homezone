@@ -88,6 +88,26 @@ enum PaymentProduct {
   STUDIO_VIDEOGRAPHY
   STUDIO_DRONE
   STUDIO_REELS
+  STUDIO_BROCHURE
+  STUDIO_DESIGN
+  STUDIO_ADS
+  STUDIO_VIRTUAL_STAGING
+  STUDIO_VOICEOVER
+}
+
+enum StudioOrderStatus {
+  DRAFT
+  SUBMITTED
+  PAYMENT_PENDING
+  PAID
+  ASSIGNED
+  IN_PRODUCTION
+  QUALITY_CHECK
+  DELIVERED
+  CUSTOMER_APPROVED
+  COMPLETED
+  CANCELLED
+  REVISION_REQUESTED
 }
 
 enum PaymentProvider {
@@ -102,11 +122,13 @@ enum SubscriptionStatus {
 
 enum LeadStage {
   NEW
+  CONTACTED
   QUALIFIED
   SITE_VISIT
   NEGOTIATION
   WON
   LOST
+  ARCHIVED
   NURTURE
 }
 
@@ -188,6 +210,8 @@ model Profile {
   properties       Property[]         @relation("PropertyOwner")
   assignedLeads    Lead[]             @relation("AssignedLeads")
   userLeads        Lead[]             @relation("UserLeads")
+  authoredLeadNotes LeadNote[]
+  leadNotifications LeadNotification[]
   savedProperties  SavedProperty[]
   propertyViews    PropertyView[]
   shortlists       PropertyShortlist[]
@@ -197,6 +221,8 @@ model Profile {
   following        ProfileFollow[]    @relation("ProfileFollowing")
   followers        ProfileFollow[]    @relation("ProfileFollowers")
   studioRequests   StudioRequest[]
+  studioAssignments StudioAssignment[]
+  studioNotifications StudioNotification[]
   serviceRequests  ServiceRequest[]
   serviceProviders ServiceProvider[]
   builderProjects  BuilderProject[]
@@ -257,6 +283,7 @@ model Property {
   shortlistItems ShortlistProperty[]
   documents     PropertyDocument[]
   leads         Lead[]
+  siteVisits    LeadSiteVisit[]
   reels         PropertyReel[]
   callClicks    Int              @default(0)
   whatsappClicks Int             @default(0)
@@ -374,11 +401,18 @@ model Lead {
   source      LeadSource @default(PROPERTY)
   contactAction ContactAction?
   stage       LeadStage @default(NEW)
+  priority    String    @default("MEDIUM")
   aiScore     Int       @default(0)
   nextAction  String?
   followUpAt  DateTime?
+  firstRespondedAt DateTime?
+  closedAt    DateTime?
+  dealValue   Decimal?
   notes       LeadNote[]
   tasks       LeadTask[]
+  siteVisits  LeadSiteVisit[]
+  timeline    LeadTimelineEvent[]
+  notifications LeadNotification[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -397,10 +431,13 @@ model LeadNote {
   leadId    String
   authorId  String?
   lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author    Profile? @relation(fields: [authorId], references: [id], onDelete: SetNull)
   note      String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([leadId])
+  @@index([authorId])
 }
 
 model LeadTask {
@@ -409,12 +446,69 @@ model LeadTask {
   assignedTo  String?
   lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
   title       String
+  taskType    String    @default("CALL")
   dueAt       DateTime?
   completedAt DateTime?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([leadId])
   @@index([assignedTo])
+  @@index([completedAt])
+}
+
+model LeadSiteVisit {
+  id          String   @id @default(cuid())
+  leadId      String
+  propertyId  String?
+  scheduledBy String?
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  scheduledAt DateTime
+  status      String   @default("SCHEDULED")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([propertyId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model LeadTimelineEvent {
+  id        String   @id @default(cuid())
+  leadId    String
+  actorId   String?
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  eventType String
+  message   String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([actorId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model LeadNotification {
+  id          String   @id @default(cuid())
+  leadId      String
+  recipientId String?
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  recipient   Profile? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  type        String
+  title       String
+  message     String
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
+  @@index([recipientId])
+  @@index([type])
+  @@index([readAt])
+  @@index([createdAt])
 }
 
 model PropertyReel {
@@ -490,12 +584,25 @@ model StudioRequest {
   requester   Profile?  @relation(fields: [requesterId], references: [id], onDelete: SetNull)
   property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   payments    Payment[]
+  assignments StudioAssignment[]
+  files       StudioDeliveryFile[]
+  revisions   StudioRevision[]
+  timeline    StudioTimelineEvent[]
+  notifications StudioNotification[]
   serviceType String
   city        String?
   budget      String?
   notes       String?
-  status      String    @default("requested")
+  status      StudioOrderStatus @default(DRAFT)
   paymentStatus PaymentStatus @default(PENDING)
+  orderValue  Int       @default(0)
+  scheduledAt DateTime?
+  deliveredAt DateTime?
+  approvedAt  DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  customerRating Int?
+  customerFeedback String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -503,6 +610,89 @@ model StudioRequest {
   @@index([propertyId])
   @@index([status])
   @@index([paymentStatus])
+}
+
+model StudioAssignment {
+  id              String        @id @default(cuid())
+  studioRequestId String
+  assigneeId      String?
+  studioRequest   StudioRequest @relation(fields: [studioRequestId], references: [id], onDelete: Cascade)
+  assignee        Profile?      @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  role            String
+  assignedBy      String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([studioRequestId])
+  @@index([assigneeId])
+  @@index([role])
+}
+
+model StudioTimelineEvent {
+  id              String        @id @default(cuid())
+  studioRequestId String
+  actorId         String?
+  studioRequest   StudioRequest @relation(fields: [studioRequestId], references: [id], onDelete: Cascade)
+  eventType       String
+  message         String
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+
+  @@index([studioRequestId])
+  @@index([actorId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model StudioDeliveryFile {
+  id              String        @id @default(cuid())
+  studioRequestId String
+  studioRequest   StudioRequest @relation(fields: [studioRequestId], references: [id], onDelete: Cascade)
+  fileType        String
+  fileName        String
+  fileUrl         String
+  version         Int           @default(1)
+  notes           String?
+  approvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([studioRequestId])
+  @@index([fileType])
+  @@index([version])
+}
+
+model StudioRevision {
+  id              String        @id @default(cuid())
+  studioRequestId String
+  requestedById   String?
+  studioRequest   StudioRequest @relation(fields: [studioRequestId], references: [id], onDelete: Cascade)
+  comments        String
+  version         Int           @default(1)
+  status          String        @default("REQUESTED")
+  createdAt       DateTime      @default(now())
+  resolvedAt      DateTime?
+
+  @@index([studioRequestId])
+  @@index([requestedById])
+  @@index([status])
+}
+
+model StudioNotification {
+  id              String        @id @default(cuid())
+  studioRequestId String
+  recipientId     String?
+  studioRequest   StudioRequest @relation(fields: [studioRequestId], references: [id], onDelete: Cascade)
+  recipient       Profile?      @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  type            String
+  title           String
+  message         String
+  readAt          DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([studioRequestId])
+  @@index([recipientId])
+  @@index([type])
+  @@index([readAt])
 }
 
 model ServiceRequest {

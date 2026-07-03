@@ -46,7 +46,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     const property = await db.property.update({
       where: { id },
       data: {
-        status: parsed.data.status,
+        status: parsed.data.status === "NEEDS_CHANGES" ? "REJECTED" : parsed.data.status,
+        verificationNotes: parsed.data.note,
+        verificationStatus:
+          parsed.data.status === "PUBLISHED"
+            ? "VERIFIED"
+            : parsed.data.status === "NEEDS_CHANGES"
+              ? "NEEDS_CHANGES"
+              : parsed.data.status === "REJECTED"
+                ? "REJECTED"
+                : undefined,
         verified: parsed.data.status === "PUBLISHED",
         publishedAt: parsed.data.status === "PUBLISHED" ? new Date() : undefined
       }

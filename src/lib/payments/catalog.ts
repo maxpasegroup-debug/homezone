@@ -87,6 +87,41 @@ export const paymentProducts: Record<PaymentProduct, PaymentProductConfig> = {
     createsStudioRequest: true,
     currency: "INR",
     description: "Studio reels creation service"
+  },
+  STUDIO_BROCHURE: {
+    allowedRoles: ["USER", "OWNER", "BROKER", "BUILDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 99900,
+    createsStudioRequest: true,
+    currency: "INR",
+    description: "Studio AI brochure service"
+  },
+  STUDIO_DESIGN: {
+    allowedRoles: ["USER", "OWNER", "BROKER", "BUILDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 249900,
+    createsStudioRequest: true,
+    currency: "INR",
+    description: "Studio premium listing design service"
+  },
+  STUDIO_ADS: {
+    allowedRoles: ["USER", "OWNER", "BROKER", "BUILDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 499900,
+    createsStudioRequest: true,
+    currency: "INR",
+    description: "Studio ads setup service"
+  },
+  STUDIO_VIRTUAL_STAGING: {
+    allowedRoles: ["USER", "OWNER", "BROKER", "BUILDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 399900,
+    createsStudioRequest: true,
+    currency: "INR",
+    description: "Studio virtual staging service"
+  },
+  STUDIO_VOICEOVER: {
+    allowedRoles: ["USER", "OWNER", "BROKER", "BUILDER", "ADMIN", "SUPER_ADMIN"],
+    amount: 149900,
+    createsStudioRequest: true,
+    currency: "INR",
+    description: "Studio AI voice-over service"
   }
 };
 

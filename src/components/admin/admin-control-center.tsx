@@ -1,696 +1,176 @@
-import {
-  AlertTriangle,
-  BadgeCheck,
-  Bot,
-  Building2,
-  FileCheck,
-  Flag,
-  Home,
-  Rocket,
-  ShieldCheck,
-  UsersRound
-} from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
+import { Activity, BarChart3, Bell, Building2, ClipboardCheck, FileText, Home, IndianRupee, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { ModerationActions } from "@/components/admin/moderation-actions";
-import { VerificationActions } from "@/components/admin/verification-actions";
-import { VerificationBadge } from "@/components/trust/verification-badge";
+import { Button } from "@/components/ui/button";
+import type { getAdminOperationsData } from "@/lib/admin/operations";
+import { formatAdminStatus } from "@/lib/admin/operations";
 
-export function AdminControlCenter({
-  analytics,
-  pendingBrokerProfiles = [],
-  pendingBuilderProfiles = [],
-  pendingProperties = [],
-  pendingVerificationProperties = [],
-  pendingReels = [],
-  reports = [],
-  studioRequests = [],
-  counts
-}: {
-  analytics?: {
-    leads: number;
-    leadSources: {
-      source: string;
-      _count: {
-        _all: number;
-      };
-    }[];
-    publishedProperties: number;
-    reels: number;
-    reportedReels: number;
-    topProperties: {
-      callClicks: number;
-      city: string;
-      id: string;
-      inquirySubmissions: number;
-      title: string;
-      whatsappClicks: number;
-    }[];
-    topReels: {
-      id: string;
-      leadsCount: number;
-      likesCount: number;
-      sharesCount: number;
-      title: string;
-      viewsCount: number;
-    }[];
-    aiUsage: {
-      areaQueries: number;
-      comparisons: number;
-      failures: number;
-      leadAssistant: number;
-      recommendations: number;
-      searches: number;
-    };
-    launchReadiness: {
-      brokenMedia: number;
-      expiredFeatured: number;
-      expiredPremium: number;
-      incompleteListings: number;
-      missingImages: number;
-      ready: boolean;
-      totalIssues: number;
-    };
-    verifiedBrokers: number;
-    verifiedBuilders: number;
-    verifiedProperties: number;
-  };
-  counts?: {
-    brokers: number;
-    builders: number;
-    leads: number;
-    properties: number;
-    providers: number;
-    quotes: number;
-    reports: number;
-    reels: number;
-    serviceRequests: number;
-    studio: number;
-    tasks: number;
-    users: number;
-    verificationQueue: number;
-  };
-  pendingProperties?: {
-    city: string;
-    id: string;
-    locality: string | null;
-    status: string;
-    title: string;
-  }[];
-  pendingVerificationProperties?: {
-    city: string;
-    id: string;
-    locality: string | null;
-    status: string;
-    title: string;
-    verificationStatus: string;
-  }[];
-  pendingBrokerProfiles?: {
-    city: string | null;
-    fullName: string | null;
-    id: string;
-    role: string;
-    verificationStatus: string;
-    whatsappVerified: boolean;
-    user: {
-      email: string | null;
-    };
-  }[];
-  pendingBuilderProfiles?: {
-    city: string | null;
-    fullName: string | null;
-    id: string;
-    role: string;
-    verificationStatus: string;
-    whatsappVerified: boolean;
-    user: {
-      email: string | null;
-    };
-  }[];
-  pendingReels?: {
-    id: string;
-    status: string;
-    title: string;
-  }[];
-  reports?: {
-    action: string;
-    createdAt: Date;
-    entityType: string | null;
-    id: string;
-    metadata: unknown;
-  }[];
-  studioRequests?: {
-    id: string;
-    serviceType: string;
-    city: string | null;
-    budget: string | null;
-    status: string;
-    createdAt: Date;
-  }[];
-}) {
-  const overview = [
-    {
-      count: counts?.users ?? 0,
-      icon: UsersRound,
-      text: "Registered profiles across all marketplace roles.",
-      title: "Users"
-    },
-    {
-      count: counts?.brokers ?? 0,
-      icon: UsersRound,
-      text: "Broker profiles available for role and verification review.",
-      title: "Brokers"
-    },
-    {
-      count: counts?.builders ?? 0,
-      icon: Building2,
-      text: "Builder profiles and project owners in the marketplace.",
-      title: "Builders"
-    },
-    {
-      count: counts?.properties ?? 0,
-      icon: Home,
-      text: "Total marketplace listings across all statuses.",
-      title: "Properties"
-    },
-    {
-      count: counts?.verificationQueue ?? 0,
-      icon: BadgeCheck,
-      text: "Broker and builder profiles pending phone verification.",
-      title: "Verification Queue"
-    },
-    {
-      count: counts?.reports ?? 0,
-      icon: Flag,
-      text: "User reports awaiting trust and safety review.",
-      title: "Reports"
-    }
+type AdminOpsData = Awaited<ReturnType<typeof getAdminOperationsData>>;
+
+function rupees(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    currency: "INR",
+    maximumFractionDigits: 0,
+    style: "currency"
+  }).format(value / 100);
+}
+
+export function AdminControlCenter({ data }: { data: AdminOpsData }) {
+  const metrics = [
+    { icon: UsersRound, label: "Total Users", value: data.stats.totalUsers },
+    { icon: UserRound, label: "Buyers", value: data.stats.buyers },
+    { icon: Home, label: "Owners", value: data.stats.owners },
+    { icon: UsersRound, label: "Brokers", value: data.stats.brokers },
+    { icon: Building2, label: "Builders", value: data.stats.builders },
+    { icon: ShieldCheck, label: "Providers", value: data.stats.providers },
+    { icon: Home, label: "Active Listings", value: data.stats.activeListings },
+    { icon: ClipboardCheck, label: "Pending Listings", value: data.stats.pendingListings },
+    { icon: ShieldCheck, label: "Verified Listings", value: data.stats.verifiedListings },
+    { icon: UsersRound, label: "New Leads", value: data.stats.newLeads },
+    { icon: Activity, label: "Site Visits", value: data.stats.siteVisits },
+    { icon: FileText, label: "Studio Requests", value: data.stats.studioRequests }
   ];
 
-  const analyticsCards = [
-    {
-      count: counts?.verificationQueue ?? 0,
-      icon: BadgeCheck,
-      label: "Pending verifications"
-    },
-    {
-      count: analytics?.verifiedProperties ?? 0,
-      icon: Home,
-      label: "Verified properties"
-    },
-    {
-      count: analytics?.verifiedBrokers ?? 0,
-      icon: UsersRound,
-      label: "Verified brokers"
-    },
-    {
-      count: analytics?.verifiedBuilders ?? 0,
-      icon: Building2,
-      label: "Verified builders"
-    },
-    {
-      count: analytics?.reportedReels ?? 0,
-      icon: Flag,
-      label: "Reported reels"
-    },
-    {
-      count: analytics?.aiUsage.searches ?? 0,
-      icon: Bot,
-      label: "AI searches"
-    }
-  ];
-
-  const operationsCards = [
-    {
-      count: counts?.studio ?? 0,
-      icon: FileCheck,
-      label: "Studio requests"
-    },
-    {
-      count: counts?.leads ?? 0,
-      icon: UsersRound,
-      label: "Pro leads"
-    },
-    {
-      count: counts?.tasks ?? 0,
-      icon: AlertTriangle,
-      label: "Follow-up tasks"
-    },
-    {
-      count: counts?.providers ?? 0,
-      icon: BadgeCheck,
-      label: "Pending providers"
-    },
-    {
-      count: counts?.serviceRequests ?? 0,
-      icon: FileCheck,
-      label: "Service requests"
-    },
-    {
-      count: counts?.quotes ?? 0,
-      icon: FileCheck,
-      label: "Service quotes"
-    }
+  const links = [
+    { href: "/admin/listings", label: "Review Listings", text: "Moderate pending listings, documents, media, and owner notes." },
+    { href: "/admin/users", label: "Manage Users", text: "Search profiles, verify owners, suspend or reactivate users, manage roles." },
+    { href: "/admin/leads", label: "Lead Oversight", text: "View pipeline health, response times, stuck leads, and site visits." },
+    { href: "/admin/studio", label: "Studio Operations", text: "Assign Studio work, update production, upload deliveries, and monitor revisions." },
+    { href: "/admin/reports", label: "Reports & Flags", text: "Resolve, dismiss, or escalate reported properties and users." },
+    { href: "/admin/analytics", label: "Marketplace Analytics", text: "Review listings, approvals, activity, conversion, and performance." }
   ];
 
   return (
     <div className="space-y-8">
       <Card className="overflow-hidden shadow-soft">
-        <div className="grid gap-0 lg:grid-cols-[1fr_0.82fr]">
+        <div className="grid gap-0 lg:grid-cols-[1fr_.82fr]">
           <div className="p-7 sm:p-10">
-            <p className="text-sm font-semibold text-violet-700">
-              Admin Dashboard
-            </p>
+            <p className="text-sm font-bold text-violet-700">Admin Operations</p>
             <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
-              Trust, users, and marketplace operations
+              Marketplace command center
             </h1>
             <p className="mt-5 max-w-2xl leading-8 text-muted-foreground">
-              Admins review users, brokers, builders, properties, verification
-              queues, reports, and marketplace activity with database-backed
-              counts.
+              Review listings, verify owners, monitor leads, handle reports, manage users, and keep marketplace quality high.
             </p>
           </div>
           <div className="bg-gradient-to-br from-slate-950 via-violet-950 to-fuchsia-800 p-7 text-white sm:p-10">
-            <ShieldCheck className="h-12 w-12" />
-            <h2 className="mt-6 text-3xl font-bold">Production rule</h2>
+            <IndianRupee className="h-12 w-12" />
+            <p className="mt-6 text-sm font-bold text-white/70">Revenue Snapshot</p>
+            <h2 className="mt-2 text-4xl font-bold">{rupees(data.stats.revenue)}</h2>
             <p className="mt-4 leading-7 text-white/72">
-              User-generated listings, reels, projects, and reports stay
-              operationally visible until moderation and verification workflows
-              clear them.
+              Paid marketplace revenue recorded through existing payment infrastructure.
             </p>
           </div>
         </div>
       </Card>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {overview.map((item) => {
-          const ItemIcon = item.icon;
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => {
+          const Icon = metric.icon;
           return (
-            <Card className="p-6 shadow-sm" key={item.title}>
-              <div className="flex items-start justify-between gap-4">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
-                  <ItemIcon className="h-6 w-6" />
-                </span>
-                <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold">
-                  {item.count}
-                </span>
-              </div>
-              <h2 className="mt-6 text-2xl font-bold">{item.title}</h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {item.text}
-              </p>
+            <Card className="p-5 shadow-sm" key={metric.label}>
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
+                <Icon className="h-5 w-5" />
+              </span>
+              <p className="mt-4 text-3xl font-bold">{metric.value}</p>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">{metric.label}</p>
             </Card>
           );
         })}
       </div>
 
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-        {analyticsCards.map((item) => {
-          const ItemIcon = item.icon;
-          return (
-            <Card className="p-6 shadow-sm" key={item.label}>
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
-                <ItemIcon className="h-6 w-6" />
-              </span>
-              <h2 className="mt-6 text-3xl font-bold">{item.count}</h2>
-              <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                {item.label}
-              </p>
-            </Card>
-          );
-        })}
-      </section>
-
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-6">
-        {operationsCards.map((item) => {
-          const ItemIcon = item.icon;
-          return (
-            <Card className="p-6 shadow-sm" key={item.label}>
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                <ItemIcon className="h-6 w-6" />
-              </span>
-              <h2 className="mt-6 text-3xl font-bold">{item.count}</h2>
-              <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                {item.label}
-              </p>
-            </Card>
-          );
-        })}
-      </section>
-
-      <section className="grid gap-8 xl:grid-cols-2">
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="flex items-center gap-2 text-sm font-semibold text-violet-700">
-            <Bot className="h-4 w-4" />
-            AI Observability
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">Companion usage</h2>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Searches: {analytics?.aiUsage.searches ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Recommendations: {analytics?.aiUsage.recommendations ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Comparisons: {analytics?.aiUsage.comparisons ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Area queries: {analytics?.aiUsage.areaQueries ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Lead drafts: {analytics?.aiUsage.leadAssistant ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Failures: {analytics?.aiUsage.failures ?? 0}
-            </p>
-          </div>
-        </Card>
-
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="flex items-center gap-2 text-sm font-semibold text-violet-700">
-            <Rocket className="h-4 w-4" />
-            Launch Readiness
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">
-            {analytics?.launchReadiness.ready ? "Ready for wider rollout" : "Launch issues to review"}
-          </h2>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Missing images: {analytics?.launchReadiness.missingImages ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Incomplete listings: {analytics?.launchReadiness.incompleteListings ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Expired featured: {analytics?.launchReadiness.expiredFeatured ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Expired premium: {analytics?.launchReadiness.expiredPremium ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Broken media refs: {analytics?.launchReadiness.brokenMedia ?? 0}
-            </p>
-            <p className="rounded-2xl bg-muted p-4 text-sm font-bold">
-              Total issues: {analytics?.launchReadiness.totalIssues ?? 0}
-            </p>
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid gap-8 xl:grid-cols-3">
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Lead Sources
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">Lead generation mix</h2>
-          <div className="mt-6 space-y-3">
-            {analytics?.leadSources.map((item) => (
-              <div className="flex items-center justify-between rounded-2xl bg-muted p-4" key={item.source}>
-                <span className="text-sm font-bold">{item.source}</span>
-                <span className="text-sm font-bold text-violet-700">
-                  {item._count._all}
-                </span>
+      <div className="grid gap-5 lg:grid-cols-[1fr_.7fr]">
+        <Card className="p-6 shadow-sm">
+          <p className="text-sm font-bold text-violet-700">Operations</p>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {links.map((item) => (
+              <div className="rounded-3xl border bg-white p-5" key={item.href}>
+                <h2 className="text-xl font-bold">{item.label}</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.text}</p>
+                <Button asChild className="mt-4" size="sm" variant="outline">
+                  <Link href={item.href as Route}>{item.label}</Link>
+                </Button>
               </div>
             ))}
-            {!analytics?.leadSources.length ? (
-              <p className="rounded-2xl bg-muted p-4 text-sm font-bold text-muted-foreground">
-                No lead source data yet.
-              </p>
-            ) : null}
           </div>
         </Card>
 
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Top Reels
+        <Card className="p-6 shadow-sm">
+          <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
+            <Bell className="h-4 w-4" />
+            Admin Notifications
           </p>
-          <h2 className="mt-2 text-3xl font-bold">Reel performance</h2>
-          <div className="mt-6 space-y-3">
-            {analytics?.topReels.map((reel) => (
-              <div className="rounded-2xl bg-muted p-4" key={reel.id}>
-                <h3 className="font-bold">{reel.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {reel.viewsCount} views, {reel.likesCount} likes, {reel.sharesCount} shares, {reel.leadsCount} leads
-                </p>
+          <div className="mt-5 space-y-3">
+            {data.notifications.map((item) => (
+              <div className="rounded-2xl bg-muted p-4" key={item.label}>
+                <p className="text-2xl font-bold">{Array.isArray(item.count) ? item.count.length : item.count}</p>
+                <p className="mt-1 text-sm font-semibold text-muted-foreground">{item.label}</p>
               </div>
             ))}
-            {!analytics?.topReels.length ? (
-              <p className="rounded-2xl bg-muted p-4 text-sm font-bold text-muted-foreground">
-                No reel performance yet.
-              </p>
-            ) : null}
           </div>
         </Card>
+      </div>
 
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Top Properties
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">CTA performance</h2>
-          <div className="mt-6 space-y-3">
-            {analytics?.topProperties.map((property) => (
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card className="p-6 shadow-sm">
+          <p className="text-sm font-bold text-violet-700">Pending Listings</p>
+          <div className="mt-5 space-y-3">
+            {data.pendingProperties.map((property) => (
               <div className="rounded-2xl bg-muted p-4" key={property.id}>
-                <h3 className="font-bold">{property.title}</h3>
-                <p className="mt-1 text-xs font-bold text-muted-foreground">
-                  {property.city}
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {property.callClicks} calls, {property.whatsappClicks} WhatsApp, {property.inquirySubmissions} inquiries
+                <p className="text-sm font-bold">{property.title}</p>
+                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                  {property.city} · {formatAdminStatus(property.status)} · Docs {property.documents.length}
                 </p>
               </div>
             ))}
-            {!analytics?.topProperties.length ? (
-              <p className="rounded-2xl bg-muted p-4 text-sm font-bold text-muted-foreground">
-                No property CTA data yet.
-              </p>
-            ) : null}
+            {!data.pendingProperties.length ? <Empty text="No listings waiting for moderation." /> : null}
           </div>
         </Card>
-      </section>
 
-      <section className="grid gap-8 xl:grid-cols-2">
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Property Verification Queue
+        <Card className="p-6 shadow-sm">
+          <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
+            <Activity className="h-4 w-4" />
+            Recent Activity
           </p>
-          <h2 className="mt-2 text-3xl font-bold">Pending trust review</h2>
-          <div className="mt-6 space-y-4">
-            {pendingVerificationProperties.map((property) => (
-              <div className="rounded-[1.5rem] bg-muted p-5" key={property.id}>
-                <VerificationBadge
-                  entity="property"
-                  status={property.verificationStatus}
-                />
-                <h3 className="mt-3 text-xl font-bold">{property.title}</h3>
-                <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                  {[property.locality, property.city].filter(Boolean).join(", ")}
+          <div className="mt-5 space-y-3">
+            {data.recentActivity.map((item) => (
+              <div className="rounded-2xl bg-muted p-4" key={item.id}>
+                <p className="text-sm font-bold">{formatAdminStatus(item.action)}</p>
+                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                  {item.entityType ?? "system"} · {item.createdAt.toLocaleString("en-IN")}
                 </p>
-                <p className="mt-2 text-xs font-bold text-muted-foreground">
-                  Listing status: {property.status.replace("_", " ")}
-                </p>
-                <VerificationActions id={property.id} target="property" />
               </div>
             ))}
-            {!pendingVerificationProperties.length ? (
-              <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground">
-                No pending property verifications.
-              </p>
-            ) : null}
+            {!data.recentActivity.length ? <Empty text="No audit activity yet." /> : null}
           </div>
         </Card>
+      </div>
 
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Broker Verification Queue
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">Pending brokers</h2>
-          <div className="mt-6 space-y-4">
-            {pendingBrokerProfiles.map((profile) => (
-              <div className="rounded-[1.5rem] bg-muted p-5" key={profile.id}>
-                <VerificationBadge
-                  entity="broker"
-                  status={profile.verificationStatus}
-                />
-                <h3 className="mt-3 text-xl font-bold">
-                  {profile.fullName ?? profile.user.email ?? "Broker profile"}
-                </h3>
-                <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                  {[profile.city, profile.user.email].filter(Boolean).join(" / ")}
-                </p>
-                <p className="mt-2 text-xs font-bold text-muted-foreground">
-                  Phone: {profile.whatsappVerified ? "Verified" : "Not verified"}
-                </p>
-                <VerificationActions id={profile.id} target="broker" />
-              </div>
-            ))}
-            {!pendingBrokerProfiles.length ? (
-              <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground">
-                No pending broker verifications.
-              </p>
-            ) : null}
-          </div>
-        </Card>
-
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Builder Verification Queue
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">Pending builders</h2>
-          <div className="mt-6 space-y-4">
-            {pendingBuilderProfiles.map((profile) => (
-              <div className="rounded-[1.5rem] bg-muted p-5" key={profile.id}>
-                <VerificationBadge
-                  entity="builder"
-                  status={profile.verificationStatus}
-                />
-                <h3 className="mt-3 text-xl font-bold">
-                  {profile.fullName ?? profile.user.email ?? "Builder profile"}
-                </h3>
-                <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                  {[profile.city, profile.user.email].filter(Boolean).join(" / ")}
-                </p>
-                <p className="mt-2 text-xs font-bold text-muted-foreground">
-                  Phone: {profile.whatsappVerified ? "Verified" : "Not verified"}
-                </p>
-                <VerificationActions id={profile.id} target="builder" />
-              </div>
-            ))}
-            {!pendingBuilderProfiles.length ? (
-              <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground">
-                No pending builder verifications.
-              </p>
-            ) : null}
-          </div>
-        </Card>
-
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Listing Moderation Queue
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">Pending properties</h2>
-          <div className="mt-6 space-y-4">
-            {pendingProperties.map((property) => (
-              <div className="rounded-[1.5rem] bg-muted p-5" key={property.id}>
-                <p className="text-xs font-bold text-violet-700">
-                  {property.status.replace("_", " ")}
-                </p>
-                <h3 className="mt-2 text-xl font-bold">{property.title}</h3>
-                <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                  {[property.locality, property.city].filter(Boolean).join(", ")}
-                </p>
-                <ModerationActions id={property.id} type="properties" />
-              </div>
-            ))}
-            {!pendingProperties.length ? (
-              <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground">
-                No pending property approvals.
-              </p>
-            ) : null}
-          </div>
-        </Card>
-
-        <Card className="p-6 shadow-soft sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">
-            Media Moderation
-          </p>
-          <h2 className="mt-2 text-3xl font-bold">Pending reels</h2>
-          <div className="mt-6 space-y-4">
-            {pendingReels.map((reel) => (
-              <div className="rounded-[1.5rem] bg-muted p-5" key={reel.id}>
-                <p className="text-xs font-bold text-violet-700">
-                  {reel.status.replace("_", " ")}
-                </p>
-                <h3 className="mt-2 text-xl font-bold">{reel.title}</h3>
-                <ModerationActions id={reel.id} type="reels" />
-              </div>
-            ))}
-            {!pendingReels.length ? (
-              <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground">
-                No pending reel approvals.
-              </p>
-            ) : null}
-          </div>
-        </Card>
-      </section>
-
-      <Card className="p-6 shadow-soft sm:p-8">
-        <p className="text-sm font-semibold text-violet-700">Reports</p>
-        <h2 className="mt-2 text-3xl font-bold">Trust and safety inbox</h2>
-        <div className="mt-6 grid gap-4">
-          {reports.map((report) => (
-            <div className="rounded-[1.5rem] bg-muted p-5" key={report.id}>
-              <p className="text-xs font-bold text-violet-700">
-                {report.entityType ?? "unknown"} /{" "}
-                {report.createdAt.toLocaleDateString()}
-              </p>
-              <p className="mt-2 font-bold">
-                {report.entityType === "reel" ? "Reel report" : report.action}
-              </p>
-              <pre className="mt-3 overflow-auto rounded-2xl bg-white p-3 text-xs text-muted-foreground">
-                {JSON.stringify(report.metadata, null, 2)}
-              </pre>
-            </div>
-          ))}
-          {!reports.length ? (
-            <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground">
-              No user reports yet.
-            </p>
-          ) : null}
-        </div>
-      </Card>
-
-      <Card className="p-6 shadow-soft sm:p-8">
-        <p className="text-sm font-semibold text-violet-700">
-          Studio Operations
+      <Card className="p-6 shadow-sm">
+        <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
+          <BarChart3 className="h-4 w-4" />
+          Marketplace Health
         </p>
-        <h2 className="mt-2 text-3xl font-bold">Latest Studio requests</h2>
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {(studioRequests ?? []).map((request) => (
-            <div className="rounded-[1.5rem] bg-muted p-5" key={request.id}>
-              <p className="text-xs font-bold text-violet-700">
-                {request.status.replace("_", " ")} / {request.createdAt.toLocaleDateString()}
-              </p>
-              <h3 className="mt-2 text-xl font-bold">{request.serviceType}</h3>
-              <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                {request.city ?? "City not set"} / {request.budget ?? "Budget not set"}
-              </p>
-            </div>
-          ))}
-          {!(studioRequests ?? []).length ? (
-            <p className="rounded-[1.5rem] bg-muted p-5 text-sm font-bold text-muted-foreground md:col-span-2">
-              No Studio requests yet.
-            </p>
-          ) : null}
-        </div>
-      </Card>
-
-      <Card className="p-6 shadow-soft sm:p-8">
-        <p className="flex items-center gap-2 text-sm font-semibold text-violet-700">
-          <AlertTriangle className="h-4 w-4" />
-          Operational readiness
-        </p>
-        <h2 className="mt-2 text-3xl font-bold">
-          Keep controls ready before wider marketplace rollout.
-        </h2>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          {[
-            "Create admin users",
-            "Configure storage moderation",
-            "Review broker verification",
-            "Review builder verification",
-            "Test report abuse workflow",
-            "Monitor audit logs"
-          ].map((item) => (
-            <p
-              className="flex items-center gap-2 rounded-2xl bg-muted p-4 text-sm font-bold"
-              key={item}
-            >
-              <FileCheck className="h-4 w-4 text-emerald-500" />
-              {item}
-            </p>
-          ))}
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <Health label="Documents Waiting" value={data.stats.pendingDocuments} />
+          <Health label="Reports Open" value={data.stats.reports} />
+          <Health label="Approval Queue" value={data.stats.pendingListings} />
         </div>
       </Card>
     </div>
   );
+}
+
+function Health({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl bg-muted p-4">
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="mt-1 text-sm font-semibold text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return <p className="rounded-2xl border border-dashed bg-white p-4 text-sm font-semibold text-muted-foreground">{text}</p>;
 }

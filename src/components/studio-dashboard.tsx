@@ -2,80 +2,73 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarDays,
-  CheckCircle2,
-  FileImage,
-  MapPin,
-  MessageCircle,
-  Play,
-  Upload,
-  Wand2,
-  Youtube
-} from "lucide-react";
+import { ArrowRight, CalendarDays, CheckCircle2, Clock, FileImage, MapPin, PackageCheck, Sparkles } from "lucide-react";
+import type { PaymentProduct } from "@prisma/client";
+import { PaymentButton } from "@/components/payments/payment-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PaymentButton } from "@/components/payments/payment-button";
-import {
-  creativeOutputs,
-  studioPackages,
-  studioServices
-} from "@/lib/studio-data";
+import { studioServices } from "@/lib/studio-data";
 
 const propertyTypes = ["Villa", "Apartment", "Land", "Commercial", "Builder Project"];
 const campaignGoals = ["Sell faster", "Generate leads", "Launch project", "Find tenants"];
-const studioProductByService = {
-  "Drone Shoot": "STUDIO_DRONE",
-  Photography: "STUDIO_PHOTOGRAPHY",
-  "Reels Creation": "STUDIO_REELS",
-  "Walkthrough Video": "STUDIO_VIDEOGRAPHY"
-} as const;
+
+type StudioResponse = {
+  studioRequest?: {
+    id: string;
+  };
+};
 
 export function StudioDashboard() {
-  const [selectedService, setSelectedService] = useState("Photography");
+  const [selectedService, setSelectedService] = useState(studioServices[0]);
   const [propertyType, setPropertyType] = useState("Villa");
   const [goal, setGoal] = useState("Sell faster");
   const [location, setLocation] = useState("Kochi");
-  const [budget, setBudget] = useState("INR 4,999 - INR 9,999");
   const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<"DRAFT" | "SUBMITTED" | "">("");
+  const [studioRequestId, setStudioRequestId] = useState("");
 
   const aiPreview = useMemo(() => {
-    return `${propertyType} in ${location}: premium visuals, short reels, and WhatsApp-ready copy focused on "${goal.toLowerCase()}".`;
-  }, [goal, location, propertyType]);
+    return `${selectedService.title} for a ${propertyType.toLowerCase()} in ${location}. Goal: ${goal.toLowerCase()}.`;
+  }, [goal, location, propertyType, selectedService.title]);
 
-  async function requestStudioBooking() {
-    setLoading(true);
+  async function createStudioOrder(orderStatus: "DRAFT" | "SUBMITTED") {
+    setLoadingAction(orderStatus);
     setStatus("");
 
     const response = await fetch("/api/studio-requests", {
-      method: "POST",
+      body: JSON.stringify({
+        budget: selectedService.price,
+        city: location,
+        notes: aiPreview,
+        orderValue: selectedService.priceAmount,
+        serviceType: selectedService.title,
+        status: orderStatus
+      }),
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        serviceType: selectedService,
-        city: location,
-        budget,
-        notes: aiPreview
-      })
+      method: "POST"
     });
 
-    setLoading(false);
+    setLoadingAction("");
 
     if (response.status === 401) {
-      window.location.href = "/auth";
+      window.location.href = "/auth?next=/studio";
       return;
     }
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      setStatus(data?.error ?? "Could not create studio request.");
+    const data = (await response.json().catch(() => null)) as StudioResponse | { error?: string } | null;
+    if (!response.ok || !data || !("studioRequest" in data) || !data.studioRequest) {
+      setStatus((data && "error" in data ? data.error : null) ?? "Could not create Studio order.");
       return;
     }
 
-    setStatus("Studio request created. Track it from your dashboard.");
+    setStudioRequestId(data.studioRequest.id);
+    setStatus(
+      orderStatus === "DRAFT"
+        ? "Draft saved. You can resume it from the Studio dashboard."
+        : "Order submitted. Complete payment to start assignment and production."
+    );
   }
 
   return (
@@ -83,25 +76,25 @@ export function StudioDashboard() {
       <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {studioServices.map((service) => {
           const ServiceIcon = service.icon;
-          const active = selectedService === service.title;
+          const active = selectedService.title === service.title;
           return (
             <button
               className={`rounded-[1.5rem] border bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-soft ${
                 active ? "border-violet-300 ring-4 ring-violet-100" : "border-border"
               }`}
               key={service.title}
-              onClick={() => setSelectedService(service.title)}
+              onClick={() => setSelectedService(service)}
             >
               <span className="flex h-13 w-13 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
                 <ServiceIcon className="h-6 w-6" />
               </span>
               <h2 className="mt-6 text-2xl font-bold">{service.title}</h2>
-              <p className="mt-2 text-sm font-semibold text-violet-700">
-                {service.price}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {service.text}
-              </p>
+              <p className="mt-2 text-sm font-semibold text-violet-700">{service.price}</p>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{service.description}</p>
+              <div className="mt-5 flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                {service.deliveryTime}
+              </div>
             </button>
           );
         })}
@@ -114,10 +107,8 @@ export function StudioDashboard() {
               <CalendarDays className="h-6 w-6" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-violet-700">
-                Studio Order
-              </p>
-              <h2 className="text-3xl font-bold">Book a property service</h2>
+              <p className="text-sm font-semibold text-violet-700">Studio Order</p>
+              <h2 className="text-3xl font-bold">Create a property marketing order</h2>
             </div>
           </div>
 
@@ -126,8 +117,11 @@ export function StudioDashboard() {
               <span className="text-sm font-semibold">Selected service</span>
               <select
                 className="h-12 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
-                onChange={(event) => setSelectedService(event.target.value)}
-                value={selectedService}
+                onChange={(event) => {
+                  const next = studioServices.find((service) => service.title === event.target.value);
+                  if (next) setSelectedService(next);
+                }}
+                value={selectedService.title}
               >
                 {studioServices.map((service) => (
                   <option key={service.title}>{service.title}</option>
@@ -172,210 +166,108 @@ export function StudioDashboard() {
                 ))}
               </select>
             </label>
-
-            <label className="space-y-2 sm:col-span-2">
-              <span className="text-sm font-semibold">Budget range</span>
-              <select
-                className="h-12 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
-                onChange={(event) => setBudget(event.target.value)}
-                value={budget}
-              >
-                <option>INR 999 - INR 4,999</option>
-                <option>INR 4,999 - INR 9,999</option>
-                <option>INR 9,999 - INR 25,000</option>
-                <option>Custom builder package</option>
-              </select>
-            </label>
           </div>
 
           <div className="mt-6 rounded-[1.5rem] border border-dashed border-violet-200 bg-violet-50/70 p-6">
-            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
-                  <Upload className="h-4 w-4" />
-                  Upload property photos
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Upload property media through the HomeZone Cloudinary media pipeline.
-                </p>
-              </div>
-              <Button disabled variant="outline">
-                <FileImage className="h-4 w-4" />
-                Add Photos
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <PaymentButton
-              city={location}
-              label="Pay for Studio Booking"
-              notes={`${propertyType} / ${goal}`}
-              product={
-                studioProductByService[
-                  selectedService as keyof typeof studioProductByService
-                ] ?? "STUDIO_PHOTOGRAPHY"
-              }
-            />
-          </div>
-
-          {status ? (
-            <p className="mt-5 rounded-2xl bg-violet-50 p-4 text-sm font-bold text-violet-700">
-              {status}
+            <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
+              <FileImage className="h-4 w-4" />
+              Media intake
             </p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              After submission, the Studio team collects existing photos, documents, and shoot instructions from the order dashboard.
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <Button disabled={loadingAction !== ""} onClick={() => createStudioOrder("DRAFT")} size="lg" variant="outline">
+              Save Draft
+            </Button>
+            <Button disabled={loadingAction !== ""} onClick={() => createStudioOrder("SUBMITTED")} size="lg">
+              Submit Order
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {studioRequestId ? (
+            <div className="mt-5 rounded-[1.5rem] border bg-white p-5">
+              <p className="text-sm font-bold">Order ready for payment</p>
+              <p className="mt-1 text-sm text-muted-foreground">Payment moves the order into paid production workflow.</p>
+              <div className="mt-4">
+                <PaymentButton
+                  city={location}
+                  label="Pay for Studio Booking"
+                  notes={aiPreview}
+                  product={selectedService.product as PaymentProduct}
+                  studioRequestId={studioRequestId}
+                />
+              </div>
+            </div>
           ) : null}
 
-          <Button className="mt-6 w-full" disabled={loading} onClick={requestStudioBooking} size="lg">
-            Request Studio Booking
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          {status ? <p className="mt-5 rounded-2xl bg-violet-50 p-4 text-sm font-bold text-violet-700">{status}</p> : null}
         </Card>
 
         <Card className="overflow-hidden shadow-soft">
-          <div className="bg-gradient-to-br from-violet-700 to-fuchsia-500 p-7 text-white sm:p-8">
-            <p className="text-sm font-semibold text-white/70">
-              AI Creative Generator
-            </p>
-            <h2 className="mt-2 text-4xl font-bold">
-              Generate marketing assets instantly.
-            </h2>
-            <p className="mt-4 leading-7 text-white/76">{aiPreview}</p>
+          <div className="bg-gradient-to-br from-violet-800 via-purple-700 to-fuchsia-500 p-7 text-white sm:p-8">
+            <p className="text-sm font-semibold text-white/70">Selected Package</p>
+            <h2 className="mt-2 text-4xl font-bold">{selectedService.title}</h2>
+            <p className="mt-4 leading-7 text-white/80">{selectedService.description}</p>
           </div>
-
-          <div className="grid gap-4 p-6 sm:p-8">
-            {creativeOutputs.map((output) => {
-              const OutputIcon = output.icon;
-              return (
-                <div
-                  className="rounded-[1.5rem] border border-border bg-white p-5"
-                  key={output.title}
-                >
-                  <div className="flex items-start gap-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
-                      <OutputIcon className="h-5 w-5" />
-                    </span>
-                    <div>
-                      <h3 className="font-bold">{output.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        {output.text}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            <Button disabled size="lg" variant="secondary">
-              <Wand2 className="h-4 w-4" />
-              Generate Preview
-            </Button>
+          <div className="grid gap-5 p-6 sm:p-8">
+            <InfoBlock title="Delivery time" items={[selectedService.deliveryTime]} />
+            <InfoBlock title="Sample outputs" items={selectedService.samples} />
+            <InfoBlock title="Available add-ons" items={selectedService.addOns} />
+            <div className="rounded-[1.5rem] bg-muted p-5">
+              <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
+                <Sparkles className="h-4 w-4" />
+                Order summary
+              </p>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{aiPreview}</p>
+            </div>
           </div>
         </Card>
-      </section>
-
-      <section className="grid gap-8 lg:grid-cols-[1fr_0.9fr]">
-        <Card className="p-6 shadow-sm sm:p-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-            <Youtube className="h-7 w-7" />
-          </div>
-          <p className="mt-6 text-sm font-semibold text-violet-700">
-            HomeZone Media
-          </p>
-          <h2 className="mt-2 text-4xl font-bold">
-            Request a property spotlight.
-          </h2>
-          <p className="mt-4 leading-7 text-muted-foreground">
-            Owners, brokers, and builders can request YouTube features, builder
-            spotlights, and campaign support from the HomeZone media team.
-          </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {["YouTube Feature", "Builder Spotlight", "Lead Campaign"].map(
-              (item) => (
-                <span
-                  className="rounded-2xl bg-muted px-4 py-3 text-sm font-bold"
-                  key={item}
-                >
-                  {item}
-                </span>
-              )
-            )}
-          </div>
-          <Button className="mt-6" disabled size="lg">
-            <Play className="h-4 w-4" />
-            Request Promotion
-          </Button>
-        </Card>
-
-        <div className="grid gap-4">
-          {studioPackages.map((pack) => (
-            <Card className="p-6 shadow-sm" key={pack.name}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-2xl font-bold">{pack.name}</h3>
-                  <p className="mt-1 text-lg font-bold text-violet-700">
-                    {pack.price}
-                  </p>
-                </div>
-                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-              </div>
-              <div className="mt-5 space-y-3">
-                {pack.items.map((item) => (
-                  <p
-                    className="flex items-center gap-2 text-sm font-semibold text-muted-foreground"
-                    key={item}
-                  >
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    {item}
-                  </p>
-                ))}
-              </div>
-              <div className="mt-5">
-                <PaymentButton
-                  city={location}
-                  label="Pay now"
-                  notes={pack.name}
-                  product={
-                    pack.name === "Reel Launch"
-                      ? "STUDIO_REELS"
-                      : pack.name === "Builder Spotlight"
-                        ? "STUDIO_DRONE"
-                        : "STUDIO_PHOTOGRAPHY"
-                  }
-                  variant="outline"
-                />
-              </div>
-            </Card>
-          ))}
-        </div>
       </section>
 
       <Card className="p-6 shadow-soft sm:p-8">
-        <div className="grid gap-5 md:grid-cols-4">
-          {[
-            ["1", "Create request"],
-            ["2", "Verify WhatsApp"],
-            ["3", "Studio team confirms"],
-            ["4", "Assets delivered"]
-          ].map(([step, label]) => (
-            <div className="rounded-[1.5rem] bg-muted p-5" key={step}>
+        <div className="grid gap-5 md:grid-cols-5">
+          {["Draft", "Payment", "Assignment", "Production", "Delivery"].map((label, index) => (
+            <div className="rounded-[1.5rem] bg-muted p-5" key={label}>
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-700 text-sm font-bold text-white">
-                {step}
+                {index + 1}
               </span>
               <p className="mt-4 font-bold">{label}</p>
             </div>
           ))}
         </div>
-
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-            <MessageCircle className="h-4 w-4 text-emerald-600" />
-            WhatsApp verification is required before confirming paid studio work.
+            <PackageCheck className="h-4 w-4 text-emerald-600" />
+            Track assignments, shoots, delivered files, revisions, and approvals from the Studio dashboard.
           </p>
           <Button asChild variant="outline">
-            <Link href="/auth">Verify Account</Link>
+            <Link href="/dashboard/studio">
+              Open Dashboard
+              <CheckCircle2 className="h-4 w-4" />
+            </Link>
           </Button>
         </div>
       </Card>
+    </div>
+  );
+}
+
+function InfoBlock({ items, title }: { items: string[]; title: string }) {
+  return (
+    <div className="rounded-[1.5rem] border bg-white p-5">
+      <h3 className="font-bold">{title}</h3>
+      <div className="mt-3 grid gap-2">
+        {items.map((item) => (
+          <p className="flex items-center gap-2 text-sm font-semibold text-muted-foreground" key={item}>
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            {item}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

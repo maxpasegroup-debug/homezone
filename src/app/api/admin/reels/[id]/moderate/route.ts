@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import type { ListingStatus } from "@prisma/client";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { forbidden, handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { moderationSchema } from "@/lib/api/validation";
@@ -43,22 +44,26 @@ export async function PATCH(request: Request, context: RouteContext) {
       return parsed.error;
     }
 
+    const status: ListingStatus =
+      parsed.data.status === "NEEDS_CHANGES" ? "REJECTED" : parsed.data.status;
+
     const reel = await db.propertyReel.update({
       where: { id },
       data: {
-        status: parsed.data.status
+        status
       }
     });
 
     await db.auditLog.create({
       data: {
         actorId: profile.id,
-        action: `reel_${parsed.data.status.toLowerCase()}`,
+        action: `reel_${status.toLowerCase()}`,
         entityType: "reel",
         entityId: id,
         metadata: {
           note: parsed.data.note,
-          status: parsed.data.status
+          requestedStatus: parsed.data.status,
+          status
         }
       }
     });

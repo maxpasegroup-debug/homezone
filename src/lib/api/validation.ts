@@ -241,8 +241,8 @@ export const followProfileSchema = z.object({
 });
 
 export const moderationSchema = z.object({
-  status: z.enum(["PUBLISHED", "REJECTED", "ARCHIVED", "PENDING_REVIEW"]),
-  note: z.string().max(500).optional()
+  status: z.enum(["PUBLISHED", "REJECTED", "ARCHIVED", "PENDING_REVIEW", "NEEDS_CHANGES"]),
+  note: z.string().min(3).max(500)
 });
 
 export const propertyVerificationSchema = z.object({
@@ -255,6 +255,19 @@ export const profileVerificationSchema = z.object({
   note: z.string().max(1000).optional()
 });
 
+export const adminProfileUpdateSchema = z.object({
+  city: z.string().min(2).max(120).optional(),
+  country: z.string().min(2).max(120).optional(),
+  role: appRoleSchema.optional(),
+  verificationStatus: z.enum(["PENDING", "VERIFIED", "REJECTED", "SUSPENDED"]).optional(),
+  note: z.string().min(3).max(1000).optional()
+});
+
+export const adminReportActionSchema = z.object({
+  action: z.enum(["RESOLVED", "DISMISSED", "ESCALATED"]),
+  note: z.string().min(3).max(1000)
+});
+
 export const paymentProductSchema = z.enum([
   "FEATURED_LISTING",
   "PREMIUM_LISTING",
@@ -265,7 +278,12 @@ export const paymentProductSchema = z.enum([
   "STUDIO_PHOTOGRAPHY",
   "STUDIO_VIDEOGRAPHY",
   "STUDIO_DRONE",
-  "STUDIO_REELS"
+  "STUDIO_REELS",
+  "STUDIO_BROCHURE",
+  "STUDIO_DESIGN",
+  "STUDIO_ADS",
+  "STUDIO_VIRTUAL_STAGING",
+  "STUDIO_VOICEOVER"
 ]);
 
 export const paymentCheckoutSchema = z.object({
@@ -339,24 +357,117 @@ export const studioRequestSchema = z.object({
   serviceType: z.string().min(2).max(120),
   city: z.string().min(2).max(120).optional(),
   budget: z.string().max(120).optional(),
-  notes: z.string().max(1200).optional()
+  notes: z.string().max(1200).optional(),
+  orderValue: z.coerce.number().int().min(0).optional(),
+  scheduledAt: z.string().datetime().optional(),
+  status: z
+    .enum([
+      "DRAFT",
+      "SUBMITTED",
+      "PAYMENT_PENDING",
+      "PAID",
+      "ASSIGNED",
+      "IN_PRODUCTION",
+      "QUALITY_CHECK",
+      "DELIVERED",
+      "CUSTOMER_APPROVED",
+      "COMPLETED",
+      "CANCELLED",
+      "REVISION_REQUESTED"
+    ])
+    .optional()
+});
+
+export const studioStatusSchema = z.object({
+  message: z.string().max(500).optional(),
+  scheduledAt: z.string().datetime().optional(),
+  status: z.enum([
+    "DRAFT",
+    "SUBMITTED",
+    "PAYMENT_PENDING",
+    "PAID",
+    "ASSIGNED",
+    "IN_PRODUCTION",
+    "QUALITY_CHECK",
+    "DELIVERED",
+    "CUSTOMER_APPROVED",
+    "COMPLETED",
+    "CANCELLED",
+    "REVISION_REQUESTED"
+  ])
+});
+
+export const studioAssignmentSchema = z.object({
+  assigneeId: z.string().optional(),
+  notes: z.string().max(500).optional(),
+  role: z.enum(["PHOTOGRAPHER", "VIDEOGRAPHER", "DRONE_OPERATOR", "EDITOR", "DESIGNER"])
+});
+
+export const studioFileSchema = z.object({
+  fileName: z.string().min(2).max(180),
+  fileType: z.enum(["PHOTO", "VIDEO", "BROCHURE", "CREATIVE", "OTHER"]),
+  fileUrl: z.string().url(),
+  notes: z.string().max(500).optional(),
+  version: z.coerce.number().int().min(1).optional()
+});
+
+export const studioRevisionSchema = z.object({
+  comments: z.string().min(3).max(1200)
+});
+
+export const studioApprovalSchema = z.object({
+  customerFeedback: z.string().max(1000).optional(),
+  customerRating: z.coerce.number().int().min(1).max(5).optional()
 });
 
 export const leadUpdateSchema = z.object({
   stage: z
-    .enum(["NEW", "QUALIFIED", "SITE_VISIT", "NEGOTIATION", "WON", "LOST", "NURTURE"])
+    .enum(["NEW", "CONTACTED", "QUALIFIED", "SITE_VISIT", "NEGOTIATION", "WON", "LOST", "ARCHIVED", "NURTURE"])
     .optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   nextAction: z.string().max(240).optional(),
-  followUpAt: z.string().datetime().optional()
+  followUpAt: z.string().datetime().optional(),
+  dealValue: z.coerce.number().positive().optional()
 });
 
 export const leadNoteSchema = z.object({
   note: z.string().min(2).max(1000)
 });
 
+export const leadNoteUpdateSchema = z.object({
+  note: z.string().min(2).max(1000)
+});
+
 export const leadTaskSchema = z.object({
+  taskType: z.enum(["CALL", "MEETING", "WHATSAPP", "REMINDER"]).default("CALL"),
   title: z.string().min(2).max(240),
   dueAt: z.string().datetime().optional()
+});
+
+export const leadTaskUpdateSchema = z.object({
+  completed: z.boolean().optional(),
+  dueAt: z.string().datetime().optional(),
+  taskType: z.enum(["CALL", "MEETING", "WHATSAPP", "REMINDER"]).optional(),
+  title: z.string().min(2).max(240).optional()
+});
+
+export const leadVisitSchema = z.object({
+  notes: z.string().max(1000).optional(),
+  scheduledAt: z.string().datetime(),
+  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "RESCHEDULED"]).default("SCHEDULED")
+});
+
+export const leadVisitUpdateSchema = z.object({
+  notes: z.string().max(1000).optional(),
+  scheduledAt: z.string().datetime().optional(),
+  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "RESCHEDULED"]).optional()
+});
+
+export const leadInboxFilterSchema = z.object({
+  q: z.string().max(160).optional(),
+  stage: z
+    .enum(["ALL", "NEW", "CONTACTED", "QUALIFIED", "SITE_VISIT", "NEGOTIATION", "WON", "LOST", "ARCHIVED", "NURTURE"])
+    .default("ALL")
 });
 
 export const builderProjectSchema = z.object({

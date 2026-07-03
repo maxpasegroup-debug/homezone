@@ -188,7 +188,12 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
                     </p>
                     {lead.message ? <p className="mt-3 text-sm leading-6">{lead.message}</p> : null}
                   </div>
-                  <OwnerLeadActions leadId={lead.id} />
+                  <div className="flex flex-col gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/leads/${lead.id}` as Route}>Open Lead</Link>
+                    </Button>
+                    <OwnerLeadActions leadId={lead.id} />
+                  </div>
                 </div>
               </div>
             ))}

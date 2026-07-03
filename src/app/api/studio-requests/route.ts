@@ -1,8 +1,11 @@
 import { auth } from "@/auth";
+import { auditLog } from "@/lib/audit";
 import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { studioRequestSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
+import { getStudioService } from "@/lib/studio-data";
+import { addStudioTimeline, createStudioNotification, studioOrderInclude } from "@/lib/studio/workflow";
 
 export async function GET() {
   const session = await auth();
@@ -13,14 +16,12 @@ export async function GET() {
 
   const profile = await getOrCreateProfile(session.user);
   const requests = await db.studioRequest.findMany({
-    where: {
-      requesterId: profile.id
-    },
-    include: {
-      property: true
-    },
+    include: studioOrderInclude,
     orderBy: {
       createdAt: "desc"
+    },
+    where: {
+      requesterId: profile.id
     }
   });
 
@@ -42,14 +43,46 @@ export async function POST(request: Request) {
     }
 
     const profile = await getOrCreateProfile(session.user);
+    const service = getStudioService(parsed.data.serviceType);
+    const status = parsed.data.status ?? "SUBMITTED";
     const studioRequest = await db.studioRequest.create({
       data: {
-        requesterId: profile.id,
-        propertyId: parsed.data.propertyId,
-        serviceType: parsed.data.serviceType,
-        city: parsed.data.city,
         budget: parsed.data.budget,
-        notes: parsed.data.notes
+        city: parsed.data.city,
+        notes: parsed.data.notes,
+        orderValue: parsed.data.orderValue ?? service?.priceAmount ?? 0,
+        paymentStatus: status === "DRAFT" ? "CREATED" : "PENDING",
+        propertyId: parsed.data.propertyId,
+        requesterId: profile.id,
+        scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : undefined,
+        serviceType: parsed.data.serviceType,
+        status
+      }
+    });
+
+    await addStudioTimeline({
+      actorId: profile.id,
+      eventType: status === "DRAFT" ? "ORDER_DRAFTED" : "ORDER_CREATED",
+      message: status === "DRAFT" ? "Studio draft request created." : "Studio order submitted.",
+      studioRequestId: studioRequest.id
+    });
+
+    await createStudioNotification({
+      message: `Studio order for ${parsed.data.serviceType} was created.`,
+      recipientId: profile.id,
+      studioRequestId: studioRequest.id,
+      title: "Studio order created",
+      type: "ORDER_CREATED"
+    });
+
+    await auditLog({
+      action: "STUDIO_ORDER_CREATED",
+      actorId: profile.id,
+      entityId: studioRequest.id,
+      entityType: "studio_request",
+      metadata: {
+        serviceType: parsed.data.serviceType,
+        status
       }
     });
 

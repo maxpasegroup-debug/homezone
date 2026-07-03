@@ -16,7 +16,14 @@ export function ModerationActions({
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  async function moderate(status: "PUBLISHED" | "REJECTED") {
+  const [note, setNote] = useState("");
+
+  async function moderate(status: "PUBLISHED" | "REJECTED" | "NEEDS_CHANGES") {
+    if (note.trim().length < 3) {
+      setError("Moderation note is required.");
+      return;
+    }
+
     setLoading(status);
     setError("");
 
@@ -26,6 +33,7 @@ export function ModerationActions({
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
+        note,
         status
       })
     });
@@ -43,6 +51,12 @@ export function ModerationActions({
 
   return (
     <div className="mt-5 flex flex-col gap-2">
+      <textarea
+        className="min-h-20 w-full rounded-2xl border bg-white p-3 text-sm font-semibold outline-none"
+        onChange={(event) => setNote(event.target.value)}
+        placeholder="Required moderation note"
+        value={note}
+      />
       <div className="flex gap-2">
         <Button
           className="flex-1"
@@ -72,6 +86,9 @@ export function ModerationActions({
           Reject
         </Button>
       </div>
+      <Button disabled={Boolean(loading)} onClick={() => moderate("NEEDS_CHANGES")} size="sm" variant="outline">
+        Request Changes
+      </Button>
       {error ? (
         <p className="rounded-2xl bg-red-50 p-3 text-xs font-bold text-red-700">
           {error}

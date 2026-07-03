@@ -9,7 +9,7 @@ export default function StudioPage() {
           HomeZone
         </Link>
         <div className="mt-8 max-w-4xl">
-          <p className="text-sm font-semibold text-violet-700">Phase 3</p>
+          <p className="text-sm font-semibold text-violet-700">HomeZone Studio</p>
           <h1 className="mt-3 text-balance text-5xl font-bold tracking-tight sm:text-7xl">
             HomeZone Studio
           </h1>

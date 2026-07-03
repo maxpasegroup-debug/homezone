@@ -1181,7 +1181,7 @@ export async function getAdminDashboardData() {
     db.studioRequest.count({
       where: {
         status: {
-          not: "delivered"
+          notIn: ["COMPLETED", "CANCELLED"]
         }
       }
     }),
