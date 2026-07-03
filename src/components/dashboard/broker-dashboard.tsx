@@ -217,7 +217,7 @@ export function BrokerDashboard({ data }: { data: BrokerDashboardData }) {
       <section className="grid gap-6 xl:grid-cols-2">
         <DashboardSection eyebrow="Saved Leads" title="Saved lead shortlist">
           <EmptyState
-            text="Saved leads require future persistence. Phase 2B intentionally keeps this as an empty state without adding a new Prisma model."
+            text="Saved leads will appear here when a broker marks inquiries for follow-up."
             title="No saved leads yet"
           />
         </DashboardSection>

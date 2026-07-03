@@ -1,8 +1,9 @@
 import { auditLog } from "@/lib/audit";
-import { handleApiError, ok } from "@/lib/api/response";
+import { apiError, handleApiError, ok } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import { verifyRazorpayWebhookSignature } from "@/lib/payments/razorpay";
 import { markPaymentPaid } from "@/lib/payments/service";
+import { registerWebhookEvent, updateWebhookEventStatus } from "@/lib/platform/webhooks";
 
 type RazorpayWebhookPayload = {
   event?: string;
@@ -23,13 +24,24 @@ export async function POST(request: Request) {
     const signature = request.headers.get("x-razorpay-signature");
 
     if (!signature || !verifyRazorpayWebhookSignature({ body, signature })) {
-      return Response.json({ error: "Invalid webhook signature" }, { status: 400 });
+      return apiError("Invalid webhook signature", 400);
     }
 
     const payload = JSON.parse(body) as RazorpayWebhookPayload;
     const paymentEntity = payload.payload?.payment?.entity;
     const orderId = paymentEntity?.order_id;
     const paymentId = paymentEntity?.id;
+    const eventId = `${payload.event ?? "razorpay"}:${paymentId ?? orderId ?? body.length}`;
+    const webhook = await registerWebhookEvent({
+      eventId,
+      eventType: payload.event,
+      payload: payload as never,
+      provider: "RAZORPAY"
+    });
+
+    if (webhook.duplicate && webhook.event.status === "PROCESSED") {
+      return ok({ duplicate: true, received: true });
+    }
 
     await auditLog({
       action: "RAZORPAY_WEBHOOK_RECEIVED",
@@ -46,6 +58,11 @@ export async function POST(request: Request) {
         orderId,
         paymentId,
         webhookEventId: paymentId
+      });
+      await updateWebhookEventStatus({
+        eventId,
+        provider: "RAZORPAY",
+        status: "PROCESSED"
       });
     }
 
@@ -78,6 +95,19 @@ export async function POST(request: Request) {
           }
         });
       }
+      await updateWebhookEventStatus({
+        eventId,
+        provider: "RAZORPAY",
+        status: "PROCESSED"
+      });
+    }
+
+    if (payload.event !== "payment.captured" && payload.event !== "payment.failed") {
+      await updateWebhookEventStatus({
+        eventId,
+        provider: "RAZORPAY",
+        status: "IGNORED"
+      });
     }
 
     return ok({ received: true });

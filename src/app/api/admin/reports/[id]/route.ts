@@ -1,10 +1,10 @@
 import { auth } from "@/auth";
-import { auditLog } from "@/lib/audit";
 import { forbidden, handleApiError, notFound, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { adminReportActionSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { updateReportStatus } from "@/lib/platform/reports";
 
 type RouteContext = {
   params: Promise<{
@@ -24,32 +24,14 @@ export async function PATCH(request: Request, context: RouteContext) {
     const parsed = await parseJson(request, adminReportActionSchema);
     if ("error" in parsed) return parsed.error;
 
-    const report = await db.auditLog.findUnique({ where: { id } });
-    if (!report || report.action !== "user_report") return notFound("Report not found");
+    const report = await db.report.findUnique({ where: { id } });
+    if (!report) return notFound("Report not found");
 
-    const updated = await db.auditLog.update({
-      data: {
-        metadata: {
-          ...(typeof report.metadata === "object" && report.metadata ? report.metadata : {}),
-          adminAction: parsed.data.action,
-          adminNote: parsed.data.note,
-          resolvedAt: new Date().toISOString(),
-          resolvedBy: admin.id
-        }
-      },
-      where: { id }
-    });
-
-    await auditLog({
-      action: `REPORT_${parsed.data.action}`,
-      actorId: admin.id,
-      entityId: id,
-      entityType: "report",
-      metadata: {
-        note: parsed.data.note,
-        reportEntityId: report.entityId,
-        reportEntityType: report.entityType
-      }
+    const updated = await updateReportStatus({
+      adminId: admin.id,
+      note: parsed.data.note,
+      reportId: id,
+      status: parsed.data.action
     });
 
     return ok({ report: updated });

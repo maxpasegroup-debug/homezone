@@ -1,5 +1,6 @@
-import Link from "next/link";
 import type { Route } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, ImageIcon, UserRound } from "lucide-react";
 import { AdminModerationPanel, AdminUserPanel } from "@/components/admin/admin-action-panels";
@@ -57,7 +58,9 @@ export default async function AdminListingDetailPage({ params }: PageProps) {
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {[property.coverImageUrl, ...property.mediaUrls].filter(Boolean).map((url) => (
-                  <img alt={property.title} className="aspect-[4/3] rounded-3xl object-cover" key={url} src={url!} />
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-3xl" key={url}>
+                    <Image alt={property.title} className="object-cover" fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" src={url!} />
+                  </div>
                 ))}
                 {property.videoUrl ? (
                   <a className="rounded-3xl bg-muted p-5 text-sm font-bold text-violet-700" href={property.videoUrl} rel="noreferrer" target="_blank">Open walkthrough video</a>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,9 @@ export default async function ListingPreviewPage({ params }: PageProps) {
           <div>
             <Card className="overflow-hidden shadow-soft">
               {property.mediaUrls[0] ? (
-                <img alt={property.title} className="aspect-[16/9] w-full object-cover" src={property.mediaUrls[0]} />
+                <div className="relative aspect-[16/9] w-full">
+                  <Image alt={property.title} className="object-cover" fill priority sizes="(min-width: 1024px) 70vw, 100vw" src={property.mediaUrls[0]} />
+                </div>
               ) : (
                 <div className="flex aspect-[16/9] items-center justify-center bg-violet-50 text-sm font-bold text-violet-700">
                   Add a cover image from Media
@@ -75,7 +78,9 @@ export default async function ListingPreviewPage({ params }: PageProps) {
             {property.mediaUrls.length > 1 ? (
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {property.mediaUrls.slice(1, 5).map((url) => (
-                  <img alt={property.title} className="aspect-[4/3] rounded-3xl object-cover" key={url} src={url} />
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-3xl" key={url}>
+                    <Image alt={property.title} className="object-cover" fill sizes="(min-width: 640px) 25vw, 50vw" src={url} />
+                  </div>
                 ))}
               </div>
             ) : null}

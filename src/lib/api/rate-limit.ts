@@ -9,6 +9,17 @@ type RateLimitOptions = {
   windowMs: number;
 };
 
+export type RateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  resetAt: Date;
+};
+
+export type RateLimitAdapter = {
+  check: (options: RateLimitOptions) => RateLimitResult;
+  name: string;
+};
+
 const buckets = new Map<string, RateLimitBucket>();
 
 function now() {
@@ -25,7 +36,8 @@ export function getClientIp(request: Request) {
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
-export function checkRateLimit({ key, limit, windowMs }: RateLimitOptions) {
+const memoryRateLimitAdapter: RateLimitAdapter = {
+  check({ key, limit, windowMs }) {
   const currentTime = now();
   const existing = buckets.get(key);
 
@@ -59,6 +71,22 @@ export function checkRateLimit({ key, limit, windowMs }: RateLimitOptions) {
     remaining: limit - existing.count,
     resetAt: new Date(existing.resetAt)
   };
+  },
+  name: "memory"
+};
+
+let activeAdapter: RateLimitAdapter = memoryRateLimitAdapter;
+
+export function setRateLimitAdapter(adapter: RateLimitAdapter) {
+  activeAdapter = adapter;
+}
+
+export function getRateLimitAdapterName() {
+  return activeAdapter.name;
+}
+
+export function checkRateLimit(options: RateLimitOptions) {
+  return activeAdapter.check(options);
 }
 
 export function rateLimitKey(request: Request, scope: string, actorId?: string | null) {

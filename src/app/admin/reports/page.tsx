@@ -16,7 +16,7 @@ export default async function AdminReportsPage() {
         <Link className="text-sm font-bold text-violet-700" href="/admin">Admin</Link>
         <h1 className="mt-8 text-5xl font-bold tracking-tight">Reports and flags</h1>
         <p className="mt-4 max-w-2xl text-muted-foreground">
-          Review reported properties, reels, users, and providers. Resolve, dismiss, or escalate every report with an audit note.
+          Review reported properties, users, service providers, builders, brokers, Studio orders, and reviews.
         </p>
 
         <div className="mt-8 grid gap-5">
@@ -27,11 +27,12 @@ export default async function AdminReportsPage() {
                 <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
                   <div>
                     <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{report.entityType ?? "unknown"}</span>
-                      <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">{formatAdminStatus(String(metadata.adminAction ?? "OPEN"))}</span>
+                      <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{formatAdminStatus(report.entityType)}</span>
+                      <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">{formatAdminStatus(report.status)}</span>
                     </div>
-                    <h2 className="mt-3 text-2xl font-bold">{formatAdminStatus(report.action)}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{report.createdAt.toLocaleString("en-IN")} · Entity {report.entityId ?? "not set"}</p>
+                    <h2 className="mt-3 text-2xl font-bold">{report.reason}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{report.createdAt.toLocaleString("en-IN")} / Entity {report.entityId}</p>
+                    {report.adminNotes ? <p className="mt-3 text-sm font-semibold text-violet-700">{report.adminNotes}</p> : null}
                     <pre className="mt-4 overflow-auto rounded-2xl bg-muted p-4 text-xs text-muted-foreground">{JSON.stringify(metadata, null, 2)}</pre>
                   </div>
                   <AdminReportPanel reportId={report.id} />

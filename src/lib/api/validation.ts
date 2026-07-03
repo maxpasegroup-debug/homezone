@@ -90,6 +90,76 @@ export const aiLeadAssistantSchema = z.object({
   propertyId: idSchema.optional()
 });
 
+export const aiPropertyIntelligenceSchema = z.object({
+  action: z.enum([
+    "advisor",
+    "search",
+    "comparison",
+    "score",
+    "locality",
+    "price",
+    "investment",
+    "loan",
+    "legal",
+    "description",
+    "recommendation"
+  ]),
+  documentType: z.string().min(2).max(120).optional(),
+  loan: z
+    .object({
+      downPayment: z.coerce.number().min(0).optional(),
+      interestRate: z.coerce.number().min(1).max(40).optional(),
+      loanAmount: z.coerce.number().min(0).optional(),
+      tenureYears: z.coerce.number().int().min(1).max(40).optional()
+    })
+    .optional(),
+  propertyId: idSchema.optional(),
+  propertyIds: z.array(idSchema).min(2).max(4).optional(),
+  query: z.string().min(2).max(1200).optional()
+});
+
+export const aiProviderSchema = z.enum(["OPENAI", "GEMINI", "ANTHROPIC"]);
+
+export const aiModuleSchema = z.enum([
+  "PROPERTY",
+  "LEAD",
+  "STUDIO",
+  "BROKER",
+  "BUILDER",
+  "SERVICE",
+  "PAYMENT",
+  "AI",
+  "ADMIN",
+  "SYSTEM"
+]);
+
+export const aiPromptSchema = z.object({
+  active: z.boolean().optional(),
+  description: z.string().max(500).optional(),
+  maxTokens: z.coerce.number().int().min(1).max(8000).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  model: z.string().min(2).max(120).optional(),
+  module: aiModuleSchema,
+  name: z.string().min(2).max(160),
+  promptId: z.string().min(3).max(120),
+  promptText: z.string().min(10).max(12000),
+  provider: aiProviderSchema.optional(),
+  temperature: z.coerce.number().min(0).max(2).optional(),
+  version: z.coerce.number().int().min(1).optional()
+});
+
+export const aiSettingSchema = z.object({
+  dailyCostLimit: z.coerce.number().min(0).optional(),
+  enabled: z.boolean().optional(),
+  featureFlags: z.record(z.string(), z.unknown()).optional(),
+  maxTokens: z.coerce.number().int().min(1).max(8000).optional(),
+  model: z.string().min(2).max(120).optional(),
+  module: aiModuleSchema,
+  provider: aiProviderSchema.optional(),
+  rateLimitPerMinute: z.coerce.number().int().min(1).max(10000).optional(),
+  temperature: z.coerce.number().min(0).max(2).optional()
+});
+
 export const leadSourceSchema = z.enum(["PROPERTY", "REEL", "SEARCH", "DASHBOARD"]);
 
 export const contactActionSchema = z.enum(["CALL", "WHATSAPP", "INQUIRY"]);
@@ -294,7 +364,7 @@ export const adminProfileUpdateSchema = z.object({
 });
 
 export const adminReportActionSchema = z.object({
-  action: z.enum(["RESOLVED", "DISMISSED", "ESCALATED"]),
+  action: z.enum(["RESOLVED", "DISMISSED", "ESCALATED", "UNDER_REVIEW"]),
   note: z.string().min(3).max(1000)
 });
 
@@ -336,7 +406,9 @@ export const paymentVerifySchema = z.object({
 });
 
 export const reportSchema = z.object({
-  entityType: z.enum(["property", "reel", "provider", "builder"]),
+  entityType: z
+    .enum(["property", "user", "provider", "builder", "broker", "studio", "review", "reel"])
+    .transform((value) => (value === "provider" ? "SERVICE_PROVIDER" : value === "reel" ? "PROPERTY" : value.toUpperCase())),
   entityId: idSchema,
   reason: z.string().min(3).max(500)
 });

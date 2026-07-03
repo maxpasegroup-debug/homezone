@@ -458,7 +458,7 @@ export default function HomePage() {
           <div className="grid gap-8 md:grid-cols-[0.9fr_1.1fr] md:items-center">
             <div>
               <p className="text-sm font-semibold text-violet-700">
-                Phase 2 Ready
+                AI Search
               </p>
               <h2 className="mt-2 text-4xl font-bold tracking-tight">
                 Search by talking, not filtering.
@@ -504,7 +504,7 @@ export default function HomePage() {
               <FileSearch className="h-6 w-6" />
             </div>
             <p className="text-sm font-semibold text-violet-700">
-              Phase 4 Ready
+              Property Analyzer
             </p>
             <h2 className="mt-2 text-4xl font-bold tracking-tight">
               Analyze before you decide.
@@ -549,7 +549,7 @@ export default function HomePage() {
                 <UsersRound className="h-6 w-6" />
               </div>
               <p className="text-sm font-semibold text-white/65">
-                Phase 5 Ready
+                Broker CRM
               </p>
               <h2 className="mt-2 text-4xl font-bold tracking-tight">
                 HomeZone Pro for brokers.
@@ -590,7 +590,7 @@ export default function HomePage() {
               <Building2 className="h-6 w-6" />
             </div>
             <p className="text-sm font-semibold text-violet-700">
-              Phase 6 Ready
+              Builder Hub
             </p>
             <h2 className="mt-2 text-4xl font-bold tracking-tight">
               Builder Hub for project launches.
@@ -634,7 +634,7 @@ export default function HomePage() {
                 <Wrench className="h-6 w-6" />
               </div>
               <p className="text-sm font-semibold text-violet-700">
-                Phase 7 Ready
+                Services Marketplace
               </p>
               <h2 className="mt-2 text-4xl font-bold tracking-tight">
                 Services after property discovery.
@@ -680,7 +680,7 @@ export default function HomePage() {
               <LineChart className="h-6 w-6" />
             </div>
             <p className="text-sm font-semibold text-violet-700">
-              Phase 8 Ready
+              Investment Engine
             </p>
             <h2 className="mt-2 text-4xl font-bold tracking-tight">
               Investment intelligence for property decisions.
@@ -725,7 +725,7 @@ export default function HomePage() {
                 <Compass className="h-6 w-6" />
               </div>
               <p className="text-sm font-semibold text-white/65">
-                Phase 9 Ready
+                Life Map
               </p>
               <h2 className="mt-2 text-4xl font-bold tracking-tight">
                 HomeZone Life Map.
@@ -767,7 +767,7 @@ export default function HomePage() {
               <Sparkles className="h-6 w-6" />
             </div>
             <p className="text-sm font-semibold text-violet-700">
-              Phase 10 Ready
+              HomeZone Ecosystem
             </p>
             <h2 className="mt-2 text-4xl font-bold tracking-tight">
               The full HomeZone ecosystem.

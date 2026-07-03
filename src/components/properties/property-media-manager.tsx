@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { CheckCircle2, ImagePlus, Trash2, Video } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -145,8 +146,8 @@ export function PropertyMediaManager({
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {gallery.map((url, index) => (
           <div className="overflow-hidden rounded-3xl border bg-white" key={url}>
-            <div className="aspect-[4/3] bg-muted">
-              <img alt="Property media" className="h-full w-full object-cover" src={url} />
+            <div className="relative aspect-[4/3] bg-muted">
+              <Image alt="Property media" className="object-cover" fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" src={url} />
             </div>
             <div className="space-y-2 p-3">
               <div className="flex gap-2">

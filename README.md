@@ -2,253 +2,45 @@
 
 Your AI Property Companion.
 
-HomeZone is a mobile-first, AI-powered real estate platform for buying, selling, renting, investing, and marketing property.
+HomeZone is a mobile-first real estate ecosystem for property discovery, listing, lead management, studio services, broker CRM, builder operations, and service-provider workflows. The platform uses a PostgreSQL-first architecture with Cloudinary media, Auth.js authentication, Prisma data access, and Razorpay-ready payments.
 
-## Phase 1
+## Core Modules
 
-- Next.js 15 App Router
-- TypeScript
-- Tailwind CSS
-- Shadcn-compatible UI setup
-- Prisma + Railway PostgreSQL foundation
-- Premium landing page
-- AI property search UI
-- Voice search CTA
-- Buy / Sell / Rent / Invest cards
-- Property reels preview
-- HomeZone Studio preview
-- AI Property Companion section
+- Public landing, marketplace, property details, reels, voice, and AI search surfaces
+- Buyer dashboard with saved properties, recent views, shortlists, recommendations, and comparison
+- Property owner dashboard with listings, media, documents, verification, leads, analytics, and upgrades
+- Lead lifecycle CRM with notes, tasks, site visits, timeline, notifications, and pipeline stages
+- Admin operations for users, listings, reports, moderation, analytics, and Studio oversight
+- HomeZone Studio order workflow with payments, assignment, production, delivery, revisions, and approvals
+- Broker Pro CRM with team, assignments, calendar, commissions, automations, plans, and analytics
+- Builder Enterprise with projects, towers, units, bookings, campaigns, reports, team, and subscriptions
+- Services Marketplace with providers, quotes, bookings, payments, reviews, and provider dashboard
 
-## Phase 2
+## Platform Foundation
 
-- AI Search Engine page at `/search`
-- Natural-language property parsing
-- Voice search CTA
-- English, Malayalam, and Hindi-ready examples
-- AI match cards
-- AI Matchmaker flow
+- Next.js App Router with TypeScript and Tailwind CSS
+- Prisma schema for Railway PostgreSQL
+- Auth.js with Prisma adapter
+- Cloudinary signed upload workflow
+- Razorpay order, verification, webhook, and entitlement foundations
+- Shared Zod validation and API response helpers
+- Unified audit log and platform-level infrastructure for reports, notifications, permissions, pagination, webhooks, and rate limiting
 
-## Phase 3
-
-- HomeZone Studio page at `/studio`
-- Service ordering UI
-- Photography, drone, walkthrough, reels, brochure, and ads services
-- AI creative generator preview
-- YouTube/property spotlight request
-- Studio package cards
-- WhatsApp verification checkpoint for paid work
-
-## Phase 4
-
-- AI Property Analyzer page at `/analyzer`
-- Document/image analysis workflow
-- Property Health Report UI
-- Estimated value, risk, rental, and investment metrics
-- HomeZone Property Score
-- Score breakdown across location, pricing, amenities, growth, demand, and documents
-- Legal notes and professional disclaimer
-
-## Phase 5
-
-- HomeZone Pro page at `/pro`
-- Broker CRM dashboard
-- Lead management and status filters
-- Pipeline summary cards
-- AI lead scoring
-- AI Lead Assistant recommendations
-- WhatsApp automation controls
-- Follow-up reminders
-- Subscription plan cards
-- WhatsApp-verified Pro account checkpoint
-
-## Phase 6
-
-- Builder Hub page at `/builder`
-- Project showcase dashboard
-- Builder analytics cards
-- Lead generation overview
-- Campaign management request flow
-- Landing page generator UI
-- Media request workflow
-- AI builder report highlights
-- Builder tasks and verification checkpoint
-
-## Phase 7
-
-- Property Services Marketplace page at `/services`
-- Service categories for interiors, architects, construction, solar, loans, legal, insurance, movers, cleaning, and home automation
-- Verified provider cards
-- AI service matching flow
-- Service request form
-- Property journey service moments
-- Trust and verification signals
-- WhatsApp-verified quote and booking checkpoint
-
-## Phase 8
-
-- Investment Engine page at `/invest`
-- Investment score
-- Future growth potential
-- Rental yield signals
-- Hotspot and area analysis
-- Price trend visualization
-- Infrastructure impact estimates
-- Investor profile and budget controls
-- Investment disclaimer
-
-## Phase 9
-
-- HomeZone Life Map page at `/life-map`
-- Life-stage questions for family, work, priority, and timeline
-- Life-oriented area recommendations
-- Property type recommendations
-- Family, kids, commute, retirement, investment, and lifestyle signals
-- Recommendation paths for buyers, investors, retirees, and parents
-- Life Map score and save checkpoint
-
-## Phase 10
-
-- Super App Ecosystem page at `/ecosystem`
-- Unified module map for AI Companion, Marketplace, Reels, Studio, Pro, Builder Hub, Services, Investment Engine, Life Map, and Analyzer
-- Ecosystem metrics
-- Buyer, owner, broker, and builder journey flows
-- Live-product implementation roadmap
-- Simplicity principles for the super app experience
-
-## Production Backbone
-
-- Prisma schema for Railway PostgreSQL at `prisma/schema.prisma`
-- Prisma client at `src/lib/db.ts`
-- Auth.js configuration at `src/auth.ts`
-- Auth page at `/auth`
-- Role onboarding page at `/onboarding`
-- Dashboard shell at `/dashboard`
-- Session-aware landing header with login, dashboard, and logout actions
-- Marketplace page at `/properties`
-- Property detail pages at `/properties/[id]`
-- Admin control center at `/admin`
-- API contracts:
-  - `/api/ai/search`
-  - `/api/leads`
-  - `/api/profile`
-  - `/api/service-requests`
-- Launch checklist at `docs/LAUNCH_CHECKLIST.md`
-
-## Phase A Production Core
-
-- Local credentials login for controlled testing
-- Google Auth.js provider support
-- Automatic user profile creation
-- Role onboarding for buyer, owner, broker, builder, and service provider
-- Profile update API
-- Dashboard shows role, city, and WhatsApp verification status
-- Logout action
-
-## Phase B Real Property Marketplace
-
-- Property creation API at `/api/properties`
-- Save property API at `/api/properties/[id]/save`
-- Add property page at `/dashboard/listings/new`
-- My Listings page at `/dashboard/listings`
-- Saved Properties page at `/dashboard/saved`
-- Inquiries page at `/dashboard/inquiries`
-- Public marketplace reads from PostgreSQL with local development fallback
-- Property detail reads from PostgreSQL with local development fallback
-- Contact owner form creates lead records
-
-## Media And Reels
-
-- Cloudinary upload API at `/api/media/upload`
-- Attach media to property API at `/api/properties/[id]/media`
-- Reels API at `/api/reels`
-- Property media manager at `/dashboard/listings/[id]/media`
-- Dashboard reels page at `/dashboard/reels`
-- New reel page at `/dashboard/reels/new`
-- Public reels feed at `/reels`
-- Property listing dashboard links to media uploads
-
-## Phase D Admin And Trust
-
-- Admin role guard for `/admin`
-- Live admin moderation queues
-- Property approval/rejection API
-- Reel approval/rejection API
-- User report API
-- Report button on property detail pages
-- Audit log records for moderation and reports
-- Admin dashboard counts for listings, reels, providers, builders, brokers, and reports
-
-To access `/admin`, set a profile role to `ADMIN` in PostgreSQL.
-
-## Phase E AI Search And Companion
-
-- OpenAI Responses API wrapper with local development fallback
-- AI assistant API at `/api/ai/assistant`
-- AI search API upgraded at `/api/ai/search`
-- Floating HomeZone AI companion on every page
-- Search page can call AI endpoint and show AI/fallback source
-- Property creation generates AI summaries when `OPENAI_API_KEY` is configured
-- `OPENAI_MODEL` defaults to `gpt-4.1-mini`
-
-## Phase F Voice Experience
-
-- Reusable browser speech recognition button
-- Voice page at `/voice`
-- English, Malayalam, and Hindi voice modes
-- AI Search page voice input
-- Property listing form voice input
-- Voice transcript to AI search flow
-- Graceful fallback when browser speech recognition is unsupported
-
-## Phase G HomeZone Studio Backend
-
-- Studio request API at `/api/studio-requests`
-- Admin Studio status API at `/api/admin/studio-requests/[id]/status`
-- Studio page creates real booking requests
-- Dashboard Studio tracking page at `/dashboard/studio`
-- Dashboard Studio card links to request tracking
-- Admin dashboard shows Studio request queue and counts
-
-## Phase H Broker Pro CRM
-
-- Lead note and task models in Prisma
-- Pro leads API at `/api/pro/leads`
-- Lead update API at `/api/pro/leads/[id]`
-- Lead notes API at `/api/pro/leads/[id]/notes`
-- Lead tasks API at `/api/pro/leads/[id]/tasks`
-- Live broker CRM page at `/dashboard/pro`
-- Dashboard Broker Pro card links to the live CRM
-- Stage filtering and stage updates
-- Quick lead creation
-- Notes and follow-up tasks
-- Admin counts for leads and pending tasks
-
-## Phase I Builder Hub Backend
-
-- Builder project API at `/api/builder/projects`
-- Builder project update API at `/api/builder/projects/[id]`
-- Live builder dashboard at `/dashboard/builder`
-- Project creation with inventory counts
-- Dashboard Builder Hub card links to live builder workspace
-- Admin builder project counts use real database records
-
-## Phase J Services Marketplace Backend
-
-- Service provider model relation and quote model in Prisma
-- Service provider API at `/api/service-providers`
-- Service quote API at `/api/service-quotes`
-- Services page creates real service requests
-- Dashboard Services page at `/dashboard/services`
-- Provider onboarding form
-- Service request tracking with quote counts
-- Dashboard Services card links to live services workspace
-- Admin counts for service providers, service requests, and quotes
-
-## Run Locally
+## Local Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Create `.env.local` from `.env.example` with Railway PostgreSQL, Auth.js, and provider credentials.
+Create `.env.local` from `.env.example` with PostgreSQL, Auth.js, Cloudinary, Razorpay, OpenAI, and provider credentials as needed.
+
+## Validation
+
+```bash
+npx prisma generate
+npx prisma validate
+npm run typecheck
+npm run lint
+npm run build
+```

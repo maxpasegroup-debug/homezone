@@ -2,15 +2,35 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { captureException } from "@/lib/logging/logger";
 
+export function createRequestId() {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function withMeta<T>(data: T, requestId?: string) {
+  return requestId
+    ? {
+        data,
+        requestId,
+        success: true
+      }
+    : data;
+}
+
 export function ok<T>(data: T, init?: ResponseInit) {
   return NextResponse.json(data, init);
 }
 
-export function apiError(message: string, status = 500, details?: unknown) {
+export function okWithRequestId<T>(data: T, requestId = createRequestId(), init?: ResponseInit) {
+  return NextResponse.json(withMeta(data, requestId), init);
+}
+
+export function apiError(message: string, status = 500, details?: unknown, requestId?: string) {
   return NextResponse.json(
     {
       details,
-      error: message
+      error: message,
+      requestId,
+      success: false
     },
     { status }
   );

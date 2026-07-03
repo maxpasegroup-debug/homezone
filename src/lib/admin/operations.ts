@@ -55,7 +55,7 @@ export async function getAdminOperationsData() {
         }
       }
     }),
-    db.auditLog.count({ where: { action: "user_report" } }),
+    db.report.count(),
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 12
@@ -221,10 +221,9 @@ export async function getAdminLeadOversight() {
 }
 
 export async function getAdminReports() {
-  return db.auditLog.findMany({
+  return db.report.findMany({
     orderBy: { createdAt: "desc" },
-    take: 100,
-    where: { action: "user_report" }
+    take: 100
   });
 }
 

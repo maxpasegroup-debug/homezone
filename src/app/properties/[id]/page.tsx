@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Building2, Images, MapPin, Share2, Sparkles } from "lucide-react";
 import { VerificationGate } from "@/components/account/verification-gate";
+import { AIPropertyIntelligencePanel } from "@/components/ai/ai-property-intelligence-panel";
 import { ContactPropertyForm } from "@/components/properties/contact-property-form";
 import { BuyerPropertyActions } from "@/components/properties/buyer-property-actions";
 import { PropertyCard } from "@/components/properties/property-card";
@@ -124,6 +125,11 @@ export default async function PropertyDetailPage({ params }: PageProps) {
                   `This property has been prepared for guided discovery. HomeZone score is ${property.score}/100 with rental signal ${property.rentalYield}.`}
               </p>
             </Card>
+
+            <AIPropertyIntelligencePanel
+              propertyId={property.id}
+              propertyTitle={property.title}
+            />
 
             <Card className="mt-8 p-6 shadow-sm sm:p-8">
               <h2 className="text-3xl font-bold">Description</h2>

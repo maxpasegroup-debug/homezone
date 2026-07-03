@@ -2,6 +2,7 @@ import type { Prisma, StudioOrderStatus } from "@prisma/client";
 import { forbidden, notFound } from "@/lib/api/response";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { createNotification } from "@/lib/platform/notifications";
 
 export const studioStatuses: StudioOrderStatus[] = [
   "DRAFT",
@@ -138,6 +139,19 @@ export async function createStudioNotification({
   type: string;
 }) {
   if (!recipientId) return null;
+
+  await createNotification({
+    actionUrl: `/dashboard/studio/${studioRequestId}`,
+    message,
+    metadata: {
+      studioRequestId
+    },
+    module: "STUDIO",
+    priority: type.includes("REVISION") ? "HIGH" : "NORMAL",
+    recipientId,
+    title,
+    type
+  });
 
   return db.studioNotification.create({
     data: {

@@ -1,6 +1,6 @@
 import { explainSearch, getPropertyMatches, parsePropertySearch } from "@/lib/ai-search";
-import { env, isProduction } from "@/lib/env";
-import { logger } from "@/lib/logging/logger";
+import { runAIText } from "@/lib/ai/core";
+import { isProduction } from "@/lib/env";
 import { getMarketplaceProperties } from "@/lib/properties/queries";
 
 type OpenAITextOptions = {
@@ -14,55 +14,17 @@ export async function generateOpenAIText({
   user,
   temperature = 0.4
 }: OpenAITextOptions) {
-  const apiKey = env.OPENAI_API_KEY;
-  const model = env.OPENAI_MODEL;
-
-  if (!apiKey) {
-    return null;
-  }
-
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+  const result = await runAIText({
+    metadata: {
+      legacyFunction: "generateOpenAIText"
     },
-    body: JSON.stringify({
-      model,
-      input: [
-        {
-          role: "system",
-          content: system
-        },
-        {
-          role: "user",
-          content: user
-        }
-      ],
-      temperature
-    })
-  }).catch((error) => {
-    logger.warn("OpenAI request threw", {
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-    return null;
+    module: "AI",
+    promptText: system,
+    temperature,
+    userText: user
   });
 
-  if (!response) {
-    return null;
-  }
-
-  if (!response.ok) {
-    logger.warn("OpenAI request failed", {
-      status: response.status
-    });
-    return null;
-  }
-
-  const data = await response.json();
-  const output = data.output_text;
-
-  return typeof output === "string" ? output : null;
+  return result.output;
 }
 
 export async function answerPropertyQuestion(question: string) {

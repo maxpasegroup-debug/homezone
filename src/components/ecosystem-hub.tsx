@@ -198,7 +198,7 @@ export function EcosystemHub() {
               The platform vision is now mapped end to end.
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-              This Phase 10 hub acts as the system map for the full HomeZone
+              This hub acts as the system map for the full HomeZone
               product: public discovery, verified dashboards, revenue engines,
               AI intelligence, and service expansion.
             </p>

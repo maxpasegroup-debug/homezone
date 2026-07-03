@@ -18,6 +18,8 @@ import { isAdminRole, normalizeRole } from "../src/lib/auth/roles.ts";
 import { detectAILanguage, parseAIPropertyFilters } from "../src/lib/ai/companion-utils.ts";
 import { createInvoiceNumber, getPaymentProduct, isAllowedForRole } from "../src/lib/payments/catalog.ts";
 import { profileVerificationEvent, propertyVerificationEvent } from "../src/lib/trust/verification.ts";
+import { canAccessResource, hasPermission } from "../src/lib/platform/permissions.ts";
+import { getPagination, paginatedResponse } from "../src/lib/platform/pagination.ts";
 
 function run(name: string, assertion: () => void) {
   assertion();
@@ -55,7 +57,7 @@ run("property intent accepts final production categories", () => {
   }).success, true);
 });
 
-run("currency is validated against Phase 2A allowlist", () => {
+run("currency is validated against the marketplace allowlist", () => {
   assert.equal(currencySchema.safeParse("INR").success, true);
   assert.equal(currencySchema.safeParse("AED").success, true);
   assert.equal(currencySchema.safeParse("JPY").success, false);
@@ -87,7 +89,7 @@ run("rate limiter blocks after configured limit", () => {
   assert.equal(checkRateLimit({ key: "test", limit: 2, windowMs: 60_000 }).allowed, false);
 });
 
-run("verification schemas accept Phase 2C trust statuses", () => {
+run("verification schemas accept trust statuses", () => {
   assert.equal(propertyVerificationSchema.safeParse({ status: "VERIFIED" }).success, true);
   assert.equal(propertyVerificationSchema.safeParse({ status: "SUSPENDED" }).success, false);
   assert.equal(profileVerificationSchema.safeParse({ status: "SUSPENDED" }).success, true);
@@ -113,7 +115,7 @@ run("payment role rules and invoice numbers are deterministic foundations", () =
   assert.match(createInvoiceNumber(new Date("2026-06-18T00:00:00.000Z")), /^HZ-20260618-[A-Z0-9]{6}$/);
 });
 
-run("lead source and contact action enums support Phase 4 tracking", () => {
+run("lead source and contact action enums support interaction tracking", () => {
   assert.equal(leadSourceSchema.safeParse("PROPERTY").success, true);
   assert.equal(leadSourceSchema.safeParse("REEL").success, true);
   assert.equal(leadSourceSchema.safeParse("WhatsApp").success, false);
@@ -140,7 +142,7 @@ run("lead schema accepts reel leads and rejects free-form sources", () => {
   }).success, false);
 });
 
-run("reel reports and Phase 4B audit events are supported", () => {
+run("reel reports and audit events are supported", () => {
   assert.equal(reportSchema.safeParse({
     entityId: "clx123456789",
     entityType: "reel",
@@ -193,7 +195,7 @@ run("AI comparison and lead assistant schemas are constrained", () => {
   }).success, false);
 });
 
-run("Phase 6 intelligence audit events are explicit", () => {
+run("intelligence audit events are explicit", () => {
   assert.deepEqual([
     "PROPERTY_VIEWED",
     "SEARCH_PERFORMED",
@@ -209,4 +211,41 @@ run("Phase 6 intelligence audit events are explicit", () => {
 
 run("AI parser handles production rupee search input", () => {
   assert.equal(parseAIPropertyFilters("Show villas in Kochi under ₹1 Cr").maxPrice, 10_000_000);
+});
+
+run("permission matrix allows admins and resource owners", () => {
+  assert.equal(hasPermission({ actorId: "admin", role: "ADMIN" }, "admin.manage"), true);
+  assert.equal(hasPermission({ actorId: "buyer", role: "USER" }, "admin.manage"), false);
+  assert.equal(canAccessResource({
+    actorId: "owner-1",
+    ownerId: "owner-1",
+    role: "OWNER"
+  }, "property.manage"), true);
+  assert.equal(canAccessResource({
+    actorId: "owner-2",
+    ownerId: "owner-1",
+    role: "OWNER"
+  }, "property.manage"), false);
+});
+
+run("pagination foundation clamps unsafe values", () => {
+  assert.deepEqual(getPagination({ page: "0", pageSize: "500" }), {
+    page: 1,
+    skip: 0,
+    take: 100
+  });
+  assert.equal(paginatedResponse({ items: [1, 2], page: 2, pageSize: 2, total: 5 }).pagination.hasNextPage, true);
+});
+
+run("report schema maps public entity names to platform report entities", () => {
+  const parsed = reportSchema.safeParse({
+    entityId: "clx123456789",
+    entityType: "provider",
+    reason: "Misleading credentials"
+  });
+
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.equal(parsed.data.entityType, "SERVICE_PROVIDER");
+  }
 });

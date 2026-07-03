@@ -149,6 +149,202 @@ enum ContactAction {
   INQUIRY
 }
 
+enum NotificationModule {
+  PROPERTY
+  LEAD
+  STUDIO
+  BROKER
+  BUILDER
+  SERVICE
+  PAYMENT
+  AI
+  ADMIN
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
+  SMS
+  PUSH
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum ReportEntityType {
+  PROPERTY
+  USER
+  SERVICE_PROVIDER
+  BUILDER
+  BROKER
+  STUDIO
+  REVIEW
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+  ESCALATED
+}
+
+enum WebhookProvider {
+  RAZORPAY
+  WHATSAPP
+  SYSTEM
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum ServiceRequestStatus {
+  requested
+  quoted
+  accepted
+  booked
+  completed
+  cancelled
+}
+
+enum ServiceQuoteStatus {
+  sent
+  accepted
+  rejected
+  revised
+  expired
+}
+
+enum ServiceBookingStatus {
+  UPCOMING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  UNDER_REVIEW
+  HIDDEN
+  REMOVED
+}
+
+enum BuilderProjectStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  COMPLETED
+}
+
+enum BuilderConstructionStatus {
+  PLANNING
+  FOUNDATION
+  STRUCTURE
+  FINISHING
+  READY
+  COMPLETED
+}
+
+enum BuilderTowerStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum BuilderUnitStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+  BLOCKED
+}
+
+enum BuilderBookingStatus {
+  RESERVED
+  CONFIRMED
+  RELEASED
+  SOLD
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum CampaignChannel {
+  HOMEZONE
+  META
+  GOOGLE
+  YOUTUBE
+  WHATSAPP
+  OFFLINE
+}
+
+enum CommissionStatus {
+  PENDING
+  PAID
+  OUTSTANDING
+}
+
+enum AutomationChannel {
+  WHATSAPP
+  EMAIL
+  SMS
+}
+
+enum AutomationTrigger {
+  NEW_LEAD
+  FOLLOW_UP_DUE
+  VISIT_SCHEDULED
+  DEAL_WON
+}
+
+enum AIProvider {
+  OPENAI
+  GEMINI
+  ANTHROPIC
+}
+
+enum AIMessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
+enum AIRequestStatus {
+  SUCCESS
+  FAILED
+  BLOCKED
+  FALLBACK
+}
+
+enum AIMemoryScope {
+  SHORT_TERM
+  CONVERSATION
+  USER_PREFERENCE
+  SESSION
+  LONG_TERM
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -216,6 +412,8 @@ model Profile {
   userLeads        Lead[]             @relation("UserLeads")
   authoredLeadNotes LeadNote[]
   leadNotifications LeadNotification[]
+  notifications     Notification[]      @relation("NotificationRecipient")
+  reports           Report[]            @relation("ReportReporter")
   savedProperties  SavedProperty[]
   propertyViews    PropertyView[]
   shortlists       PropertyShortlist[]
@@ -237,6 +435,10 @@ model Profile {
   builderBookings  BuilderBooking[] @relation("BuilderBookingBuyer")
   builderActivity  BuilderActivityLog[]
   aiReports        AiReport[]
+  aiConversations  AIConversation[]
+  aiMessages       AIMessage[]
+  aiUsageLogs      AIUsageLog[]
+  aiMemories       AIMemory[]
   payments         Payment[]
   subscriptions    Subscription[]
   brokerTeam       BrokerTeamMember[] @relation("BrokerTeamOwner")
@@ -513,7 +715,7 @@ model BrokerCommission {
   dealValue   Decimal  @default(0)
   commissionPercent Decimal @default(0)
   commissionAmount Decimal @default(0)
-  status      String   @default("PENDING")
+  status      CommissionStatus @default(PENDING)
   paidAt      DateTime?
   notes       String?
   createdAt   DateTime @default(now())
@@ -529,8 +731,8 @@ model BrokerAutomationRule {
   id        String   @id @default(cuid())
   brokerId  String
   broker    Profile  @relation(fields: [brokerId], references: [id], onDelete: Cascade)
-  channel   String
-  trigger   String
+  channel   AutomationChannel
+  trigger   AutomationTrigger
   template  String
   enabled   Boolean  @default(true)
   provider  String?
@@ -823,7 +1025,7 @@ model ServiceRequest {
   city        String
   budget      String?
   message     String?
-  status      String   @default("requested")
+  status      ServiceRequestStatus @default(requested)
   quotes      ServiceQuote[]
   booking     ServiceBooking?
   createdAt   DateTime @default(now())
@@ -877,7 +1079,7 @@ model ServiceQuote {
   amount      Decimal?
   currency    String          @default("INR")
   message     String
-  status      String          @default("sent")
+  status      ServiceQuoteStatus @default(sent)
   revision    Int             @default(1)
   validUntil  DateTime?
   acceptedAt  DateTime?
@@ -903,7 +1105,7 @@ model ServiceBooking {
   customer      Profile?        @relation("ServiceBookingCustomer", fields: [customerId], references: [id], onDelete: SetNull)
   payments      Payment[]
   review        ServiceReview?
-  status        String          @default("UPCOMING")
+  status        ServiceBookingStatus @default(UPCOMING)
   scheduledAt   DateTime?
   completedAt   DateTime?
   cancelledAt   DateTime?
@@ -934,7 +1136,7 @@ model ServiceReview {
   rating      Int
   comment     String?
   photoUrls   String[]        @default([])
-  status      String          @default("PUBLISHED")
+  status      ReviewStatus    @default(PUBLISHED)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
@@ -955,13 +1157,13 @@ model BuilderProject {
   amenities      String[] @default([])
   floorPlanUrls  String[] @default([])
   masterPlanUrl  String?
-  constructionStatus String @default("PLANNING")
+  constructionStatus BuilderConstructionStatus @default(PLANNING)
   completionDate DateTime?
   unitsCount     Int?
   availableUnits Int?
   mediaUrls      String[] @default([])
-  status         String   @default("DRAFT")
-  campaignStatus String   @default("DRAFT")
+  status         BuilderProjectStatus @default(DRAFT)
+  campaignStatus CampaignStatus @default(DRAFT)
   featured       Boolean  @default(false)
   landingPageSlug String? @unique
   brochureUrl    String?
@@ -988,7 +1190,7 @@ model BuilderTower {
   project   BuilderProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
   floors    Int    @default(0)
-  status    String @default("ACTIVE")
+  status    BuilderTowerStatus @default(ACTIVE)
   units     BuilderUnit[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1012,7 +1214,7 @@ model BuilderUnit {
   bathrooms   Int?
   facing      String?
   price       Decimal?
-  status      String @default("AVAILABLE")
+  status      BuilderUnitStatus @default(AVAILABLE)
   floorPlanUrl String?
   imageUrls   String[] @default([])
   bookings    BuilderBooking[]
@@ -1060,7 +1262,7 @@ model BuilderBooking {
   unit      BuilderUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
   lead      Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
   buyer     Profile? @relation("BuilderBookingBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
-  status    String @default("RESERVED")
+  status    BuilderBookingStatus @default(RESERVED)
   bookingAmount Decimal?
   saleValue Decimal?
   notes     String?
@@ -1083,13 +1285,13 @@ model BuilderCampaign {
   projectId String
   project   BuilderProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
-  channel   String
+  channel   CampaignChannel
   budget    Decimal?
   leadsCount Int @default(0)
   qrCodeUrl String?
   landingPageUrl String?
   brochureDownloads Int @default(0)
-  status    String @default("ACTIVE")
+  status    CampaignStatus @default(ACTIVE)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1131,6 +1333,143 @@ model AiReport {
   @@index([userId])
   @@index([propertyId])
   @@index([reportType])
+}
+
+model AIPrompt {
+  id          String      @id @default(cuid())
+  promptId    String
+  name        String
+  description String?
+  module      NotificationModule
+  promptText  String      @db.Text
+  version     Int         @default(1)
+  active      Boolean     @default(true)
+  provider    AIProvider?
+  model       String?
+  temperature Decimal     @default(0.4)
+  maxTokens   Int?
+  metadata    Json        @default("{}")
+  usageLogs   AIUsageLog[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([promptId, version])
+  @@index([promptId])
+  @@index([module])
+  @@index([active])
+}
+
+model AIConversation {
+  id          String      @id @default(cuid())
+  userId      String?
+  user        Profile?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  module      NotificationModule
+  sessionId   String?
+  title       String?
+  metadata    Json        @default("{}")
+  messages    AIMessage[]
+  usageLogs   AIUsageLog[]
+  memories    AIMemory[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([module])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+model AIMessage {
+  id             String          @id @default(cuid())
+  conversationId String
+  conversation   AIConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           Profile?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  role           AIMessageRole
+  content        String          @db.Text
+  attachments    Json            @default("[]")
+  metadata       Json            @default("{}")
+  createdAt      DateTime        @default(now())
+
+  @@index([conversationId])
+  @@index([userId])
+  @@index([role])
+  @@index([createdAt])
+}
+
+model AIMemory {
+  id             String          @id @default(cuid())
+  userId         String?
+  user           Profile?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   AIConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  scope          AIMemoryScope
+  key            String
+  value          Json
+  expiresAt      DateTime?
+  metadata       Json            @default("{}")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([scope])
+  @@index([key])
+  @@index([expiresAt])
+}
+
+model AIUsageLog {
+  id             String          @id @default(cuid())
+  userId         String?
+  user           Profile?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  conversationId String?
+  conversation   AIConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  promptRecordId String?
+  promptRecord   AIPrompt?       @relation(fields: [promptRecordId], references: [id], onDelete: SetNull)
+  promptId       String?
+  promptVersion  Int?
+  module         NotificationModule
+  provider       AIProvider
+  model          String
+  status         AIRequestStatus @default(SUCCESS)
+  promptTokens   Int             @default(0)
+  completionTokens Int           @default(0)
+  totalTokens    Int             @default(0)
+  estimatedCost  Decimal         @default(0)
+  latencyMs      Int             @default(0)
+  context        Json            @default("{}")
+  result         Json            @default("{}")
+  error          String?
+  metadata       Json            @default("{}")
+  createdAt      DateTime        @default(now())
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([promptId])
+  @@index([module])
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AISetting {
+  id          String      @id @default(cuid())
+  module      NotificationModule
+  provider    AIProvider  @default(OPENAI)
+  model       String
+  temperature Decimal     @default(0.4)
+  maxTokens   Int?
+  enabled     Boolean     @default(true)
+  rateLimitPerMinute Int  @default(30)
+  dailyCostLimit Decimal  @default(0)
+  featureFlags Json       @default("{}")
+  metadata    Json        @default("{}")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([module])
+  @@index([provider])
+  @@index([enabled])
 }
 
 model Payment {
@@ -1188,6 +1527,74 @@ model Subscription {
   @@index([product])
   @@index([status])
   @@index([endsAt])
+}
+
+model Notification {
+  id          String                     @id @default(cuid())
+  recipientId String?
+  recipient   Profile?                   @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+  module      NotificationModule
+  type        String
+  priority    NotificationPriority       @default(NORMAL)
+  title       String
+  message     String
+  actionUrl   String?
+  metadata    Json                       @default("{}")
+  channels    NotificationChannel[]      @default([IN_APP])
+  deliveryStatus NotificationDeliveryStatus @default(PENDING)
+  readAt      DateTime?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@index([recipientId])
+  @@index([module])
+  @@index([type])
+  @@index([priority])
+  @@index([deliveryStatus])
+  @@index([readAt])
+  @@index([createdAt])
+}
+
+model Report {
+  id          String           @id @default(cuid())
+  reporterId  String?
+  reporter    Profile?         @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  entityType  ReportEntityType
+  entityId    String
+  reason      String
+  status      ReportStatus     @default(PENDING)
+  adminNotes  String?
+  assignedTo  String?
+  resolvedAt  DateTime?
+  metadata    Json             @default("{}")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([reporterId])
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([assignedTo])
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id          String             @id @default(cuid())
+  provider    WebhookProvider
+  eventId     String
+  eventType   String?
+  payload     Json               @default("{}")
+  status      WebhookEventStatus @default(RECEIVED)
+  retries     Int                @default(0)
+  processedAt DateTime?
+  lastError   String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([provider, eventId])
+  @@index([provider])
+  @@index([status])
+  @@index([eventType])
+  @@index([createdAt])
 }
 
 model AuditLog {

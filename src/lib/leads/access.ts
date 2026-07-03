@@ -2,6 +2,7 @@ import type { LeadStage, Prisma } from "@prisma/client";
 import { forbidden, notFound } from "@/lib/api/response";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { createNotification } from "@/lib/platform/notifications";
 
 export const leadStages: LeadStage[] = [
   "NEW",
@@ -141,6 +142,19 @@ export async function createLeadNotification({
   type: string;
 }) {
   if (!recipientId) return null;
+
+  await createNotification({
+    actionUrl: `/dashboard/leads/${leadId}`,
+    message,
+    metadata: {
+      leadId
+    },
+    module: "LEAD",
+    priority: type.includes("DUE") ? "HIGH" : "NORMAL",
+    recipientId,
+    title,
+    type
+  });
 
   return db.leadNotification.create({
     data: {

@@ -9,7 +9,7 @@ export default function EcosystemPage() {
           HomeZone
         </Link>
         <div className="mt-8 max-w-4xl">
-          <p className="text-sm font-semibold text-violet-700">Phase 10</p>
+          <p className="text-sm font-semibold text-violet-700">Ecosystem</p>
           <h1 className="mt-3 text-balance text-5xl font-bold tracking-tight sm:text-7xl">
             Super App Ecosystem
           </h1>

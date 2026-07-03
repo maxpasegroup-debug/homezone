@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
-import { auditLog } from "@/lib/audit";
+import type { ReportEntityType } from "@prisma/client";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { apiError, handleApiError, notFound, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
+import { apiError, handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { reportSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
+import { createReport } from "@/lib/platform/reports";
 
 export async function POST(request: Request) {
   try {
@@ -32,68 +33,29 @@ export async function POST(request: Request) {
 
     const profile = await getOrCreateProfile(session.user);
 
-    let reelOwnerId: string | null = null;
-
-    if (parsed.data.entityType === "reel") {
-      const reel = await db.propertyReel.findUnique({
-        where: {
-          id: parsed.data.entityId
-        },
-        select: {
-          id: true,
-          ownerId: true
-        }
-      });
-
-      if (!reel) {
-        return notFound("Reel not found");
-      }
-
-      const existingOpenReport = await db.auditLog.findFirst({
-        where: {
-          action: "user_report",
-          actorId: profile.id,
-          entityId: parsed.data.entityId,
-          entityType: "reel",
-          metadata: {
-            path: ["status"],
-            equals: "open"
-          }
-        },
-        select: {
-          id: true
-        }
-      });
-
-      if (existingOpenReport) {
-        return apiError("You have already reported this reel.", 409);
-      }
-
-      reelOwnerId = reel.ownerId;
-    }
-
-    const report = await db.auditLog.create({
-      data: {
-        actorId: profile.id,
-        action: "user_report",
-        entityType: parsed.data.entityType,
+    const existingOpenReport = await db.report.findFirst({
+      select: {
+        id: true
+      },
+      where: {
         entityId: parsed.data.entityId,
-        metadata: {
-          ownerId: reelOwnerId,
-          reason: parsed.data.reason,
-          status: "open"
+        entityType: parsed.data.entityType as ReportEntityType,
+        reporterId: profile.id,
+        status: {
+          in: ["PENDING", "UNDER_REVIEW", "ESCALATED"]
         }
       }
     });
 
-    await auditLog({
-      action: parsed.data.entityType === "reel" ? "REEL_REPORTED" : "report_submitted",
-      actorId: profile.id,
+    if (existingOpenReport) {
+      return apiError("You have already reported this item.", 409);
+    }
+
+    const report = await createReport({
       entityId: parsed.data.entityId,
-      entityType: parsed.data.entityType,
-      metadata: {
-        reason: parsed.data.reason
-      }
+      entityType: parsed.data.entityType as ReportEntityType,
+      reason: parsed.data.reason,
+      reporterId: profile.id
     });
 
     return ok({ report });
