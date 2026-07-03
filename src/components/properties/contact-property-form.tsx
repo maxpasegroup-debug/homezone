@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("+91 99999 99999");
+  const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("I am interested in this property. Please contact me.");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,16 +57,19 @@ export function ContactPropertyForm({ propertyId }: { propertyId: string }) {
       <input
         className="h-12 w-full rounded-2xl border border-border bg-white px-4 text-sm font-semibold outline-none"
         onChange={(event) => setName(event.target.value)}
+        placeholder="Your name"
         value={name}
       />
       <input
         className="h-12 w-full rounded-2xl border border-border bg-white px-4 text-sm font-semibold outline-none"
         onChange={(event) => setPhone(event.target.value)}
+        placeholder="+91 98765 43210"
         value={phone}
       />
       <textarea
         className="min-h-24 w-full rounded-2xl border border-border bg-white p-4 text-sm font-semibold outline-none"
         onChange={(event) => setMessage(event.target.value)}
+        placeholder="Tell the owner what you need"
         value={message}
       />
       <div className="grid gap-2 sm:grid-cols-3">

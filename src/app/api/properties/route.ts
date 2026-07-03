@@ -58,10 +58,12 @@ export async function POST(request: Request) {
         intent: data.intent,
         category: data.category,
         propertyType: data.propertyType,
+        coverImageUrl: data.coverImageUrl,
         country: data.country,
         state: data.state,
         city: data.city,
         locality: data.locality,
+        address: data.address,
         latitude: data.latitude,
         longitude: data.longitude,
         timezone: data.timezone,
@@ -72,11 +74,26 @@ export async function POST(request: Request) {
         bedrooms: data.bedrooms,
         bathrooms: data.bathrooms,
         amenities: data.amenities,
-        status: "PENDING_REVIEW",
+        mediaUrls: data.mediaUrls ?? [],
+        videoUrl: data.videoUrl,
+        virtualTourUrl: data.virtualTourUrl,
+        status: data.status,
+        verificationStatus: data.status === "PENDING_REVIEW" ? "UNDER_REVIEW" : "PENDING",
         propertyScore: 70,
         aiSummary
       }
     });
+
+    if (profile.role === "USER") {
+      await db.profile.update({
+        data: {
+          role: "OWNER"
+        },
+        where: {
+          id: profile.id
+        }
+      });
+    }
 
     await auditLog({
       action: "property_created",

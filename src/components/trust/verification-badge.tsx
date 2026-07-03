@@ -2,9 +2,11 @@ import { BadgeCheck, Clock3, ShieldAlert, XCircle } from "lucide-react";
 
 const statusStyle: Record<string, string> = {
   EXPIRED: "bg-amber-50 text-amber-700",
+  NEEDS_CHANGES: "bg-amber-50 text-amber-700",
   PENDING: "bg-muted text-muted-foreground",
   REJECTED: "bg-red-50 text-red-700",
   SUSPENDED: "bg-red-50 text-red-700",
+  UNDER_REVIEW: "bg-blue-50 text-blue-700",
   VERIFIED: "bg-emerald-50 text-emerald-700"
 };
 
@@ -27,7 +29,10 @@ function labelFor({
   if (entity === "broker" && status === "VERIFIED") return "Verified Broker";
   if (entity === "builder" && status === "VERIFIED") return "Verified Builder";
   if (status === "VERIFIED") return "Verified";
-  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
 }
 
 export function VerificationBadge({

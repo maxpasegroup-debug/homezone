@@ -32,6 +32,9 @@ export type MarketplaceProperty = {
   rentalYield: string;
   highlights: string[];
   mediaUrls: string[];
+  ownerName?: string | null;
+  aiSummary?: string | null;
+  nearbyFacilities?: string[];
   premium?: boolean;
   premiumUntil?: Date | null;
   verified?: boolean;
@@ -50,6 +53,7 @@ export type MarketplaceFilters = {
   maxPrice?: number;
   minPrice?: number;
   purpose?: string;
+  sort?: string;
   state?: string;
   verifiedOnly?: boolean;
 };
@@ -96,11 +100,57 @@ export function parseMarketplaceFilters(searchParams?: Record<string, string | s
     maxPrice: cleanFilter(searchParams?.maxPrice),
     minPrice: cleanFilter(searchParams?.minPrice),
     purpose: cleanFilter(searchParams?.purpose ?? searchParams?.intent),
+    sort: cleanFilter(searchParams?.sort),
     state: cleanFilter(searchParams?.state),
     verifiedOnly: cleanFilter(searchParams?.verifiedOnly)
   });
 
   return parsed.success ? parsed.data : {};
+}
+
+function nearbyFacilitiesFor(property: {
+  category?: string | null;
+  city: string;
+  locality?: string | null;
+  propertyType: string;
+}) {
+  const location = property.locality ?? property.city;
+  const base = [
+    `${location} daily essentials`,
+    `${property.city} transport access`,
+    "Schools and clinics within practical reach",
+    "Grocery and pharmacy access",
+    "Residential road connectivity"
+  ];
+
+  if (property.propertyType.toLowerCase().includes("land")) {
+    return [
+      `${location} road frontage checks`,
+      "Boundary and access verification",
+      "Nearby residential growth pockets",
+      "Utility connection feasibility",
+      "Local registration and zoning office"
+    ];
+  }
+
+  if (property.category === "COMMERCIAL") {
+    return [
+      `${location} business footfall`,
+      "Main road access",
+      "Parking availability",
+      "Public transport access",
+      "Banks and food outlets nearby"
+    ];
+  }
+
+  return base;
+}
+
+function galleryFor(property: { coverImageUrl?: string | null; mediaUrls: string[] }) {
+  return [
+    property.coverImageUrl,
+    ...property.mediaUrls.filter((url) => url !== property.coverImageUrl)
+  ].filter((url): url is string => Boolean(url));
 }
 
 function buildMarketplaceWhere(filters: MarketplaceFilters): Prisma.PropertyWhereInput {
@@ -198,6 +248,14 @@ export function fallbackMarketplaceProperties(): MarketplaceProperty[] {
     rentalYield: property.rentalYield,
     highlights: property.highlights,
     mediaUrls: [],
+    ownerName: "HomeZone verified owner",
+    aiSummary: property.highlights.join(", "),
+    nearbyFacilities: [
+      `${property.location} essentials`,
+      "Transport access",
+      "Schools and clinics nearby",
+      "Daily shopping access"
+    ],
     premium: false,
     premiumUntil: null,
     verified: false,
@@ -210,6 +268,13 @@ export async function getMarketplaceProperties(filters: MarketplaceFilters = {})
   try {
     const properties = await db.property.findMany({
       include: {
+        owner: {
+          select: {
+            fullName: true,
+            role: true,
+            verificationStatus: true
+          }
+        },
         _count: {
           select: {
             leads: true,
@@ -229,7 +294,13 @@ export async function getMarketplaceProperties(filters: MarketplaceFilters = {})
     }
 
     return properties
-      .sort((a, b) => rankMarketplaceProperty(b) - rankMarketplaceProperty(a))
+      .sort((a, b) => {
+        if (filters.sort === "newest") return b.createdAt.getTime() - a.createdAt.getTime();
+        if (filters.sort === "price_asc") return Number(a.price ?? 0) - Number(b.price ?? 0);
+        if (filters.sort === "price_desc") return Number(b.price ?? 0) - Number(a.price ?? 0);
+        if (filters.sort === "score") return (b.propertyScore ?? 0) - (a.propertyScore ?? 0);
+        return rankMarketplaceProperty(b) - rankMarketplaceProperty(a);
+      })
       .slice(0, 24)
       .map((property): MarketplaceProperty => ({
       id: property.id,
@@ -262,7 +333,10 @@ export async function getMarketplaceProperties(filters: MarketplaceFilters = {})
       highlights: property.amenities.length
         ? property.amenities
         : [property.aiSummary ?? "Submitted for HomeZone review"],
-      mediaUrls: property.mediaUrls,
+      mediaUrls: galleryFor(property),
+      ownerName: property.owner?.fullName ?? (property.owner?.role === "BUILDER" ? "Verified builder" : "Verified owner"),
+      aiSummary: property.aiSummary,
+      nearbyFacilities: nearbyFacilitiesFor(property),
       premium: property.premium,
       premiumUntil: property.premiumUntil,
       verified: property.verified,
@@ -282,6 +356,15 @@ export async function getMarketplaceProperty(id: string) {
     const property = await db.property.findUnique({
       where: {
         id
+      },
+      include: {
+        owner: {
+          select: {
+            fullName: true,
+            role: true,
+            verificationStatus: true
+          }
+        }
       }
     });
 
@@ -317,7 +400,10 @@ export async function getMarketplaceProperty(id: string) {
         highlights: property.amenities.length
           ? property.amenities
           : [property.aiSummary ?? "Submitted for HomeZone review"],
-        mediaUrls: property.mediaUrls,
+        mediaUrls: galleryFor(property),
+        ownerName: property.owner?.fullName ?? (property.owner?.role === "BUILDER" ? "Verified builder" : "Verified owner"),
+        aiSummary: property.aiSummary,
+        nearbyFacilities: nearbyFacilitiesFor(property),
         premium: property.premium,
         premiumUntil: property.premiumUntil,
         verified: property.verified,
@@ -335,4 +421,25 @@ export async function getMarketplaceProperty(id: string) {
   return isProduction()
     ? null
     : fallbackMarketplaceProperties().find((property) => property.id === id) ?? null;
+}
+
+export async function getMarketplacePropertiesByIds(ids: string[]) {
+  const uniqueIds = [...new Set(ids)].slice(0, 4);
+
+  if (!uniqueIds.length) {
+    return [];
+  }
+
+  const properties = await Promise.all(uniqueIds.map((id) => getMarketplaceProperty(id)));
+  return properties.filter((property): property is MarketplaceProperty => Boolean(property));
+}
+
+export async function getRelatedMarketplaceProperties(property: MarketplaceProperty) {
+  const matches = await getMarketplaceProperties({
+    category: property.category,
+    city: property.city,
+    purpose: property.intent
+  });
+
+  return matches.filter((match) => match.id !== property.id).slice(0, 3);
 }

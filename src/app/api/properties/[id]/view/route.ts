@@ -42,6 +42,24 @@ export async function POST(request: Request, context: RouteContext) {
 
     const profile = session?.user ? await getOrCreateProfile(session.user) : null;
 
+    if (profile) {
+      await db.propertyView.upsert({
+        where: {
+          userId_propertyId: {
+            userId: profile.id,
+            propertyId: property.id
+          }
+        },
+        update: {
+          viewedAt: new Date()
+        },
+        create: {
+          userId: profile.id,
+          propertyId: property.id
+        }
+      });
+    }
+
     await auditLog({
       action: "PROPERTY_VIEWED",
       actorId: profile?.id,

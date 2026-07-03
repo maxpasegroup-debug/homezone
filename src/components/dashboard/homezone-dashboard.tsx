@@ -1,133 +1,73 @@
 import Link from "next/link";
 import {
-  Activity,
-  BadgeCheck,
   Bookmark,
-  Building2,
-  Camera,
-  ChartNoAxesCombined,
-  FileCheck,
+  Eye,
   Heart,
   Home,
+  MapPin,
   MessageSquare,
-  MessageSquareText,
   PlaySquare,
-  UsersRound,
-  Wrench
+  Search,
+  Sparkles,
+  TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DashboardHeader,
   DashboardSection,
-  DetailRow,
   EmptyState,
   MetricCard
 } from "@/components/dashboard/dashboard-primitives";
-import { ListingBadges } from "@/components/payments/listing-badges";
-import { PaymentButton } from "@/components/payments/payment-button";
-import { PaymentHistory } from "@/components/payments/payment-history";
+import { PropertyCard } from "@/components/properties/property-card";
 import { VerificationBadge } from "@/components/trust/verification-badge";
 import type { getUserDashboardData } from "@/lib/dashboard/queries";
 
 type UserDashboardData = Awaited<ReturnType<typeof getUserDashboardData>>;
 
-function formatDate(date: Date) {
-  return date.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
-}
-
-const dashboardCards = [
-  {
-    title: "My Listings",
-    value: "0",
-    text: "Add property, submit for review, and track leads.",
-    href: "/dashboard/listings",
-    icon: Home
-  },
-  {
-    title: "Saved Properties",
-    value: "0",
-    text: "Shortlist homes, land, rentals, and investments.",
-    href: "/dashboard/saved",
-    icon: Bookmark
-  },
-  {
-    title: "Inquiries",
-    value: "0",
-    text: "Contact requests, site visits, and service replies.",
-    href: "/dashboard/inquiries",
-    icon: MessageSquareText
-  },
-  {
-    title: "Studio Requests",
-    value: "0",
-    text: "Photography, reels, brochure, and campaign orders.",
-    href: "/dashboard/studio",
-    icon: Camera
-  },
-  {
-    title: "Property Reels",
-    value: "Video",
-    text: "Upload walkthrough reels and manage moderation status.",
-    href: "/dashboard/reels",
-    icon: Camera
-  },
-  {
-    title: "Broker Pro",
-    value: "CRM",
-    text: "Leads, pipeline, WhatsApp automation, and AI scoring.",
-    href: "/dashboard/pro",
-    icon: UsersRound
-  },
-  {
-    title: "Builder Hub",
-    value: "B2B",
-    text: "Projects, campaigns, landing pages, and AI reports.",
-    href: "/dashboard/builder",
-    icon: Building2
-  },
-  {
-    title: "Services",
-    value: "Book",
-    text: "Legal, loans, interiors, movers, solar, and more.",
-    href: "/dashboard/services",
-    icon: Wrench
-  },
-  {
-    title: "Investment",
-    value: "AI",
-    text: "Area score, growth, rental yield, and infrastructure impact.",
-    href: "/invest",
-    icon: ChartNoAxesCombined
-  },
-  {
-    title: "AI Reports",
-    value: "Saved",
-    text: "Review property analyzer and investment reports.",
-    href: "/dashboard/reports",
-    icon: FileCheck
-  }
+const continueLinks = [
+  ["Buy homes", "/properties?purpose=BUY"],
+  ["Rent homes", "/properties?purpose=RENT"],
+  ["Investment options", "/properties?purpose=INVEST"]
 ] as const;
 
 export function HomeZoneDashboard({
-  data,
-  email
+  data
 }: {
   data: UserDashboardData;
   email?: string | null;
 }) {
   const profile = data.profile;
+  const firstName = profile?.fullName?.split(" ")[0] ?? "there";
 
   return (
     <div className="space-y-8">
       <DashboardHeader
-        eyebrow="User Dashboard"
-        subtitle="Track your property activity, saved homes, inquiries, listings, verification, and recent account actions from one place."
-        title={`Welcome${profile?.fullName ? `, ${profile.fullName}` : ""}`}
+        eyebrow="Buyer Dashboard"
+        subtitle="Search, save, compare, shortlist, and continue your property discovery from one calm workspace."
+        title={`Welcome, ${firstName}`}
       />
+
+      <DashboardSection eyebrow="AI Property Search" title="Tell HomeZone what you need">
+        <form action="/properties" className="grid gap-3 lg:grid-cols-[1fr_0.35fr_auto]">
+          <div className="flex h-14 items-center gap-3 rounded-2xl bg-muted px-4">
+            <Search className="h-5 w-5 text-violet-700" />
+            <input
+              className="w-full bg-transparent font-semibold outline-none"
+              name="keyword"
+              placeholder="Villa under 80 lakh in Kochi"
+            />
+          </div>
+          <input
+            className="h-14 rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
+            defaultValue={profile?.city ?? ""}
+            name="city"
+            placeholder="City"
+          />
+          <Button className="h-14" type="submit">
+            Search properties
+          </Button>
+        </form>
+      </DashboardSection>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard
@@ -136,63 +76,66 @@ export function HomeZoneDashboard({
           value={data.counts.savedProperties}
         />
         <MetricCard
-          icon={PlaySquare}
-          label="Saved reels"
-          note="Pending model"
-          value={data.counts.savedReels}
+          icon={Eye}
+          label="Recently viewed"
+          value={data.counts.recentViews}
+        />
+        <MetricCard
+          icon={Bookmark}
+          label="Shortlists"
+          value={data.counts.shortlists}
         />
         <MetricCard
           icon={MessageSquare}
-          label="My inquiries"
+          label="Owner contacts"
           value={data.counts.inquiries}
         />
-        <MetricCard icon={Home} label="My listings" value={data.counts.listings} />
         <MetricCard
-          icon={BadgeCheck}
-          label="Verification"
-          value={profile?.whatsappVerified ? "Verified" : "Pending"}
+          icon={PlaySquare}
+          label="Saved reels"
+          value={data.counts.savedReels}
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
-        <DashboardSection eyebrow="Profile" title="Account profile">
-          <div className="space-y-3">
-            <DetailRow label="Email" value={email ?? "Not available"} />
-            <DetailRow label="Role" value={profile?.role ?? "USER"} />
-            <DetailRow label="Country" value={profile?.country ?? "Not set"} />
-            <DetailRow label="City" value={profile?.city ?? "Not set"} />
-            <DetailRow
-              label="Phone verification"
-              value={profile?.whatsappVerified ? "Verified" : "Not verified"}
+      <DashboardSection eyebrow="Recommended Properties" title="Good matches to start with">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {data.recommendedProperties.map((property) => (
+            <PropertyCard key={property.id} property={property} />
+          ))}
+          {!data.recommendedProperties.length ? (
+            <EmptyState
+              text="Browse the marketplace to help HomeZone tune your recommendations."
+              title="No recommendations yet"
             />
-          </div>
-        </DashboardSection>
+          ) : null}
+        </div>
+      </DashboardSection>
 
-        <DashboardSection eyebrow="Recent Activity" title="Latest account events">
-          <div className="space-y-3">
-            {data.recentActivity.map((activity) => (
-              <div className="rounded-2xl bg-muted p-4" key={activity.id}>
-                <p className="flex items-center gap-2 text-sm font-bold">
-                  <Activity className="h-4 w-4 text-violet-700" />
-                  {activity.action.replaceAll("_", " ")}
+      <section className="grid gap-6 xl:grid-cols-2">
+        <DashboardSection eyebrow="Recently Viewed" title="Continue from where you stopped">
+          <div className="grid gap-4">
+            {data.recentViews.map((property) => (
+              <Link className="rounded-2xl bg-muted p-4 transition hover:bg-violet-50" href={`/properties/${property.id}`} key={property.id}>
+                <h3 className="font-bold">{property.title}</h3>
+                <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-violet-700">
+                  <MapPin className="h-4 w-4" />
+                  {property.location}
                 </p>
-                <p className="mt-2 text-xs font-semibold text-muted-foreground">
-                  {formatDate(activity.createdAt)}
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {property.priceLabel} / {property.area}
                 </p>
-              </div>
+              </Link>
             ))}
-            {!data.recentActivity.length ? (
+            {!data.recentViews.length ? (
               <EmptyState
-                text="Security and marketplace actions will appear here as they are recorded."
-                title="No recent activity"
+                text="Open a property detail page and it will appear here automatically."
+                title="No viewed properties yet"
               />
             ) : null}
           </div>
         </DashboardSection>
-      </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <DashboardSection eyebrow="Saved Properties" title="Properties you saved">
+        <DashboardSection eyebrow="Saved Properties" title="Your current shortlist">
           <div className="space-y-3">
             {data.savedProperties.map((item) => (
               <div className="rounded-2xl bg-muted p-4" key={item.propertyId}>
@@ -215,146 +158,96 @@ export function HomeZoneDashboard({
             ))}
             {!data.savedProperties.length ? (
               <EmptyState
-                text="Save properties from the marketplace to compare them later."
+                text="Tap Save on any property card to keep it here."
                 title="No saved properties"
               />
             ) : null}
-          </div>
-        </DashboardSection>
-
-        <DashboardSection eyebrow="Saved Reels" title="Saved video walkthroughs">
-          <div className="space-y-3">
-            {data.savedReels.map((item) => (
-              <div className="rounded-2xl bg-muted p-4" key={item.reelId}>
-                <h3 className="font-bold">{item.reel.title}</h3>
-                <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                  {item.reel.property?.title ?? "Property reel"}
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {item.reel.viewsCount} views, {item.reel.likesCount} likes
-                </p>
-                <Button asChild className="mt-4" size="sm" variant="outline">
-                  <Link href="/reels">Watch reels</Link>
-                </Button>
-              </div>
-            ))}
-            {!data.savedReels.length ? (
-              <EmptyState
-                text="Save reels from the public reels feed to revisit them later."
-                title="No saved reels yet"
-              />
-            ) : null}
-          </div>
-        </DashboardSection>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-2">
-        <DashboardSection eyebrow="My Inquiries" title="Property inquiries">
-          <div className="space-y-3">
-            {data.inquiries.map((inquiry) => (
-              <div className="rounded-2xl bg-muted p-4" key={inquiry.id}>
-                <p className="text-xs font-bold text-violet-700">
-                  {inquiry.stage.replaceAll("_", " ")}
-                </p>
-                <h3 className="mt-2 font-bold">{inquiry.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {inquiry.property?.title ?? inquiry.message ?? "General inquiry"}
-                </p>
-              </div>
-            ))}
-            {!data.inquiries.length ? (
-              <EmptyState
-                text="Your property contact requests and inquiries will appear here."
-                title="No inquiries yet"
-              />
-            ) : null}
-          </div>
-        </DashboardSection>
-
-        <DashboardSection eyebrow="My Listings" title="Listings you own">
-          <div className="space-y-3">
-            {data.listings.map((listing) => (
-              <div className="rounded-2xl bg-muted p-4" key={listing.id}>
-                <p className="text-xs font-bold text-violet-700">
-                  {listing.status.replaceAll("_", " ")}
-                </p>
-                <div className="mt-2">
-                  <VerificationBadge
-                    entity="property"
-                    status={listing.verificationStatus}
-                  />
-                </div>
-                <div className="mt-2">
-                  <ListingBadges
-                    featured={listing.featured}
-                    featuredUntil={listing.featuredUntil}
-                    premium={listing.premium}
-                    premiumUntil={listing.premiumUntil}
-                  />
-                </div>
-                <h3 className="mt-2 font-bold">{listing.title}</h3>
-                <p className="mt-1 text-sm font-semibold text-muted-foreground">
-                  {[listing.locality, listing.city].filter(Boolean).join(", ")}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <PaymentButton
-                    label="Feature"
-                    product="FEATURED_LISTING"
-                    propertyId={listing.id}
-                    variant="outline"
-                  />
-                  <PaymentButton
-                    label="Premium"
-                    product="PREMIUM_LISTING"
-                    propertyId={listing.id}
-                    variant="outline"
-                  />
-                </div>
-              </div>
-            ))}
-            {!data.listings.length ? (
-              <EmptyState
-                text="Create a listing when you are ready to sell, rent, lease, or invest."
-                title="No listings yet"
-              />
-            ) : null}
-            <Button asChild className="mt-2">
-              <Link href="/dashboard/listings/new">Add property</Link>
+            <Button asChild className="w-full" variant="outline">
+              <Link href="/dashboard/saved">Manage saved properties</Link>
             </Button>
           </div>
         </DashboardSection>
       </section>
 
-      <DashboardSection eyebrow="HomeZone Tools" title="Your property workspace">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {dashboardCards.map((card) => {
-            const CardIcon = card.icon;
-            return (
-              <Link
-                className="rounded-2xl border border-border bg-white p-5 transition hover:-translate-y-1 hover:shadow-soft"
-                href={card.href}
-                key={card.title}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
-                    <CardIcon className="h-5 w-5" />
-                  </span>
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold">
-                    {card.value}
-                  </span>
-                </div>
-                <h3 className="mt-5 font-bold">{card.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {card.text}
+      <section className="grid gap-6 xl:grid-cols-2">
+        <DashboardSection eyebrow="Investment Picks" title="Properties with investment intent">
+          <div className="grid gap-4">
+            {data.investmentPicks.map((property) => (
+              <Link className="rounded-2xl bg-muted p-4 transition hover:bg-violet-50" href={`/properties/${property.id}`} key={property.id}>
+                <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
+                  <TrendingUp className="h-4 w-4" />
+                  {property.score}/100 score
+                </p>
+                <h3 className="mt-2 font-bold">{property.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {property.location} / {property.priceLabel}
                 </p>
               </Link>
-            );
-          })}
+            ))}
+            {!data.investmentPicks.length ? (
+              <EmptyState
+                text="Investment properties will appear here when available."
+                title="No investment picks yet"
+              />
+            ) : null}
+          </div>
+        </DashboardSection>
+
+        <DashboardSection eyebrow="Nearby Projects" title={profile?.city ? `Options around ${profile.city}` : "Popular nearby options"}>
+          <div className="grid gap-4">
+            {data.nearbyProjects.map((property) => (
+              <Link className="rounded-2xl bg-muted p-4 transition hover:bg-violet-50" href={`/properties/${property.id}`} key={property.id}>
+                <p className="flex items-center gap-2 text-sm font-bold text-violet-700">
+                  <Home className="h-4 w-4" />
+                  {property.type}
+                </p>
+                <h3 className="mt-2 font-bold">{property.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {property.location} / {property.priceLabel}
+                </p>
+              </Link>
+            ))}
+            {!data.nearbyProjects.length ? (
+              <EmptyState
+                text="Set your city in onboarding or browse properties to discover nearby matches."
+                title="No nearby projects yet"
+              />
+            ) : null}
+          </div>
+        </DashboardSection>
+      </section>
+
+      <DashboardSection eyebrow="Property Reels" title="Video-first discovery">
+        <div className="space-y-3">
+          {data.savedReels.map((item) => (
+            <div className="rounded-2xl bg-muted p-4" key={item.reelId}>
+              <h3 className="font-bold">{item.reel.title}</h3>
+              <p className="mt-1 text-sm font-semibold text-muted-foreground">
+                {item.reel.property?.title ?? "Property reel"}
+              </p>
+              <Button asChild className="mt-4" size="sm" variant="outline">
+                <Link href="/reels">Watch reels</Link>
+              </Button>
+            </div>
+          ))}
+          {!data.savedReels.length ? (
+            <EmptyState
+              text="Watch reels to understand a property before visiting."
+              title="No saved reels yet"
+            />
+          ) : null}
         </div>
       </DashboardSection>
 
-      <DashboardSection eyebrow="Payments" title="Payment history">
-        <PaymentHistory payments={data.payments} />
+      <DashboardSection eyebrow="Continue Browsing" title="Pick up your search">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {continueLinks.map(([label, href]) => (
+            <Link className="rounded-2xl bg-muted p-5 font-bold transition hover:bg-violet-50" href={href} key={href}>
+              <Sparkles className="mb-4 h-5 w-5 text-violet-700" />
+              {label}
+            </Link>
+          ))}
+        </div>
       </DashboardSection>
     </div>
   );

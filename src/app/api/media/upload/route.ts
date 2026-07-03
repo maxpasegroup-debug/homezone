@@ -13,6 +13,9 @@ const allowedMimeTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "video/mp4",
   "video/quicktime",
   "video/webm"
@@ -20,6 +23,7 @@ const allowedMimeTypes = new Set([
 
 const allowedFolders = new Set([
   "homezone/property-media",
+  "homezone/property-documents",
   "homezone/property-reels"
 ]);
 

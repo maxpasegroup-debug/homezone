@@ -62,10 +62,53 @@ export async function POST(_request: Request, context: RouteContext) {
       entityType: "property"
     });
 
-    return ok({ ok: true });
+    return ok({ ok: true, saved: true });
   } catch (error) {
     return handleApiError(error, {
       route: "POST /api/properties/[id]/save"
+    });
+  }
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  try {
+    const session = await auth();
+
+    if (!session?.user?.id) {
+      return unauthorized();
+    }
+
+    const limit = checkRateLimit({
+      key: rateLimitKey(request, "properties:unsave", session.user.id),
+      limit: 30,
+      windowMs: 60_000
+    });
+
+    if (!limit.allowed) {
+      return rateLimited(limit.resetAt);
+    }
+
+    const { id } = await context.params;
+    const profile = await getOrCreateProfile(session.user);
+
+    await db.savedProperty.deleteMany({
+      where: {
+        userId: profile.id,
+        propertyId: id
+      }
+    });
+
+    await auditLog({
+      action: "property_unsaved",
+      actorId: profile.id,
+      entityId: id,
+      entityType: "property"
+    });
+
+    return ok({ ok: true, saved: false });
+  } catch (error) {
+    return handleApiError(error, {
+      route: "DELETE /api/properties/[id]/save"
     });
   }
 }

@@ -53,20 +53,48 @@ export async function PATCH(request: Request, context: RouteContext) {
       return forbidden();
     }
 
+    const action = parsed.data;
+    const nextData =
+      action.action === "add"
+        ? action.mediaType === "video"
+          ? {
+              videoUrl: action.mediaUrl
+            }
+          : action.mediaType === "cover"
+            ? {
+                coverImageUrl: action.mediaUrl,
+                mediaUrls: property.mediaUrls.includes(action.mediaUrl)
+                  ? property.mediaUrls
+                  : [action.mediaUrl, ...property.mediaUrls]
+              }
+            : {
+                mediaUrls: property.mediaUrls.includes(action.mediaUrl)
+                  ? property.mediaUrls
+                  : [...property.mediaUrls, action.mediaUrl]
+              }
+        : action.action === "remove"
+          ? {
+              coverImageUrl:
+                property.coverImageUrl === action.mediaUrl ? null : property.coverImageUrl,
+              mediaUrls: property.mediaUrls.filter((url) => url !== action.mediaUrl)
+            }
+          : action.action === "reorder"
+            ? {
+                mediaUrls: action.mediaUrls.filter((url) => property.mediaUrls.includes(url))
+              }
+            : action.action === "replace-video"
+              ? {
+                  videoUrl: action.videoUrl ?? null
+                }
+              : {
+                  virtualTourUrl: action.virtualTourUrl ?? null
+                };
+
     const updated = await db.property.update({
       where: {
         id
       },
-      data:
-        parsed.data.mediaType === "video"
-          ? {
-              videoUrl: parsed.data.mediaUrl
-            }
-          : {
-              mediaUrls: {
-                push: parsed.data.mediaUrl
-              }
-            }
+      data: nextData
     });
 
     await auditLog({
@@ -75,7 +103,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       entityId: id,
       entityType: "property",
       metadata: {
-        mediaType: parsed.data.mediaType
+        action: action.action
       }
     });
 

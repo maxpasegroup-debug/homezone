@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { PropertyMediaManager } from "@/components/properties/property-media-manager";
+import { PropertyDocumentManager } from "@/components/properties/property-document-manager";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { getSessionUser } from "@/lib/auth/session";
@@ -12,7 +12,7 @@ type PageProps = {
   }>;
 };
 
-export default async function ListingMediaPage({ params }: PageProps) {
+export default async function ListingDocumentsPage({ params }: PageProps) {
   const user = await getSessionUser();
 
   if (!user) {
@@ -22,6 +22,13 @@ export default async function ListingMediaPage({ params }: PageProps) {
   const { id } = await params;
   const profile = await getOrCreateProfile(user);
   const property = await db.property.findUnique({
+    include: {
+      documents: {
+        orderBy: {
+          createdAt: "desc"
+        }
+      }
+    },
     where: {
       id
     }
@@ -42,12 +49,15 @@ export default async function ListingMediaPage({ params }: PageProps) {
           My Listings
         </Link>
         <div className="mt-10">
-          <PropertyMediaManager
-            coverImageUrl={property.coverImageUrl}
-            mediaUrls={property.mediaUrls}
+          <PropertyDocumentManager
+            documents={property.documents.map((document) => ({
+              documentType: document.documentType,
+              fileName: document.fileName,
+              fileUrl: document.fileUrl,
+              id: document.id,
+              notes: document.notes
+            }))}
             propertyId={property.id}
-            videoUrl={property.videoUrl}
-            virtualTourUrl={property.virtualTourUrl}
           />
         </div>
       </section>

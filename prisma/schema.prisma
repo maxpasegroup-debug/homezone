@@ -44,9 +44,21 @@ enum ListingStatus {
 
 enum PropertyVerificationStatus {
   PENDING
+  UNDER_REVIEW
   VERIFIED
   REJECTED
+  NEEDS_CHANGES
   EXPIRED
+}
+
+enum PropertyDocumentType {
+  SALE_DEED
+  ENCUMBRANCE_CERTIFICATE
+  TAX_RECEIPT
+  APPROVAL_DOCUMENT
+  FLOOR_PLAN
+  OWNERSHIP_PROOF
+  OTHER
 }
 
 enum ProfileVerificationStatus {
@@ -177,6 +189,9 @@ model Profile {
   assignedLeads    Lead[]             @relation("AssignedLeads")
   userLeads        Lead[]             @relation("UserLeads")
   savedProperties  SavedProperty[]
+  propertyViews    PropertyView[]
+  shortlists       PropertyShortlist[]
+  propertyDocuments PropertyDocument[]
   reelLikes        ReelLike[]
   savedReels       SavedReel[]
   following        ProfileFollow[]    @relation("ProfileFollowing")
@@ -205,6 +220,7 @@ model Property {
   intent        PropertyIntent
   category      PropertyCategory @default(RESIDENTIAL)
   propertyType  String
+  coverImageUrl String?
   country       String           @default("India")
   state         String?
   city          String
@@ -222,6 +238,7 @@ model Property {
   amenities     String[]         @default([])
   mediaUrls     String[]         @default([])
   videoUrl      String?
+  virtualTourUrl String?
   status        ListingStatus    @default(DRAFT)
   verified      Boolean          @default(false)
   featured      Boolean          @default(false)
@@ -236,11 +253,15 @@ model Property {
   propertyScore Int?
   riskScore     Int?
   savedBy       SavedProperty[]
+  viewedBy      PropertyView[]
+  shortlistItems ShortlistProperty[]
+  documents     PropertyDocument[]
   leads         Lead[]
   reels         PropertyReel[]
   callClicks    Int              @default(0)
   whatsappClicks Int             @default(0)
   inquirySubmissions Int         @default(0)
+  comparisonCount Int            @default(0)
   studioRequests StudioRequest[]
   aiReports     AiReport[]
   payments      Payment[]
@@ -276,6 +297,64 @@ model SavedProperty {
   createdAt  DateTime @default(now())
 
   @@id([userId, propertyId])
+}
+
+model PropertyView {
+  userId     String
+  propertyId String
+  user       Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  viewedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@id([userId, propertyId])
+  @@index([userId, viewedAt])
+  @@index([propertyId])
+}
+
+model PropertyShortlist {
+  id         String              @id @default(cuid())
+  userId     String
+  user       Profile             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  items      ShortlistProperty[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model ShortlistProperty {
+  shortlistId String
+  propertyId  String
+  shortlist   PropertyShortlist @relation(fields: [shortlistId], references: [id], onDelete: Cascade)
+  property    Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt   DateTime          @default(now())
+
+  @@id([shortlistId, propertyId])
+  @@index([propertyId])
+  @@index([createdAt])
+}
+
+model PropertyDocument {
+  id           String               @id @default(cuid())
+  propertyId   String
+  uploadedById String?
+  property     Property             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  uploadedBy   Profile?             @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  documentType PropertyDocumentType
+  fileName     String
+  fileUrl      String
+  fileSize     Int?
+  mimeType     String?
+  notes        String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([propertyId])
+  @@index([uploadedById])
+  @@index([documentType])
 }
 
 model Lead {

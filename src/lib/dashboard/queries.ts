@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getDemoProfile, isDemoUserId } from "@/lib/auth/profile";
 import { getLaunchReadinessSummary } from "@/lib/launch/readiness";
+import { getMarketplaceProperties, getMarketplacePropertiesByIds } from "@/lib/properties/queries";
 
 const recentTake = 5;
 const recentWindowMs = 30 * 24 * 60 * 60 * 1000;
@@ -16,11 +17,15 @@ export async function getUserDashboardData(profileId: string) {
         inquiries: 0,
         listings: 0,
         ownedReels: 0,
+        recentViews: 0,
         savedProperties: 0,
-        savedReels: 0
+        savedReels: 0,
+        shortlists: 0
       },
       inquiries: [],
+      investmentPicks: [],
       listings: [],
+      nearbyProjects: [],
       ownedReels: [],
       payments: [],
       profile: {
@@ -34,8 +39,11 @@ export async function getUserDashboardData(profileId: string) {
         }
       },
       recentActivity: [],
+      recentViews: [],
+      recommendedProperties: [],
       savedProperties: [],
-      savedReels: []
+      savedReels: [],
+      shortlists: []
     };
   }
 
@@ -47,7 +55,9 @@ export async function getUserDashboardData(profileId: string) {
     listings,
     ownedReels,
     payments,
-    recentActivity
+    recentActivity,
+    recentViews,
+    shortlists
   ] = await Promise.all([
     db.profile.findUnique({
       where: {
@@ -136,25 +146,266 @@ export async function getUserDashboardData(profileId: string) {
         createdAt: "desc"
       },
       take: recentTake
+    }),
+    db.propertyView.findMany({
+      where: {
+        userId: profileId
+      },
+      orderBy: {
+        viewedAt: "desc"
+      },
+      take: recentTake
+    }),
+    db.propertyShortlist.findMany({
+      where: {
+        userId: profileId
+      },
+      include: {
+        _count: {
+          select: {
+            items: true
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: "desc"
+      },
+      take: recentTake
     })
   ]);
+  const [recentViewProperties, recommendedProperties, investmentPicks, nearbyProjects] =
+    await Promise.all([
+      getMarketplacePropertiesByIds(recentViews.map((item) => item.propertyId)),
+      getMarketplaceProperties({}),
+      getMarketplaceProperties({ purpose: "INVEST" }),
+      getMarketplaceProperties({ city: profile?.city ?? undefined })
+    ]);
 
   return {
     counts: {
       inquiries: inquiries.length,
       listings: listings.length,
       ownedReels: ownedReels.length,
+      recentViews: recentViews.length,
       savedProperties: savedProperties.length,
-      savedReels: savedReels.length
+      savedReels: savedReels.length,
+      shortlists: shortlists.length
     },
     inquiries,
+    investmentPicks: investmentPicks.slice(0, 4),
     listings,
+    nearbyProjects: nearbyProjects.slice(0, 4),
     ownedReels,
     payments,
     profile,
     recentActivity,
+    recentViews: recentViewProperties,
+    recommendedProperties: recommendedProperties.slice(0, 4),
     savedProperties,
-    savedReels
+    savedReels,
+    shortlists
+  };
+}
+
+export async function getOwnerDashboardData(profileId: string) {
+  const [
+    profile,
+    listings,
+    leads,
+    payments,
+    listingCount,
+    draftCount,
+    activeCount,
+    reviewCount,
+    rejectedCount,
+    documentCount,
+    viewCount,
+    saveCount,
+    shortlistCount,
+    leadCount,
+    contactRequests,
+    comparisonCount
+  ] = await Promise.all([
+    db.profile.findUnique({
+      include: {
+        user: {
+          select: {
+            email: true
+          }
+        }
+      },
+      where: {
+        id: profileId
+      }
+    }),
+    db.property.findMany({
+      include: {
+        _count: {
+          select: {
+            documents: true,
+            leads: true,
+            savedBy: true,
+            shortlistItems: true,
+            viewedBy: true
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: "desc"
+      },
+      take: 12,
+      where: {
+        ownerId: profileId
+      }
+    }),
+    db.lead.findMany({
+      include: {
+        notes: {
+          orderBy: {
+            createdAt: "desc"
+          },
+          take: 2
+        },
+        property: {
+          select: {
+            city: true,
+            id: true,
+            title: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 8,
+      where: {
+        property: {
+          ownerId: profileId
+        }
+      }
+    }),
+    db.payment.findMany({
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 5,
+      where: {
+        payerId: profileId
+      }
+    }),
+    db.property.count({
+      where: {
+        ownerId: profileId
+      }
+    }),
+    db.property.count({
+      where: {
+        ownerId: profileId,
+        status: "DRAFT"
+      }
+    }),
+    db.property.count({
+      where: {
+        ownerId: profileId,
+        status: "PUBLISHED"
+      }
+    }),
+    db.property.count({
+      where: {
+        ownerId: profileId,
+        status: "PENDING_REVIEW"
+      }
+    }),
+    db.property.count({
+      where: {
+        ownerId: profileId,
+        OR: [
+          {
+            status: "REJECTED"
+          },
+          {
+            verificationStatus: "NEEDS_CHANGES"
+          }
+        ]
+      }
+    }),
+    db.propertyDocument.count({
+      where: {
+        property: {
+          ownerId: profileId
+        }
+      }
+    }),
+    db.propertyView.count({
+      where: {
+        property: {
+          ownerId: profileId
+        }
+      }
+    }),
+    db.savedProperty.count({
+      where: {
+        property: {
+          ownerId: profileId
+        }
+      }
+    }),
+    db.shortlistProperty.count({
+      where: {
+        property: {
+          ownerId: profileId
+        }
+      }
+    }),
+    db.lead.count({
+      where: {
+        property: {
+          ownerId: profileId
+        }
+      }
+    }),
+    db.property.aggregate({
+      _sum: {
+        callClicks: true,
+        inquirySubmissions: true,
+        whatsappClicks: true
+      },
+      where: {
+        ownerId: profileId
+      }
+    }),
+    db.property.aggregate({
+      _sum: {
+        comparisonCount: true
+      },
+      where: {
+        ownerId: profileId
+      }
+    })
+  ]);
+
+  return {
+    analytics: {
+      activeCount,
+      comparisonCount: comparisonCount._sum.comparisonCount ?? 0,
+      contactRequests:
+        (contactRequests._sum.callClicks ?? 0) +
+        (contactRequests._sum.inquirySubmissions ?? 0) +
+        (contactRequests._sum.whatsappClicks ?? 0),
+      documentCount,
+      draftCount,
+      leadCount,
+      listingCount,
+      rejectedCount,
+      reviewCount,
+      saveCount,
+      shortlistCount,
+      viewCount
+    },
+    leads,
+    listings,
+    payments,
+    profile
   };
 }
 

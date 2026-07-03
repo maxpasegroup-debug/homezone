@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PropertyForm } from "@/components/properties/property-form";
+import { OwnerListingEditor } from "@/components/properties/owner-listing-editor";
 import { getSessionUser } from "@/lib/auth/session";
 
 export default async function NewListingPage() {
@@ -17,7 +17,7 @@ export default async function NewListingPage() {
           Dashboard
         </Link>
         <div className="mt-10">
-          <PropertyForm />
+          <OwnerListingEditor />
         </div>
       </section>
     </main>

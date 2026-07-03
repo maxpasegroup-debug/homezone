@@ -64,7 +64,9 @@ export async function PATCH(request: Request, context: RouteContext) {
             ? "PUBLISHED"
             : status === "EXPIRED"
               ? "ARCHIVED"
-              : "REJECTED",
+              : status === "UNDER_REVIEW"
+                ? "PENDING_REVIEW"
+                : "REJECTED",
         verificationNotes: parsed.data.note,
         verificationStatus: status,
         verified: status === "VERIFIED",

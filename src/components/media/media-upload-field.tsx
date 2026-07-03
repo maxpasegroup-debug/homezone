@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 
 export function MediaUploadField({
   folder,
+  label = "Upload Media",
   onUploaded
 }: {
   folder: string;
-  onUploaded: (result: { url: string; resourceType: string }) => void;
+  label?: string;
+  onUploaded: (result: { fileName?: string; url: string; resourceType: string }) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +50,7 @@ export function MediaUploadField({
     }
 
     onUploaded({
+      fileName: file.name,
       url: data.url,
       resourceType: data.resourceType
     });
@@ -62,7 +65,7 @@ export function MediaUploadField({
       />
       <Button className="mt-4 w-full" disabled={loading} onClick={upload}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-        Upload Media
+        {label}
       </Button>
       {error ? (
         <p className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700">

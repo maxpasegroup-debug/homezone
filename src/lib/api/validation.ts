@@ -127,14 +127,16 @@ export const serviceQuoteSchema = z.object({
 
 export const propertyCreateSchema = z.object({
   title: z.string().min(3).max(160),
-  description: z.string().min(10).max(2000),
+  description: z.string().min(10).max(3000),
   intent: propertyIntentSchema,
   category: propertyCategorySchema.default("RESIDENTIAL"),
   propertyType: z.string().min(2).max(80),
+  coverImageUrl: z.string().url().optional(),
   country: z.string().min(2).max(120).default("India"),
   state: z.string().min(2).max(120).optional(),
   city: z.string().min(2).max(120),
   locality: z.string().min(2).max(160).optional(),
+  address: z.string().max(240).optional(),
   latitude: optionalCoordinate(-90, 90),
   longitude: optionalCoordinate(-180, 180),
   timezone: z.string().min(2).max(80).optional(),
@@ -144,12 +146,75 @@ export const propertyCreateSchema = z.object({
   areaUnit: z.string().default("sqft"),
   bedrooms: optionalInteger(0, 20),
   bathrooms: optionalInteger(0, 20),
-  amenities: z.array(z.string()).default([])
+  amenities: z.array(z.string()).default([]),
+  mediaUrls: z.array(z.string().url()).max(40).optional(),
+  videoUrl: z.string().url().optional(),
+  virtualTourUrl: z.string().url().optional(),
+  status: z.enum(["DRAFT", "PENDING_REVIEW"]).default("PENDING_REVIEW")
 });
 
-export const propertyMediaSchema = z.object({
-  mediaUrl: z.string().url(),
-  mediaType: z.enum(["image", "video"]).default("image")
+export const propertyUpdateSchema = propertyCreateSchema
+  .partial()
+  .extend({
+    status: z
+      .enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "ARCHIVED"])
+      .optional()
+  });
+
+export const propertyMediaSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("add"),
+    mediaUrl: z.string().url(),
+    mediaType: z.enum(["image", "video", "cover"]).default("image")
+  }),
+  z.object({
+    action: z.literal("remove"),
+    mediaUrl: z.string().url()
+  }),
+  z.object({
+    action: z.literal("reorder"),
+    mediaUrls: z.array(z.string().url()).max(40)
+  }),
+  z.object({
+    action: z.literal("replace-video"),
+    videoUrl: z.string().url().optional()
+  }),
+  z.object({
+    action: z.literal("set-virtual-tour"),
+    virtualTourUrl: z.string().url().optional()
+  })
+]);
+
+export const propertyDocumentSchema = z.object({
+  documentType: z.enum([
+    "SALE_DEED",
+    "ENCUMBRANCE_CERTIFICATE",
+    "TAX_RECEIPT",
+    "APPROVAL_DOCUMENT",
+    "FLOOR_PLAN",
+    "OWNERSHIP_PROOF",
+    "OTHER"
+  ]),
+  fileName: z.string().min(2).max(180),
+  fileUrl: z.string().url(),
+  fileSize: z.coerce.number().int().positive().optional(),
+  mimeType: z.string().max(120).optional(),
+  notes: z.string().max(500).optional()
+});
+
+export const propertyDocumentUpdateSchema = z.object({
+  documentType: z
+    .enum([
+      "SALE_DEED",
+      "ENCUMBRANCE_CERTIFICATE",
+      "TAX_RECEIPT",
+      "APPROVAL_DOCUMENT",
+      "FLOOR_PLAN",
+      "OWNERSHIP_PROOF",
+      "OTHER"
+    ])
+    .optional(),
+  notes: z.string().max(500).optional()
 });
 
 export const reelCreateSchema = z.object({
@@ -181,7 +246,7 @@ export const moderationSchema = z.object({
 });
 
 export const propertyVerificationSchema = z.object({
-  status: z.enum(["VERIFIED", "REJECTED", "EXPIRED"]),
+  status: z.enum(["UNDER_REVIEW", "VERIFIED", "REJECTED", "NEEDS_CHANGES", "EXPIRED"]),
   note: z.string().max(1000).optional()
 });
 
@@ -249,11 +314,24 @@ export const marketplaceFilterSchema = z.object({
   maxPrice: z.coerce.number().positive().optional(),
   minPrice: z.coerce.number().positive().optional(),
   purpose: propertyIntentSchema.optional(),
+  sort: z.enum(["recommended", "newest", "price_asc", "price_desc", "score"]).optional(),
   state: z.string().min(1).max(120).optional(),
   verifiedOnly: z
     .union([z.literal("true"), z.literal("false"), z.boolean()])
     .optional()
     .transform((value) => value === true || value === "true")
+});
+
+export const propertyCompareSchema = z.object({
+  propertyIds: z.array(idSchema).min(2).max(4)
+});
+
+export const shortlistSchema = z.object({
+  name: z.string().min(2).max(80)
+});
+
+export const shortlistPropertySchema = z.object({
+  propertyId: idSchema
 });
 
 export const studioRequestSchema = z.object({

@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, BedDouble, Bookmark, MapPin } from "lucide-react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ListingBadges } from "@/components/payments/listing-badges";
-import { VerificationBadge } from "@/components/trust/verification-badge";
+import { PropertyCard } from "@/components/properties/property-card";
+import { getOrCreateProfile } from "@/lib/auth/profile";
+import { getSessionUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
 import { getMarketplaceProperties, parseMarketplaceFilters } from "@/lib/properties/queries";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +16,13 @@ type PageProps = {
 
 const categories = ["RESIDENTIAL", "COMMERCIAL", "LAND", "INDUSTRIAL", "AGRICULTURAL", "HOSPITALITY", "LUXURY"];
 const purposes = ["BUY", "RENT", "LEASE", "INVEST"];
+const sorts = [
+  ["recommended", "Recommended"],
+  ["newest", "Newest"],
+  ["price_asc", "Price: low to high"],
+  ["price_desc", "Price: high to low"],
+  ["score", "HomeZone score"]
+] as const;
 
 function valueOf(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value ?? "";
@@ -22,7 +31,22 @@ function valueOf(value?: string | string[]) {
 export default async function PropertiesPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const filters = parseMarketplaceFilters(params);
-  const properties = await getMarketplaceProperties(filters);
+  const [properties, user] = await Promise.all([
+    getMarketplaceProperties(filters),
+    getSessionUser()
+  ]);
+  const profile = user ? await getOrCreateProfile(user) : null;
+  const savedProperties = profile
+    ? await db.savedProperty.findMany({
+        where: {
+          userId: profile.id
+        },
+        select: {
+          propertyId: true
+        }
+      })
+    : [];
+  const savedIds = new Set(savedProperties.map((item) => item.propertyId));
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
@@ -36,19 +60,19 @@ export default async function PropertiesPage({ searchParams }: PageProps) {
               Marketplace
             </p>
             <h1 className="mt-3 text-5xl font-bold tracking-tight">
-              Verified-style property discovery
+              Find the right property faster
             </h1>
             <p className="mt-4 max-w-2xl leading-7 text-muted-foreground">
-              Browse freely. Contact, save, site visits, and listing actions
-              move users into verified account flow.
+              Search homes, land, rentals, and investment options with simple
+              filters, clear cards, and buyer actions that carry into your dashboard.
             </p>
           </div>
           <Button asChild size="lg">
-            <a href="/dashboard/listings/new">List Property</a>
+            <Link href="/dashboard/saved">My Saved Properties</Link>
           </Button>
         </div>
 
-        <form className="mt-8 grid gap-3 rounded-[1.5rem] border border-violet-100 bg-white p-4 shadow-sm md:grid-cols-4 xl:grid-cols-8">
+        <form className="mt-8 grid gap-3 rounded-[1.5rem] border border-violet-100 bg-white p-4 shadow-sm md:grid-cols-4 xl:grid-cols-9">
           <input
             className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
             defaultValue={valueOf(params.keyword ?? params.q)}
@@ -93,6 +117,17 @@ export default async function PropertiesPage({ searchParams }: PageProps) {
             name="maxPrice"
             placeholder="Max price"
           />
+          <select
+            className="h-11 rounded-2xl border border-border px-3 text-sm font-semibold outline-none"
+            defaultValue={valueOf(params.sort) || "recommended"}
+            name="sort"
+          >
+            {sorts.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
           <label className="flex h-11 items-center gap-2 rounded-2xl border border-border px-3 text-sm font-semibold">
             <input
               defaultChecked={valueOf(params.verifiedOnly) === "true"}
@@ -103,62 +138,31 @@ export default async function PropertiesPage({ searchParams }: PageProps) {
             Verified
           </label>
           <Button className="h-11" type="submit">
-            Filter
+            <Search className="h-4 w-4" />
+            Search
           </Button>
         </form>
 
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {properties.map((property) => (
-            <Card className="overflow-hidden shadow-sm transition hover:-translate-y-1 hover:shadow-soft" key={property.id}>
-              <div className="flex aspect-[4/3] items-end bg-gradient-to-br from-violet-700 via-fuchsia-500 to-cyan-400 p-5 text-white">
-                <div>
-                  <p className="rounded-full bg-white/18 px-3 py-1 text-xs font-bold">
-                    Score {property.score}/100
-                  </p>
-                  <h2 className="mt-4 text-2xl font-bold">{property.title}</h2>
-                </div>
-              </div>
-              <div className="p-5">
-                <VerificationBadge
-                  entity="property"
-                  status={property.verificationStatus}
-                />
-                <div className="mt-2">
-                  <ListingBadges
-                    featured={property.featured}
-                    featuredUntil={property.featuredUntil}
-                    premium={property.premium}
-                    premiumUntil={property.premiumUntil}
-                  />
-                </div>
-                <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-violet-700">
-                  <MapPin className="h-4 w-4" />
-                  {property.location}
-                </p>
-                <p className="mt-3 text-3xl font-bold">{property.priceLabel}</p>
-                <p className="mt-2 text-xs font-bold uppercase text-muted-foreground">
-                  {property.intent} / {property.category}
-                </p>
-                <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                  <BedDouble className="h-4 w-4" />
-                  {property.bedrooms ? `${property.bedrooms}BHK` : property.type} - {property.area}
-                </p>
-                <div className="mt-5 flex gap-2">
-                  <Button asChild className="flex-1">
-                    <a href={`/properties/${property.id}`}>
-                      View
-                      <ArrowRight className="h-4 w-4" />
-                    </a>
-                  </Button>
-                  <Button asChild size="icon" variant="outline">
-                    <a href="/auth">
-                      <Bookmark className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            </Card>
+            <PropertyCard
+              key={property.id}
+              property={property}
+              saved={savedIds.has(property.id)}
+            />
           ))}
+          {!properties.length ? (
+            <Card className="p-8 text-center shadow-sm md:col-span-2 xl:col-span-3">
+              <h2 className="text-2xl font-bold">No properties match this search</h2>
+              <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
+                Try a wider budget, another city, or remove the verified-only filter.
+                HomeZone will show the closest matches as soon as they are available.
+              </p>
+              <Button asChild className="mt-6">
+                <Link href="/properties">Reset search</Link>
+              </Button>
+            </Card>
+          ) : null}
         </div>
       </section>
     </main>
