@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 const marketplaceLines = [
   {
     description: "Homes, villas, apartments, land, and projects for purchase.",
-    href: "/properties?purpose=BUY",
     icon: Home,
     intent: "BUY",
     label: "Buy Properties",
@@ -19,7 +18,6 @@ const marketplaceLines = [
   },
   {
     description: "Rental homes, flats, apartments, villas, and managed rentals.",
-    href: "/properties?purpose=RENT",
     icon: KeyRound,
     intent: "RENT",
     label: "Rent Properties",
@@ -27,7 +25,6 @@ const marketplaceLines = [
   },
   {
     description: "Long-term lease and sale-ready inventory for owners and builders.",
-    href: "/properties?purpose=LEASE",
     icon: Building2,
     intent: "LEASE",
     label: "Lease / Sell",
@@ -35,7 +32,6 @@ const marketplaceLines = [
   },
   {
     description: "Yield-oriented listings, land banking, appreciation, and investor picks.",
-    href: "/properties?purpose=INVEST",
     icon: BarChart3,
     intent: "INVEST",
     label: "Invest",
@@ -79,7 +75,7 @@ export default async function AdminMarketplacePage() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <Link href={"/dashboard/listings/new" as Route}>
+                <Link href={"/admin/listings/new" as Route}>
                   <Plus className="h-4 w-4" />
                   Add Property Listing
                 </Link>
@@ -117,16 +113,13 @@ export default async function AdminMarketplacePage() {
                 <p className="mt-2 min-h-16 text-sm leading-6 text-muted-foreground">{line.description}</p>
                 <div className="mt-5 flex flex-col gap-2">
                   <Button asChild size="sm">
-                    <Link href={`/dashboard/listings/new?intent=${line.intent}` as Route}>
+                    <Link href={`/admin/listings/new?intent=${line.intent}` as Route}>
                       <Plus className="h-4 w-4" />
                       Add {line.intent}
                     </Link>
                   </Button>
                   <Button asChild size="sm" variant="outline">
                     <Link href={line.manageHref as Route}>Manage</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="ghost">
-                    <Link href={line.href as Route}>View Public</Link>
                   </Button>
                 </div>
               </Card>

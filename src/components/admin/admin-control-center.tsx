@@ -62,7 +62,7 @@ export function AdminControlCenter({ data }: { data: AdminOpsData }) {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href={"/dashboard/listings/new" as Route}>Add Listing</Link>
+                <Link href={"/admin/listings/new" as Route}>Add Listing</Link>
               </Button>
             </div>
           </div>
