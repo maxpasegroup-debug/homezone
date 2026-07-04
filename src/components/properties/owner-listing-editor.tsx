@@ -1,9 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
-import { CheckCircle2, Loader2, Save, Send, Sparkles } from "lucide-react";
+import { CheckCircle2, ImagePlus, Loader2, Save, Send, Sparkles, UploadCloud, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VoiceInputButton } from "@/components/voice/voice-input-button";
@@ -31,6 +32,7 @@ type ListingDraft = {
   bathrooms: string;
   amenities: string;
   coverImageUrl: string;
+  mediaUrls: string;
   videoUrl: string;
   virtualTourUrl: string;
 };
@@ -69,9 +71,15 @@ function toFormData(property?: ListingValue) {
     bathrooms: property?.bathrooms ?? "",
     amenities: Array.isArray(property?.amenities) ? property.amenities.join(", ") : property?.amenities ?? "",
     coverImageUrl: property?.coverImageUrl ?? "",
+    mediaUrls: Array.isArray(property?.mediaUrls) ? property.mediaUrls.join("\n") : property?.mediaUrls ?? "",
     videoUrl: property?.videoUrl ?? "",
     virtualTourUrl: property?.virtualTourUrl ?? ""
   };
+}
+
+function optionalText(value: string, minLength = 1) {
+  const trimmed = value.trim();
+  return trimmed.length >= minLength ? trimmed : undefined;
 }
 
 function payloadFor(form: ListingDraft, status: "DRAFT" | "PENDING_REVIEW") {
@@ -83,24 +91,62 @@ function payloadFor(form: ListingDraft, status: "DRAFT" | "PENDING_REVIEW") {
     description:
       isDraft && !form.description
         ? "Owner draft saved for completion before verification."
-        : form.description,
-    title: isDraft && !form.title ? "Untitled property draft" : form.title,
-    address: form.address || undefined,
-    areaValue: form.areaValue || undefined,
-    bathrooms: form.bathrooms || undefined,
-    bedrooms: form.bedrooms || undefined,
-    coverImageUrl: form.coverImageUrl || undefined,
-    latitude: form.latitude || undefined,
-    longitude: form.longitude || undefined,
-    price: form.price || undefined,
-    videoUrl: form.videoUrl || undefined,
-    virtualTourUrl: form.virtualTourUrl || undefined,
+        : form.description.trim(),
+    title: isDraft && !form.title ? "Untitled property draft" : form.title.trim(),
+    address: optionalText(form.address),
+    areaValue: optionalText(form.areaValue),
+    bathrooms: optionalText(form.bathrooms),
+    bedrooms: optionalText(form.bedrooms),
+    coverImageUrl: optionalText(form.coverImageUrl),
+    latitude: optionalText(form.latitude),
+    locality: optionalText(form.locality, 2),
+    longitude: optionalText(form.longitude),
+    mediaUrls: form.mediaUrls
+      .split(/\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean),
+    price: optionalText(form.price),
+    state: optionalText(form.state, 2),
+    timezone: optionalText(form.timezone, 2),
+    videoUrl: optionalText(form.videoUrl),
+    virtualTourUrl: optionalText(form.virtualTourUrl),
     amenities: form.amenities
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean),
     status
   };
+}
+
+function validateBeforeSubmit(form: ListingDraft, status: "DRAFT" | "PENDING_REVIEW") {
+  if (status === "DRAFT") return "";
+
+  const missing = [
+    [form.title.trim().length < 3, "title"],
+    [form.description.trim().length < 10, "description"],
+    [form.propertyType.trim().length < 2, "property type"],
+    [form.country.trim().length < 2, "country"],
+    [form.city.trim().length < 2, "city"]
+  ]
+    .filter(([invalid]) => invalid)
+    .map(([, label]) => label);
+
+  return missing.length ? `Please complete ${missing.join(", ")} before submitting for verification.` : "";
+}
+
+function apiMessage(data: unknown, fallback: string) {
+  if (!data || typeof data !== "object") return fallback;
+  const body = data as { details?: { fieldErrors?: Record<string, string[]> }; error?: string };
+  const fieldErrors = body.details?.fieldErrors;
+
+  if (fieldErrors) {
+    const first = Object.entries(fieldErrors).find(([, messages]) => messages.length);
+    if (first) {
+      return `${first[0]}: ${first[1][0]}`;
+    }
+  }
+
+  return body.error ?? fallback;
 }
 
 export function OwnerListingEditor({
@@ -111,6 +157,7 @@ export function OwnerListingEditor({
   const router = useRouter();
   const [form, setForm] = useState<ListingDraft>(() => toFormData(property));
   const [loadingAction, setLoadingAction] = useState<"draft" | "submit" | "autosave" | null>(null);
+  const [uploading, setUploading] = useState<"cover" | "gallery" | "tour" | "video" | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const hasExisting = Boolean(property?.id);
@@ -136,7 +183,53 @@ export function OwnerListingEditor({
     }));
   }
 
+  async function uploadFile(file: File, target: "cover" | "gallery" | "tour" | "video") {
+    setUploading(target);
+    setError("");
+    setMessage("");
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "homezone/property-media");
+
+    const response = await fetch("/api/media/upload", {
+      body: formData,
+      method: "POST"
+    });
+    const data = await response.json().catch(() => null);
+    setUploading(null);
+
+    if (!response.ok || !data?.url) {
+      setError(data?.error ?? "Upload failed. Check Cloudinary settings and file size.");
+      return;
+    }
+
+    setForm((current) => {
+      if (target === "cover") {
+        return { ...current, coverImageUrl: data.url };
+      }
+      if (target === "video") {
+        return { ...current, videoUrl: data.url };
+      }
+      if (target === "tour") {
+        return { ...current, virtualTourUrl: data.url };
+      }
+      const urls = current.mediaUrls
+        .split(/\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      return { ...current, mediaUrls: [...urls, data.url].join("\n") };
+    });
+    setMessage("Media uploaded and attached to this listing.");
+  }
+
   async function save(status: "DRAFT" | "PENDING_REVIEW", mode: "draft" | "submit" | "autosave" = "draft") {
+    const validationMessage = validateBeforeSubmit(form, status);
+    if (validationMessage) {
+      setError(validationMessage);
+      return;
+    }
+
     setLoadingAction(mode);
     setError("");
     setMessage("");
@@ -153,7 +246,7 @@ export function OwnerListingEditor({
 
     if (!response.ok) {
       const data = await response.json().catch(() => null);
-      setError(data?.error ?? "Could not save listing.");
+      setError(apiMessage(data, "Could not save listing."));
       return;
     }
 
@@ -223,10 +316,54 @@ export function OwnerListingEditor({
         <Select label="Category" name="category" onChange={updateField} options={categories} value={form.category} />
         <Select label="Property Type" name="propertyType" onChange={updateField} options={propertyTypes} value={form.propertyType} />
         <Select label="Currency" name="currency" onChange={updateField} options={currencies} value={form.currency} />
-        {(["country", "state", "city", "locality", "address", "timezone", "latitude", "longitude", "price", "areaValue", "areaUnit", "bedrooms", "bathrooms", "coverImageUrl", "videoUrl", "virtualTourUrl"] as const).map((field) => (
+        {(["country", "state", "city", "locality", "address", "timezone", "latitude", "longitude", "price", "areaValue", "areaUnit", "bedrooms", "bathrooms"] as const).map((field) => (
           <Field key={field} label={field.replace(/([A-Z])/g, " $1")} name={field} onChange={updateField} value={form[field]} />
         ))}
         <Field className="sm:col-span-2" label="Amenities" name="amenities" onChange={updateField} value={form.amenities} />
+      </div>
+
+      <div className="mt-8 rounded-[1.5rem] border bg-white p-5">
+        <p className="text-sm font-bold text-violet-700">Property Media</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Upload files directly or paste hosted URLs. Uploaded files are attached automatically.
+        </p>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <MediaUpload
+            accept="image/*"
+            icon={<ImagePlus className="h-4 w-4" />}
+            label="Cover image file"
+            loading={uploading === "cover"}
+            onFile={(file) => uploadFile(file, "cover")}
+          />
+          <Field label="Cover image URL" name="coverImageUrl" onChange={updateField} value={form.coverImageUrl} />
+
+          <MediaUpload
+            accept="image/*"
+            icon={<ImagePlus className="h-4 w-4" />}
+            label="Gallery image file"
+            loading={uploading === "gallery"}
+            onFile={(file) => uploadFile(file, "gallery")}
+          />
+          <TextArea label="Gallery image URLs" name="mediaUrls" onChange={updateField} value={form.mediaUrls} />
+
+          <MediaUpload
+            accept="video/mp4,video/quicktime,video/webm"
+            icon={<Video className="h-4 w-4" />}
+            label="Property video file"
+            loading={uploading === "video"}
+            onFile={(file) => uploadFile(file, "video")}
+          />
+          <Field label="Property video URL" name="videoUrl" onChange={updateField} value={form.videoUrl} />
+
+          <MediaUpload
+            accept="image/*,video/mp4,video/quicktime,video/webm"
+            icon={<UploadCloud className="h-4 w-4" />}
+            label="Virtual tour file"
+            loading={uploading === "tour"}
+            onFile={(file) => uploadFile(file, "tour")}
+          />
+          <Field label="Virtual tour URL" name="virtualTourUrl" onChange={updateField} value={form.virtualTourUrl} />
+        </div>
       </div>
 
       {error ? <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</p> : null}
@@ -271,6 +408,43 @@ function Field({
         className="h-12 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none focus:border-violet-400"
         onChange={(event) => onChange(name, event.target.value)}
         value={value}
+      />
+    </label>
+  );
+}
+
+function MediaUpload({
+  accept,
+  icon,
+  label,
+  loading,
+  onFile
+}: {
+  accept: string;
+  icon: ReactNode;
+  label: string;
+  loading: boolean;
+  onFile: (file: File) => void;
+}) {
+  return (
+    <label className="flex min-h-28 cursor-pointer flex-col justify-center rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-4 transition hover:border-violet-400 hover:bg-violet-50">
+      <span className="flex items-center gap-2 text-sm font-bold text-violet-700">
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+        {label}
+      </span>
+      <span className="mt-2 text-xs font-semibold text-muted-foreground">
+        Choose a file from your device.
+      </span>
+      <input
+        accept={accept}
+        className="sr-only"
+        disabled={loading}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onFile(file);
+          event.target.value = "";
+        }}
+        type="file"
       />
     </label>
   );
