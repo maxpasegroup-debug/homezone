@@ -259,3 +259,41 @@ export async function getAdminMarketplaceAnalytics() {
 
   return { activeUsers: activeUsers.length, approvals, dailyActivity, leadStages, newListings, topProperties };
 }
+
+export async function getAdminMarketplaceSetupData() {
+  const [intentCounts, statusCounts, categoryCounts, recentListings] = await Promise.all([
+    db.property.groupBy({
+      by: ["intent"],
+      _count: { _all: true }
+    }),
+    db.property.groupBy({
+      by: ["status"],
+      _count: { _all: true }
+    }),
+    db.property.groupBy({
+      by: ["category"],
+      _count: { _all: true }
+    }),
+    db.property.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: {
+        category: true,
+        city: true,
+        id: true,
+        intent: true,
+        price: true,
+        status: true,
+        title: true,
+        verificationStatus: true
+      },
+      take: 12
+    })
+  ]);
+
+  return {
+    categoryCounts,
+    intentCounts,
+    recentListings,
+    statusCounts
+  };
+}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Activity, BarChart3, Bell, Building2, ClipboardCheck, FileText, Home, IndianRupee, ShieldCheck, UserRound, UsersRound } from "lucide-react";
+import { Activity, BarChart3, Bell, Building2, ClipboardCheck, FileText, Home, IndianRupee, Plus, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { getAdminOperationsData } from "@/lib/admin/operations";
@@ -33,6 +33,7 @@ export function AdminControlCenter({ data }: { data: AdminOpsData }) {
   ];
 
   const links = [
+    { href: "/admin/marketplace", label: "Marketplace Setup", text: "Create and manage Buy, Rent, Lease/Sell, and Invest property supply." },
     { href: "/admin/listings", label: "Review Listings", text: "Moderate pending listings, documents, media, and owner notes." },
     { href: "/admin/users", label: "Manage Users", text: "Search profiles, verify owners, suspend or reactivate users, manage roles." },
     { href: "/admin/leads", label: "Lead Oversight", text: "View pipeline health, response times, stuck leads, and site visits." },
@@ -53,6 +54,17 @@ export function AdminControlCenter({ data }: { data: AdminOpsData }) {
             <p className="mt-5 max-w-2xl leading-8 text-muted-foreground">
               Review listings, verify owners, monitor leads, handle reports, manage users, and keep marketplace quality high.
             </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button asChild size="lg">
+                <Link href={"/admin/marketplace" as Route}>
+                  <Plus className="h-4 w-4" />
+                  Marketplace Setup
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href={"/dashboard/listings/new" as Route}>Add Listing</Link>
+              </Button>
+            </div>
           </div>
           <div className="bg-gradient-to-br from-slate-950 via-violet-950 to-fuchsia-800 p-7 text-white sm:p-10">
             <IndianRupee className="h-12 w-12" />
@@ -120,7 +132,7 @@ export function AdminControlCenter({ data }: { data: AdminOpsData }) {
               <div className="rounded-2xl bg-muted p-4" key={property.id}>
                 <p className="text-sm font-bold">{property.title}</p>
                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                  {property.city} · {formatAdminStatus(property.status)} · Docs {property.documents.length}
+                  {property.city} / {formatAdminStatus(property.status)} / Docs {property.documents.length}
                 </p>
               </div>
             ))}
@@ -138,7 +150,7 @@ export function AdminControlCenter({ data }: { data: AdminOpsData }) {
               <div className="rounded-2xl bg-muted p-4" key={item.id}>
                 <p className="text-sm font-bold">{formatAdminStatus(item.action)}</p>
                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                  {item.entityType ?? "system"} · {item.createdAt.toLocaleString("en-IN")}
+                  {item.entityType ?? "system"} / {item.createdAt.toLocaleString("en-IN")}
                 </p>
               </div>
             ))}
