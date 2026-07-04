@@ -26,6 +26,7 @@ type UserDashboardData = Awaited<ReturnType<typeof getUserDashboardData>>;
 
 const continueLinks = [
   ["AI advisor", "/dashboard/ai"],
+  ["Business AI", "/dashboard/business-ai"],
   ["Buy homes", "/properties?purpose=BUY"],
   ["Rent homes", "/properties?purpose=RENT"],
   ["Investment options", "/properties?purpose=INVEST"]
@@ -241,7 +242,7 @@ export function HomeZoneDashboard({
       </DashboardSection>
 
       <DashboardSection eyebrow="Continue Browsing" title="Pick up your search">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {continueLinks.map(([label, href]) => (
             <Link className="rounded-2xl bg-muted p-5 font-bold transition hover:bg-violet-50" href={href as never} key={href}>
               <Sparkles className="mb-4 h-5 w-5 text-violet-700" />

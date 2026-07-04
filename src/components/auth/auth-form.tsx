@@ -2,137 +2,173 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { Mail, MessageCircle, Phone, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
+type AuthFlow = "forgot" | "reset" | "signin" | "signup";
+
 type AuthFormProps = {
   authError?: string;
-  emailEnabled: boolean;
-  googleEnabled: boolean;
-  initialFlow?: "signin" | "signup";
+  callbackUrl?: string;
+  initialFlow?: AuthFlow;
+  resetToken?: string;
 };
+
+function passwordHelp(password: string) {
+  if (!password) return "";
+  if (password.length < 8) return "Use at least 8 characters.";
+  if (!/[A-Z]/.test(password)) return "Add one uppercase letter.";
+  if (!/[a-z]/.test(password)) return "Add one lowercase letter.";
+  if (!/[0-9]/.test(password)) return "Add one number.";
+  return "";
+}
 
 export function AuthForm({
   authError,
-  emailEnabled,
-  googleEnabled,
-  initialFlow = "signin"
+  callbackUrl = "/onboarding",
+  initialFlow = "signin",
+  resetToken
 }: AuthFormProps) {
-  const [flow, setFlow] = useState<"signin" | "signup">(initialFlow);
-  const [mode, setMode] = useState<"phone" | "email">("phone");
-  const [phone, setPhone] = useState("");
-  const [otpCode, setOtpCode] = useState("");
+  const [flow, setFlow] = useState<AuthFlow>(initialFlow);
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState(authError ?? "");
+  const [loading, setLoading] = useState(false);
+  const help = passwordHelp(password);
 
-  async function sendOtp() {
-    if (mode === "email") {
-      if (!emailEnabled) {
-        setStatus(
-          "Email magic-link sign in needs SMTP variables in Railway. Please use Google or contact HomeZone support."
-        );
-        return;
-      }
-
-      setStatus(`Sending a secure sign-in link to ${email}...`);
-      const result = await signIn("nodemailer", {
-        callbackUrl: "/onboarding",
-        email,
-        redirect: false
-      });
-
-      if (result?.error) {
-        setStatus("Could not send the sign-in link. Please try again later.");
-        return;
-      }
-
-      setStatus(`Check ${email} for your secure HomeZone sign-in link.`);
-      return;
-    }
-
-    const response = await fetch("/api/auth/otp/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ phone })
+  async function signInWithPassword(targetEmail = email, targetPassword = password) {
+    const result = await signIn("password", {
+      callbackUrl,
+      email: targetEmail.trim().toLowerCase(),
+      password: targetPassword,
+      redirect: false
     });
-    const data = await response.json().catch(() => null);
 
-    if (!response.ok) {
-      setStatus(data?.error ?? "Could not send OTP.");
+    if (result?.error) {
+      setStatus("Invalid email or password.");
       return;
     }
 
-    setStatus(
-      data?.devCode
-        ? `Development OTP for ${phone}: ${data.devCode}`
-        : "OTP request recorded. Connect a WhatsApp/SMS provider to deliver codes."
-    );
+    window.location.href = result?.url ?? callbackUrl;
   }
 
-  async function verifyOtp() {
-    if (otpCode.trim().length === 4) {
-      setStatus("Signing in with mobile OTP...");
-      const result = await signIn("mobile-demo", {
-        callbackUrl: "/onboarding",
-        code: otpCode.trim(),
-        phone,
-        redirect: false
-      });
+  async function handleSignIn() {
+    setLoading(true);
+    setStatus("");
+    await signInWithPassword();
+    setLoading(false);
+  }
 
-      if (result?.error) {
-        setStatus("Mobile login is not enabled or the OTP is invalid.");
-        return;
-      }
-
-      window.location.href = result?.url ?? "/onboarding";
-      return;
-    }
-
-    const response = await fetch("/api/auth/otp/verify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+  async function handleSignUp() {
+    setLoading(true);
+    setStatus("");
+    const response = await fetch("/api/auth/password/signup", {
       body: JSON.stringify({
-        code: otpCode,
-        phone
-      })
+        email,
+        name,
+        password
+      }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST"
     });
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      setStatus(data?.error ?? "Could not verify OTP.");
+      setStatus(data?.error ?? "Could not create your account.");
+      setLoading(false);
       return;
     }
 
-    setStatus("Phone verified. Continue to onboarding.");
+    await signInWithPassword(email, password);
+    setLoading(false);
   }
 
-  async function loginWithGoogle() {
-    if (!googleEnabled) {
-      setStatus("Google login is not configured yet. Please contact HomeZone support.");
-      return;
-    }
-
-    await signIn("google", {
-      callbackUrl: "/onboarding"
+  async function handleForgotPassword() {
+    setLoading(true);
+    setStatus("");
+    const response = await fetch("/api/auth/password/forgot", {
+      body: JSON.stringify({ email }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST"
     });
+    const data = await response.json().catch(() => null);
+    setStatus(data?.message ?? "If an account exists for this email, a reset link has been sent.");
+    setLoading(false);
   }
+
+  async function handleResetPassword() {
+    setLoading(true);
+    setStatus("");
+    const response = await fetch("/api/auth/password/reset", {
+      body: JSON.stringify({
+        password,
+        token: resetToken
+      }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      method: "POST"
+    });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setStatus(data?.error ?? "Could not reset your password.");
+      setLoading(false);
+      return;
+    }
+
+    setStatus("Password reset successfully. Sign in with your new password.");
+    setPassword("");
+    setFlow("signin");
+    setLoading(false);
+  }
+
+  const primaryAction =
+    flow === "signup"
+      ? handleSignUp
+      : flow === "forgot"
+        ? handleForgotPassword
+        : flow === "reset"
+          ? handleResetPassword
+          : handleSignIn;
+  const primaryLabel =
+    flow === "signup"
+      ? "Create Account"
+      : flow === "forgot"
+        ? "Send Reset Link"
+        : flow === "reset"
+          ? "Reset Password"
+          : "Sign In";
+  const passwordVisible = flow !== "forgot";
+  const canSubmit =
+    flow === "forgot"
+      ? Boolean(email)
+      : flow === "reset"
+        ? Boolean(resetToken && password && !help)
+        : Boolean(email && password && !help);
 
   return (
     <Card className="mx-auto max-w-xl p-6 shadow-soft sm:p-8">
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
         <ShieldCheck className="h-7 w-7" />
       </div>
+
       <div className="mt-6 grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
         <button
           className={`rounded-full px-4 py-3 text-sm font-bold ${
-            flow === "signin" ? "bg-white text-violet-700 shadow-sm" : ""
+            flow === "signin" || flow === "forgot" || flow === "reset" ? "bg-white text-violet-700 shadow-sm" : ""
           }`}
-          onClick={() => setFlow("signin")}
+          onClick={() => {
+            setFlow("signin");
+            setStatus("");
+          }}
         >
           Sign in
         </button>
@@ -140,111 +176,115 @@ export function AuthForm({
           className={`rounded-full px-4 py-3 text-sm font-bold ${
             flow === "signup" ? "bg-white text-violet-700 shadow-sm" : ""
           }`}
-          onClick={() => setFlow("signup")}
+          onClick={() => {
+            setFlow("signup");
+            setStatus("");
+          }}
         >
           Sign up
         </button>
       </div>
+
       <h1 className="mt-6 text-4xl font-bold tracking-tight">
-        {flow === "signup" ? "Create your HomeZone account" : "Sign in to HomeZone"}
+        {flow === "signup"
+          ? "Create your HomeZone account"
+          : flow === "forgot"
+            ? "Reset your password"
+            : flow === "reset"
+              ? "Create a new password"
+              : "Sign in to HomeZone"}
       </h1>
       <p className="mt-3 leading-7 text-muted-foreground">
         {flow === "signup"
-          ? "Create an account to save properties, contact owners, publish listings, and access your dashboard."
-          : "Access your saved properties, listings, inquiries, dashboards, Studio, services, and Pro tools."}
+          ? "Save properties, contact owners, publish listings, and access your dashboard."
+          : flow === "forgot"
+            ? "Enter your email and HomeZone will send a secure password reset link."
+            : flow === "reset"
+              ? "Choose a strong password to continue using your HomeZone account."
+              : "Access your saved properties, listings, inquiries, AI tools, Studio, services, and Pro dashboards."}
       </p>
 
-      <div className="mt-7 grid grid-cols-2 gap-2 rounded-full bg-muted p-1">
-        <button
-          className={`rounded-full px-4 py-3 text-sm font-bold ${
-            mode === "phone" ? "bg-white text-violet-700 shadow-sm" : ""
-          }`}
-          onClick={() => setMode("phone")}
-        >
-          WhatsApp / Mobile
-        </button>
-        <button
-          className={`rounded-full px-4 py-3 text-sm font-bold ${
-            mode === "email" ? "bg-white text-violet-700 shadow-sm" : ""
-          }`}
-          onClick={() => setMode("email")}
-        >
-          Email
-        </button>
-      </div>
-
-      <div className="mt-6 space-y-4">
-        {mode === "phone" ? (
-          <div className="space-y-4">
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold">Phone number</span>
-              <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
-                <Phone className="h-5 w-5 text-violet-700" />
-                <input
-                  className="w-full bg-transparent font-semibold outline-none"
-                  onChange={(event) => setPhone(event.target.value)}
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                />
-              </div>
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold">OTP code</span>
+      <div className="mt-7 space-y-4">
+        {flow === "signup" ? (
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold">Name</span>
+            <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
+              <UserRound className="h-5 w-5 text-violet-700" />
               <input
-                className="h-14 w-full rounded-2xl border border-border bg-white px-4 font-semibold outline-none"
-                inputMode="numeric"
-                onChange={(event) => setOtpCode(event.target.value)}
-                placeholder="6-digit code"
-                value={otpCode}
+                className="w-full bg-transparent font-semibold outline-none"
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your name"
+                value={name}
               />
-            </label>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold">Email address</span>
-              <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
-                <Mail className="h-5 w-5 text-violet-700" />
-                <input
-                  className="w-full bg-transparent font-semibold outline-none"
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  type="email"
-                  value={email}
-                />
-              </div>
-            </label>
-            {!emailEnabled ? (
-              <p className="rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-                Email magic-link login needs SMTP variables in Railway.
-              </p>
+            </div>
+          </label>
+        ) : null}
+
+        {flow !== "reset" ? (
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold">Email address</span>
+            <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
+              <Mail className="h-5 w-5 text-violet-700" />
+              <input
+                autoComplete="email"
+                className="w-full bg-transparent font-semibold outline-none"
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                type="email"
+                value={email}
+              />
+            </div>
+          </label>
+        ) : null}
+
+        {passwordVisible ? (
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold">Password</span>
+            <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
+              <LockKeyhole className="h-5 w-5 text-violet-700" />
+              <input
+                autoComplete={flow === "signup" || flow === "reset" ? "new-password" : "current-password"}
+                className="w-full bg-transparent font-semibold outline-none"
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+              />
+              <button
+                className="text-muted-foreground"
+                onClick={() => setShowPassword((value) => !value)}
+                type="button"
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+            {help ? (
+              <p className="text-sm font-semibold text-amber-700">{help}</p>
             ) : null}
-          </div>
-        )}
+          </label>
+        ) : null}
+
+        {flow === "signin" ? (
+          <button
+            className="text-sm font-bold text-violet-700"
+            onClick={() => {
+              setFlow("forgot");
+              setStatus("");
+            }}
+            type="button"
+          >
+            Forgot password?
+          </button>
+        ) : null}
 
         <Button
           className="w-full"
-          disabled={mode === "email" && !emailEnabled}
-          onClick={sendOtp}
+          disabled={!canSubmit || loading}
+          onClick={primaryAction}
           size="lg"
         >
-          <MessageCircle className="h-4 w-4" />
-          {mode === "email" ? "Send magic link" : "Send OTP"}
+          {loading ? "Please wait..." : primaryLabel}
         </Button>
-        {mode === "phone" ? (
-          <Button className="w-full" onClick={verifyOtp} size="lg" variant="outline">
-            Verify OTP
-          </Button>
-        ) : null}
-        {googleEnabled ? (
-          <Button className="w-full" onClick={loginWithGoogle} size="lg" variant="outline">
-            {flow === "signup" ? "Sign up with Google" : "Continue with Google"}
-          </Button>
-        ) : (
-          <Button className="w-full" disabled size="lg" variant="outline">
-            Google login not configured
-          </Button>
-        )}
       </div>
 
       {status ? (

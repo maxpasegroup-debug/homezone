@@ -118,6 +118,29 @@ export const aiPropertyIntelligenceSchema = z.object({
   query: z.string().min(2).max(1200).optional()
 });
 
+export const businessAIActionSchema = z.enum([
+  "broker_copilot",
+  "builder_copilot",
+  "studio_copilot",
+  "service_copilot",
+  "admin_copilot",
+  "lead_analysis",
+  "crm_summary",
+  "sales_analytics",
+  "builder_analytics",
+  "studio_analytics",
+  "service_analytics",
+  "revenue_analysis",
+  "report_generator",
+  "notification_draft"
+]);
+
+export const businessAISchema = z.object({
+  action: businessAIActionSchema,
+  context: z.string().max(2000).optional(),
+  leadId: idSchema.optional()
+});
+
 export const aiProviderSchema = z.enum(["OPENAI", "GEMINI", "ANTHROPIC"]);
 
 export const aiModuleSchema = z.enum([
@@ -426,6 +449,29 @@ export const otpSendSchema = z.object({
 export const otpVerifySchema = z.object({
   code: z.string().regex(/^\d{6}$/, "OTP code must be 6 digits"),
   phone: phoneSchema
+});
+
+const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(128, "Password is too long")
+  .regex(/[A-Z]/, "Password must include an uppercase letter")
+  .regex(/[a-z]/, "Password must include a lowercase letter")
+  .regex(/[0-9]/, "Password must include a number");
+
+export const passwordSignUpSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(2).max(120).optional(),
+  password: passwordSchema
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email()
+});
+
+export const resetPasswordSchema = z.object({
+  password: passwordSchema,
+  token: z.string().min(32).max(256)
 });
 
 export const marketplaceFilterSchema = z.object({

@@ -26,6 +26,40 @@ ALTER TABLE "ServiceProvider" ADD COLUMN IF NOT EXISTS "suspended" BOOLEAN NOT N
 ALTER TABLE "ServiceProvider" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 CREATE INDEX IF NOT EXISTS "ServiceProvider_suspended_idx" ON "ServiceProvider"("suspended");
 
+CREATE TABLE IF NOT EXISTS "ServiceQuote" (
+  "id" TEXT NOT NULL,
+  "requestId" TEXT NOT NULL,
+  "providerId" TEXT,
+  "amount" DECIMAL(65,30),
+  "currency" TEXT NOT NULL DEFAULT 'INR',
+  "message" TEXT NOT NULL DEFAULT '',
+  "status" TEXT NOT NULL DEFAULT 'sent',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "ServiceQuote_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "ServiceQuote_requestId_idx" ON "ServiceQuote"("requestId");
+CREATE INDEX IF NOT EXISTS "ServiceQuote_providerId_idx" ON "ServiceQuote"("providerId");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ServiceQuote_requestId_fkey') THEN
+    ALTER TABLE "ServiceQuote"
+      ADD CONSTRAINT "ServiceQuote_requestId_fkey"
+      FOREIGN KEY ("requestId") REFERENCES "ServiceRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ServiceQuote_providerId_fkey') THEN
+    ALTER TABLE "ServiceQuote"
+      ADD CONSTRAINT "ServiceQuote_providerId_fkey"
+      FOREIGN KEY ("providerId") REFERENCES "ServiceProvider"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 ALTER TABLE "ServiceQuote" ADD COLUMN IF NOT EXISTS "revision" INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE "ServiceQuote" ADD COLUMN IF NOT EXISTS "validUntil" TIMESTAMP(3);
 ALTER TABLE "ServiceQuote" ADD COLUMN IF NOT EXISTS "acceptedAt" TIMESTAMP(3);

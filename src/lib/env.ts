@@ -46,6 +46,9 @@ const envSchema = z.object({
   GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-3-5-haiku-latest"),
+  AUTH_GOOGLE_ENABLED: booleanString,
+  AUTH_MAGIC_LINK_ENABLED: booleanString,
+  AUTH_MOBILE_OTP_ENABLED: booleanString,
   HOMEZONE_ENFORCE_ENV: booleanString,
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
@@ -58,6 +61,8 @@ const envSchema = z.object({
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  RESEND_API_KEY: optionalString,
+  RESEND_FROM_EMAIL: optionalEmail,
   SENTRY_DSN: z.string().url().optional(),
   SMTP_HOST: optionalString,
   SMTP_PASSWORD: optionalString,
@@ -83,17 +88,13 @@ const productionRequiredKeys = [
   "CLOUDINARY_API_SECRET",
   "CLOUDINARY_CLOUD_NAME",
   "DATABASE_URL",
-  "GOOGLE_CLIENT_ID",
-  "GOOGLE_CLIENT_SECRET",
   "NEXTAUTH_URL",
   "OPENAI_API_KEY",
-  "OTP_PEPPER",
   "RAZORPAY_KEY_ID",
   "RAZORPAY_KEY_SECRET",
   "RAZORPAY_WEBHOOK_SECRET",
-  "SENTRY_DSN",
-  "WHATSAPP_OTP_API_KEY",
-  "WHATSAPP_OTP_PROVIDER"
+  "RESEND_API_KEY",
+  "SENTRY_DSN"
 ] as const;
 
 const launchEnvGroups = [
@@ -102,8 +103,8 @@ const launchEnvGroups = [
     name: "Core runtime"
   },
   {
-    keys: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"] as const,
-    name: "Google OAuth"
+    keys: ["RESEND_API_KEY"] as const,
+    name: "Password reset email"
   },
   {
     keys: ["OPENAI_API_KEY"] as const,
@@ -116,10 +117,6 @@ const launchEnvGroups = [
   {
     keys: ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"] as const,
     name: "Razorpay"
-  },
-  {
-    keys: ["OTP_PEPPER", "WHATSAPP_OTP_PROVIDER", "WHATSAPP_OTP_API_KEY"] as const,
-    name: "OTP"
   },
   {
     keys: ["SENTRY_DSN"] as const,
@@ -184,5 +181,17 @@ export function isDemoMobileLoginEnabled() {
 }
 
 export function isEmailLoginEnabled() {
-  return Boolean(env.SMTP_HOST && env.SMTP_PORT && env.SMTP_USER && env.SMTP_PASSWORD && env.EMAIL_FROM);
+  return env.AUTH_MAGIC_LINK_ENABLED === true && Boolean(env.SMTP_HOST && env.SMTP_PORT && env.SMTP_USER && env.SMTP_PASSWORD && env.EMAIL_FROM);
+}
+
+export function isGoogleLoginEnabled() {
+  return env.AUTH_GOOGLE_ENABLED === true && Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+}
+
+export function isMobileOtpLoginEnabled() {
+  return env.AUTH_MOBILE_OTP_ENABLED === true;
+}
+
+export function isPasswordResetEmailEnabled() {
+  return Boolean(env.RESEND_API_KEY && (env.RESEND_FROM_EMAIL || env.EMAIL_FROM));
 }

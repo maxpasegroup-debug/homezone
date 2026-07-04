@@ -5,8 +5,9 @@ import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
-import { env, isDemoLoginEnabled, isDemoMobileLoginEnabled, isEmailLoginEnabled } from "@/lib/env";
+import { env, isDemoLoginEnabled, isEmailLoginEnabled, isGoogleLoginEnabled, isMobileOtpLoginEnabled } from "@/lib/env";
 import { isDemoMobileOtp, normalizePhone } from "@/lib/auth/otp";
+import { verifyPassword } from "@/lib/auth/password";
 import { normalizeRole } from "@/lib/auth/roles";
 
 const providers: Provider[] = [];
@@ -14,7 +15,7 @@ const DEMO_USER_ID = "homezone-demo-user";
 const MOBILE_DEMO_USER_ID = "homezone-mobile-demo-user";
 const MOBILE_DEMO_EMAIL = "mobile-demo@homezone.ai";
 
-if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+if (isGoogleLoginEnabled()) {
   providers.push(
     Google({
       clientId: env.GOOGLE_CLIENT_ID,
@@ -40,9 +41,48 @@ if (isEmailLoginEnabled()) {
   );
 }
 
+providers.push(
+  Credentials({
+    id: "password",
+    name: "Email and Password",
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Password", type: "password" }
+    },
+    async authorize(credentials) {
+      const email = String(credentials?.email ?? "").trim().toLowerCase();
+      const password = String(credentials?.password ?? "");
+
+      if (!email || !password) return null;
+
+      const user = await db.user.findUnique({
+        include: {
+          passwordCredential: true
+        },
+        where: {
+          email
+        }
+      });
+
+      if (!user?.passwordCredential) return null;
+
+      const valid = await verifyPassword(password, user.passwordCredential.passwordHash);
+      if (!valid) return null;
+
+      return {
+        email: user.email,
+        id: user.id,
+        image: user.image,
+        name: user.name
+      };
+    }
+  })
+);
+
 if (isDemoLoginEnabled()) {
   providers.push(
     Credentials({
+      id: "demo",
       name: "Demo Account",
       credentials: {
         email: { label: "Email", type: "email" },
@@ -68,30 +108,32 @@ if (isDemoLoginEnabled()) {
   );
 }
 
-providers.push(
-  Credentials({
-    id: "mobile-demo",
-    name: "Demo Mobile OTP",
-    credentials: {
-      code: { label: "OTP", type: "text" },
-      phone: { label: "Phone", type: "tel" }
-    },
-    async authorize(credentials) {
-      const phone = normalizePhone(String(credentials?.phone ?? ""));
-      const code = String(credentials?.code ?? "").trim();
+if (isMobileOtpLoginEnabled()) {
+  providers.push(
+    Credentials({
+      id: "mobile-demo",
+      name: "Demo Mobile OTP",
+      credentials: {
+        code: { label: "OTP", type: "text" },
+        phone: { label: "Phone", type: "tel" }
+      },
+      async authorize(credentials) {
+        const phone = normalizePhone(String(credentials?.phone ?? ""));
+        const code = String(credentials?.code ?? "").trim();
 
-      if (!isDemoMobileLoginEnabled() || !isDemoMobileOtp(phone, code)) {
-        return null;
+        if (!isDemoMobileOtp(phone, code)) {
+          return null;
+        }
+
+        return {
+          email: MOBILE_DEMO_EMAIL,
+          id: MOBILE_DEMO_USER_ID,
+          name: "HomeZone Mobile User"
+        };
       }
-
-      return {
-        email: MOBILE_DEMO_EMAIL,
-        id: MOBILE_DEMO_USER_ID,
-        name: "HomeZone Mobile User"
-      };
-    }
-  })
-);
+    })
+  );
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),

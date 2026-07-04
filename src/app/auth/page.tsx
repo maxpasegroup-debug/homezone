@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
-import { env, isEmailLoginEnabled } from "@/lib/env";
 
 type AuthPageProps = {
   searchParams?: Promise<{
     code?: string;
     error?: string;
     flow?: string;
+    next?: string;
+    token?: string;
   }>;
 };
 
@@ -14,7 +15,7 @@ function getAuthErrorMessage(error?: string, code?: string) {
   if (!error) return undefined;
 
   if (error === "Configuration") {
-    return "Auth configuration error. Check Railway AUTH_SECRET, NEXTAUTH_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and database migrations.";
+    return "Auth configuration error. Check Railway AUTH_SECRET, NEXTAUTH_URL, DATABASE_URL, RESEND_API_KEY, and database migrations.";
   }
 
   if (error === "OAuthCallback" || error === "OAuthCallbackError") {
@@ -26,7 +27,7 @@ function getAuthErrorMessage(error?: string, code?: string) {
   }
 
   if (error === "Verification") {
-    return "The sign-in link is invalid or expired. Please request a new link.";
+    return "The reset or sign-in link is invalid or expired. Please request a new link.";
   }
 
   return code ? `Sign-in failed: ${error} (${code}).` : `Sign-in failed: ${error}.`;
@@ -34,9 +35,14 @@ function getAuthErrorMessage(error?: string, code?: string) {
 
 export default async function AuthPage({ searchParams }: AuthPageProps) {
   const params = await searchParams;
-  const googleEnabled = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
-  const emailEnabled = isEmailLoginEnabled();
-  const initialFlow = params?.flow === "signup" ? "signup" : "signin";
+  const initialFlow =
+    params?.flow === "signup"
+      ? "signup"
+      : params?.flow === "forgot"
+        ? "forgot"
+        : params?.flow === "reset"
+          ? "reset"
+          : "signin";
   const authError = getAuthErrorMessage(params?.error, params?.code);
 
   return (
@@ -48,9 +54,9 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
         <div className="mt-10">
           <AuthForm
             authError={authError}
-            emailEnabled={emailEnabled}
-            googleEnabled={googleEnabled}
+            callbackUrl={params?.next ?? "/onboarding"}
             initialFlow={initialFlow}
+            resetToken={params?.token}
           />
         </div>
       </section>
