@@ -1,13 +1,20 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { HomeZoneDashboard } from "@/components/dashboard/homezone-dashboard";
 import { OwnerDashboard } from "@/components/dashboard/owner-dashboard";
 import { requireDashboardProfile } from "@/lib/auth/dashboard";
+import { isAdminRole } from "@/lib/auth/roles";
 import { getOwnerDashboardData, getUserDashboardData } from "@/lib/dashboard/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const profile = await requireDashboardProfile("/dashboard");
+
+  if (isAdminRole(profile.role)) {
+    redirect("/admin");
+  }
+
   const ownerData =
     profile.role === "OWNER" ? await getOwnerDashboardData(profile.id) : null;
   const data = ownerData ? null : await getUserDashboardData(profile.id);

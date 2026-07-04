@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RoleOnboarding } from "@/components/onboarding/role-onboarding";
 import { getOrCreateProfile } from "@/lib/auth/profile";
+import { isAdminRole } from "@/lib/auth/roles";
 import { getSessionUser } from "@/lib/auth/session";
 
 export default async function OnboardingPage() {
@@ -12,6 +13,10 @@ export default async function OnboardingPage() {
   }
 
   const profile = await getOrCreateProfile(user);
+
+  if (isAdminRole(profile.role)) {
+    redirect("/admin");
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">

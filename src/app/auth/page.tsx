@@ -54,7 +54,7 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
         <div className="mt-10">
           <AuthForm
             authError={authError}
-            callbackUrl={params?.next ?? "/onboarding"}
+            callbackUrl={params?.next ?? "/dashboard"}
             initialFlow={initialFlow}
             resetToken={params?.token}
           />
