@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && node tests/platform-smoke.test.mjs",
     "ops:env": "node --experimental-strip-types scripts/audit-production-env.ts",
-    "ops:create-admin": "node --experimental-strip-types scripts/create-admin.ts",
+    "ops:create-admin": "node scripts/create-admin.cjs",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy"

@@ -22,6 +22,14 @@ const optionalInteger = (min: number, max: number) =>
     z.coerce.number().int().min(min).max(max).optional()
   );
 
+const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(128, "Password is too long")
+  .regex(/[A-Z]/, "Password must include an uppercase letter")
+  .regex(/[a-z]/, "Password must include a lowercase letter")
+  .regex(/[0-9]/, "Password must include a number");
+
 export const appRoleSchema = z.enum([
   "USER",
   "OWNER",
@@ -386,6 +394,11 @@ export const adminProfileUpdateSchema = z.object({
   note: z.string().min(3).max(1000).optional()
 });
 
+export const adminPasswordResetSchema = z.object({
+  password: passwordSchema,
+  reason: z.string().min(3).max(500)
+});
+
 export const adminReportActionSchema = z.object({
   action: z.enum(["RESOLVED", "DISMISSED", "ESCALATED", "UNDER_REVIEW"]),
   note: z.string().min(3).max(1000)
@@ -450,14 +463,6 @@ export const otpVerifySchema = z.object({
   code: z.string().regex(/^\d{6}$/, "OTP code must be 6 digits"),
   phone: phoneSchema
 });
-
-const passwordSchema = z
-  .string()
-  .min(8, "Password must be at least 8 characters")
-  .max(128, "Password is too long")
-  .regex(/[A-Z]/, "Password must include an uppercase letter")
-  .regex(/[a-z]/, "Password must include a lowercase letter")
-  .regex(/[0-9]/, "Password must include a number");
 
 export const passwordSignUpSchema = z.object({
   email: z.string().email(),

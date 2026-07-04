@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Loader2, ShieldAlert, UserCog } from "lucide-react";
+import { BadgeCheck, KeyRound, Loader2, ShieldAlert, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const roles = ["USER", "OWNER", "BROKER", "BUILDER", "SERVICE_PROVIDER", "ADMIN", "SUPER_ADMIN"];
@@ -75,6 +75,9 @@ export function AdminUserPanel({
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetReason, setResetReason] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function save() {
     setLoading(true);
@@ -92,6 +95,30 @@ export function AdminUserPanel({
     router.refresh();
   }
 
+  async function resetUserPassword() {
+    if (resetPassword.length < 8 || resetReason.trim().length < 3) {
+      setMessage("Enter a strong password and a reset reason.");
+      return;
+    }
+
+    setResetLoading(true);
+    const response = await fetch(`/api/admin/users/${profileId}/password`, {
+      body: JSON.stringify({
+        password: resetPassword,
+        reason: resetReason
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "PATCH"
+    });
+    const data = await response.json().catch(() => null);
+    setResetLoading(false);
+    setMessage(response.ok ? "Password reset successfully." : data?.error ?? "Password reset failed.");
+    if (response.ok) {
+      setResetPassword("");
+      setResetReason("");
+    }
+  }
+
   return (
     <div className="space-y-2">
       <div className="grid gap-2 sm:grid-cols-2">
@@ -107,6 +134,28 @@ export function AdminUserPanel({
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCog className="h-4 w-4" />}
         Save
       </Button>
+      <div className="mt-3 rounded-2xl border border-border bg-white p-3">
+        <p className="text-xs font-bold text-muted-foreground">Admin password reset</p>
+        <div className="mt-2 grid gap-2">
+          <input
+            className="h-10 w-full rounded-xl border bg-white px-3 text-xs font-semibold"
+            onChange={(event) => setResetPassword(event.target.value)}
+            placeholder="New password"
+            type="password"
+            value={resetPassword}
+          />
+          <input
+            className="h-10 w-full rounded-xl border bg-white px-3 text-xs font-semibold"
+            onChange={(event) => setResetReason(event.target.value)}
+            placeholder="Reason"
+            value={resetReason}
+          />
+          <Button disabled={resetLoading} onClick={resetUserPassword} size="sm" variant="outline">
+            {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            Reset Password
+          </Button>
+        </div>
+      </div>
       {message ? <p className="text-xs font-bold text-muted-foreground">{message}</p> : null}
     </div>
   );

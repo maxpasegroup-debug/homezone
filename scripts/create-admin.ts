@@ -1,18 +1,12 @@
 import { db } from "../src/lib/db.ts";
+import { hashPassword } from "../src/lib/auth/password.ts";
 
 const allowedRoles = ["ADMIN", "SUPER_ADMIN"] as const;
 type AdminRole = (typeof allowedRoles)[number];
 
-function requireValue(name: string) {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`${name} is required`);
-  }
-  return value;
-}
-
 async function main() {
-  const email = requireValue("ADMIN_EMAIL").toLowerCase();
+  const email = (process.env.ADMIN_EMAIL?.trim() || "admin@homezone.com").toLowerCase();
+  const password = process.env.ADMIN_PASSWORD?.trim() || "@Legacy#2026";
   const name = process.env.ADMIN_NAME?.trim() || email;
   const role = (process.env.ADMIN_ROLE?.trim() || "ADMIN") as AdminRole;
 
@@ -30,6 +24,20 @@ async function main() {
     create: {
       email,
       name
+    }
+  });
+
+  const passwordHash = await hashPassword(password);
+  await db.passwordCredential.upsert({
+    create: {
+      passwordHash,
+      userId: user.id
+    },
+    update: {
+      passwordHash
+    },
+    where: {
+      userId: user.id
     }
   });
 
