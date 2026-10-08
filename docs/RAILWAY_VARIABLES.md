@@ -91,7 +91,32 @@ ONESIGNAL_APP_ID=
 
 ```bash
 npm install
-npm run db:push
+npm run db:migrate
 npm run build
 npm start
 ```
+
+## Deploy this repository
+
+The frontend and API routes are one Next.js service. Deploy the directory that
+contains `package.json`, `prisma`, and `railway.json`; do not deploy `src/app/api`
+on its own. When the repository root contains the inner `homezone` directory,
+set the Railway service Root Directory to `/homezone` and its configuration
+file path to `/homezone/railway.json`.
+
+Add a PostgreSQL service in the same Railway project. In the application service,
+set `DATABASE_URL` to a reference to that database service's `DATABASE_URL`, for
+example `${{Postgres.DATABASE_URL}}` (use the actual database service name).
+Generate a unique `AUTH_SECRET`, generate a public domain for the application,
+and set `NEXTAUTH_URL` and `NEXT_PUBLIC_SITE_URL` to that HTTPS URL. Set
+`AUTH_TRUST_HOST=true` for authentication behind Railway's proxy, and disable
+demo logins with `DEMO_LOGIN_ENABLED=false` and `DEMO_MOBILE_LOGIN_ENABLED=false`.
+
+The committed `railway.json` builds the app, applies committed Prisma migrations
+before deployment, and starts Next.js on all network interfaces. Next.js uses
+Railway's `PORT` environment variable. For a database with existing tables,
+inspect migration history before deploying; do not reset it or force schema
+changes to resolve migration errors.
+
+For local access to the Railway database, use its `DATABASE_PUBLIC_URL` as the
+local `.env.local` value of `DATABASE_URL`. Never commit connection credentials.

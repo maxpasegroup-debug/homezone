@@ -28,6 +28,11 @@ HomeZone is a mobile-first real estate ecosystem for property discovery, listing
 
 ## Local Development
 
+Backend API implementations, authentication, and the database connection live
+in [`backend/`](backend/README.md). Next.js routing files in `src/app/api` export
+those handlers. Deploy the whole project to Railway; the backend runs within
+the same Next.js service as the frontend.
+
 ```bash
 npm install
 npm run dev
