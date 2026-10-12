@@ -32,12 +32,25 @@ class ApiException implements Exception {
   final int? status;
   final int? retryAfterSeconds;
   final ApiResponseMetadata? responseMetadata;
+  Map<String, Object?> toJson() => {
+    'failure': failure.name,
+    'status': status,
+    'response': responseMetadata?.toJson(),
+  };
   // Never include response bodies, URLs, credentials or raw transport exceptions.
   @override
   String toString() => 'API request failed: ${failure.name}';
 }
 
 class ApiClient {
+  // Identity-bound provenance cannot be copied by constructing another response.
+  static final _sessionResponses = Expando<(String, ApiEnvironment)>();
+  static bool hasSessionProvenance(
+    ApiResponse response,
+    ApiConfiguration configuration,
+  ) =>
+      _sessionResponses[response] ==
+      (configuration.baseUri.origin, configuration.environment);
   ApiClient({
     required this.configuration,
     required this.transport,
@@ -164,7 +177,22 @@ class ApiClient {
           locations.isNotEmpty) {
         trustedRedirect(configuration, locations.single);
       }
-      return response;
+      final boundResponse = ApiResponse(
+        response.status,
+        response.body,
+        headers: response.headers,
+        requestUri: uri,
+        retryAfter: response.retryAfter,
+        bodyFailure: response.bodyFailure,
+      );
+      if (method == 'GET' &&
+          uri == configuration.endpoint('/api/auth/session', null)) {
+        _sessionResponses[boundResponse] = (
+          configuration.baseUri.origin,
+          configuration.environment,
+        );
+      }
+      return boundResponse;
     } on ApiTransportSecurityException {
       throw const ApiException(ApiFailure.invalidRequest);
     } on ApiException catch (error) {

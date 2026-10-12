@@ -91,7 +91,7 @@ class InMemoryCookieStore {
     }
   }
 
-  CookieRequestSnapshot snapshot(Uri destination) {
+  CookieRequestSnapshot snapshot(Uri destination, {bool Function()? isActive}) {
     if (destination.scheme != configuration.baseUri.scheme ||
         !destination.hasAuthority ||
         destination.userInfo.isNotEmpty ||
@@ -124,7 +124,7 @@ class InMemoryCookieStore {
         if (_csrf != null) _csrfName: _csrf!.instruction.value,
       },
       clock,
-      () => identical(lifecycle, _lifecycle),
+      () => identical(lifecycle, _lifecycle) && (isActive?.call() ?? true),
       _csrfName,
       deadlines.isEmpty ? null : deadlines.first,
       _csrf?.expires,
@@ -148,6 +148,7 @@ class InMemoryCookieStore {
     final replacement = <String, _StoredCookie>{};
     final assigned = <String>{};
     var csrf = _csrf;
+    var csrfAssigned = false;
     var sessionTouched = false;
     var removedNewAssignment = false;
     try {
@@ -157,6 +158,12 @@ class InMemoryCookieStore {
           configuration,
         ).validate(cookie, responseUri, now: now);
         if (cookie.name == _csrfName) {
+          if (!approved.deletion) {
+            if (csrfAssigned) {
+              throw const ApiException(ApiFailure.invalidResponse);
+            }
+            csrfAssigned = true;
+          }
           csrf = approved.deletion ? null : _StoredCookie(cookie, now);
           continue;
         }

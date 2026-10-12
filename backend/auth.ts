@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { env, isDemoLoginEnabled, isEmailLoginEnabled, isGoogleLoginEnabled, isMobileOtpLoginEnabled } from "@/lib/env";
 import { isDemoMobileOtp, normalizePhone } from "@/lib/auth/otp";
 import { verifyPassword } from "@/lib/auth/password";
+import { allowPasswordSignin } from "@/lib/auth/password-signin-limit";
 import { normalizeRole } from "@/lib/auth/roles";
 import { authRedirect } from "@/lib/auth/redirect";
 import { issueSession, revokeSession, sessionMaxAge, validateSession } from "@/lib/auth/session-registry";
@@ -55,6 +56,8 @@ providers.push(
     async authorize(credentials) {
       const email = String(credentials?.email ?? "").trim().toLowerCase();
       const password = String(credentials?.password ?? "");
+
+      if (!allowPasswordSignin(email)) return null;
 
       if (!email || !password) return null;
 

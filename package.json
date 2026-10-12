@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && node tests/platform-smoke.test.mjs && npm run test:auth && npm run test:leads && npm run test:sessions",
+    "test": "npm run typecheck && node tests/platform-smoke.test.mjs && npm run test:auth && npm run test:leads && npm run test:sessions && node --test --test-isolation=none tests/password-signin-limit.test.mjs",
     "test:sessions": "node --test --test-isolation=none tests/session-security.test.mjs",
     "test:leads": "node --test --test-isolation=none tests/lead-authorization.test.mjs",
     "test:auth": "node --test --test-isolation=none tests/auth-middleware.test.mjs",

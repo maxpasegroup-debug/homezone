@@ -288,7 +288,7 @@ void main() {
         expect(result.body, '');
         expect(CookieInstruction.fromResponse(result).length, 2);
         expect(
-          () => AuthResponseParser.session(result),
+          () => parseSession(result),
           throwsA(
             isA<ApiException>().having(
               (e) => e.responseMetadata!.status,
@@ -357,7 +357,7 @@ void main() {
         const ApiResponse(200, '{}', headers: repeated),
       ]) {
         expect(
-          () => AuthResponseParser.session(response),
+          () => parseSession(response),
           throwsA(
             isA<ApiException>().having(
               (e) => CookieInstruction.fromResponse(
@@ -404,7 +404,7 @@ void main() {
             const Duration(seconds: 1),
           );
           try {
-            AuthResponseParser.session(result);
+            await parseSession(result);
           } on ApiException catch (error) {
             expect(error.toString().contains('authjs'), false);
             expect(error.responseMetadata.toString().contains('authjs'), false);
@@ -417,4 +417,20 @@ void main() {
       expect(printed, isEmpty);
     },
   );
+}
+
+Future<AuthSessionResult> parseSession(
+  ApiResponse response, {
+  DateTime? now,
+}) async {
+  final api = ApiClient(
+    configuration: config,
+    transport: ObservedTransport((request, onHeaders) async => response),
+  );
+  try {
+    final bound = await api.exchange('GET', '/api/auth/session');
+    return AuthResponseParser.session(bound, configuration: config, now: now);
+  } finally {
+    api.close();
+  }
 }

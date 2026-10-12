@@ -43,6 +43,7 @@ class CookieRequestCoordinator {
   final CookieClock _clock;
   final Duration operationTimeout;
   final Object _zoneKey = Object();
+  final Object _generationZoneKey = Object();
   InMemoryCookieStore _store;
   Future<void> _tail = Future.value();
   CoordinatedCookieRequest? _active;
@@ -57,7 +58,13 @@ class CookieRequestCoordinator {
     String path,
     Future<T> Function(CoordinatedCookieRequest) operation, {
     Map<String, String>? query,
+    int? expectedGeneration,
   }) async {
+    final workflowGeneration =
+        expectedGeneration ?? Zone.current[_generationZoneKey] as int?;
+    if (workflowGeneration != null && workflowGeneration != _generation) {
+      throw const CookieLifecycleInvalidated();
+    }
     if (Zone.current[_zoneKey] == this) {
       throw const ApiException(ApiFailure.invalidRequest);
     }
@@ -72,16 +79,17 @@ class CookieRequestCoordinator {
         throw const CookieLifecycleInvalidated();
       }
       final target = _store.configuration.endpoint(path, query);
-      final request = CoordinatedCookieRequest._(
+      late final CoordinatedCookieRequest request;
+      request = CoordinatedCookieRequest._(
         _generation,
         ++_sequence,
-        _store.snapshot(target),
+        _store.snapshot(target, isActive: () => _eligible(request)),
       );
       _active = request;
       _metadataCommitted = false;
       final result = await runZoned(
         () => operation(request),
-        zoneValues: {_zoneKey: this},
+        zoneValues: {_zoneKey: this, _generationZoneKey: admittedGeneration},
       ).timeout(operationTimeout);
       if (!_eligible(request)) throw const CookieLifecycleInvalidated();
       return result;

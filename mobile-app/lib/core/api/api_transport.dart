@@ -38,6 +38,11 @@ class ApiResponseMetadata {
   final Uri? requestUri;
   final String? retryAfter;
   final ApiBodyFailure? bodyFailure;
+  // Diagnostics intentionally omit all headers, URLs and body contents.
+  Map<String, Object?> toJson() => {
+    'status': status,
+    'bodyFailure': bodyFailure?.name,
+  };
   ApiResponse toResponse() => ApiResponse(
     status,
     '',

@@ -255,8 +255,8 @@ void main() {
       );
     },
   );
-  test('null session preserves deletion instructions', () {
-    final result = AuthResponseParser.session(
+  test('null session preserves deletion instructions', () async {
+    final result = await parseSession(
       const ApiResponse(
         200,
         'null',
@@ -268,23 +268,23 @@ void main() {
     expect(result.authenticatedSnapshot, false);
     expect(result.cookies.single.maxAge, 0);
   });
-  test('valid session structure and absolute expiry are validated', () {
+  test('valid session structure and absolute expiry are validated', () async {
     final body = jsonEncode({
       'user': {'id': 'fixture', 'role': 'USER', 'whatsappVerified': false},
       'expires': '2030-01-01T00:00:00.000Z',
     });
     expect(
-      AuthResponseParser.session(
+      (await parseSession(
         ApiResponse(200, body),
         now: DateTime.utc(2026),
-      ).authenticatedSnapshot,
+      )).authenticatedSnapshot,
       true,
     );
     expect(
-      AuthResponseParser.session(
+      (await parseSession(
         ApiResponse(200, body),
         now: DateTime.utc(2031),
-      ).authenticatedSnapshot,
+      )).authenticatedSnapshot,
       false,
     );
   });
@@ -305,7 +305,7 @@ void main() {
     }
     for (final body in ['', '{}', '[]', '{"user":{},"expires":"invalid"}']) {
       expect(
-        () => AuthResponseParser.session(ApiResponse(200, body)),
+        () => parseSession(ApiResponse(200, body)),
         throwsA(isA<ApiException>()),
       );
     }
@@ -348,10 +348,7 @@ void main() {
                 ),
           ),
         );
-        expect(
-          () => AuthResponseParser.session(response),
-          throwsA(isA<ApiException>()),
-        );
+        expect(() => parseSession(response), throwsA(isA<ApiException>()));
       },
     );
   }
@@ -387,7 +384,7 @@ void main() {
         ),
       );
       expect(
-        () => AuthResponseParser.session(ApiResponse(200, body)),
+        () => parseSession(ApiResponse(200, body)),
         throwsA(isA<ApiException>()),
       );
     },
@@ -424,4 +421,21 @@ void main() {
     );
     expect(printed, isEmpty);
   });
+}
+
+Future<AuthSessionResult> parseSession(
+  ApiResponse response, {
+  DateTime? now,
+}) async {
+  final api = client(StubTransport(response));
+  try {
+    final bound = await api.exchange('GET', '/api/auth/session');
+    return AuthResponseParser.session(
+      bound,
+      configuration: configuration,
+      now: now,
+    );
+  } finally {
+    api.close();
+  }
 }

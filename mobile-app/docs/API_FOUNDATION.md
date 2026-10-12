@@ -117,7 +117,7 @@ the expected name and host-only Path=/. An omitted Path uses the response reques
 default directory: at /api/auth/signout that is /api/auth, not /. Such a deletion
 cannot safely identify an existing Path=/ credential and is rejected, not widened.
 An empty value without deletion/expiry metadata is not automatically a deletion.
-No store exists to execute identity matching, deletion or chunk lifecycle changes.
+The in-memory store now executes scoped deletion and atomic chunk-cohort changes.
 
 ApiTransport.send now has an optional onHeaders observer. The native adapter
 captures validated status and each repeated header before reading body bytes.
@@ -141,7 +141,50 @@ with CookieInstruction.parse when independently inspecting other instructions.
 An injected/custom transport must implement onHeaders for the same early-header
 guarantee; a transport that throws without reporting received headers cannot recover
 them through this abstraction. Actual native/proxy wire behavior remains untested.
-Secure persistence, automatic cookie transmission and a session manager remain absent.
+Secure persistence and live session integration remain absent; the in-memory store
+and coordinator provide explicit cookie snapshots.
+
+## Phase 5H security boundaries
+
+Coordinated snapshots require both an unchanged store lifecycle and an active
+originating request ticket. Completion, failure, timeout and generation changes
+close that ticket. No mutex is held during network waits. Already-created options
+and submitted server work cannot be retroactively cancelled.
+
+Sequential CSRF, callback and session operations use separate coordinate calls.
+Capture the workflow generation before starting and pass expectedGeneration on
+every step to reject stale workflows after account or environment switching.
+Nested coordination remains prohibited; inherited stale callback contexts are
+also rejected.
+
+A response permits at most one positive CSRF assignment, even if duplicates are
+identical. Deletion followed by replacement and replacement followed by deletion
+are ordered and supported; a second positive assignment is rejected. Any malformed
+or rejected batch clears all volatile credentials under the existing fail-closed
+policy, including CSRF and session state. Valid CSRF-only updates preserve the
+session cohort and never establish authentication.
+
+Session parsing requires a client-owned identity record for the configured origin
+and environment. ApiClient.exchange creates this private record only on the new
+response it returns for GET /api/auth/session without query or fragment. The parser
+checks this record, the exact URI, status, schema, expiry and absence of Location
+headers. Public URI labels, response JSON and headers cannot mint the record.
+Copying or relabeling a response loses provenance, even if its body and cookies
+look valid. The public provenance query can check a record but cannot create one.
+Tests acquire provenance through mocked transport requests, not a parser bypass.
+Custom transports remain trusted dependencies; a malicious transport is outside
+this boundary. Callback or cookie presence does not prove sign-in.
+
+Phase 5J tests use explicitly fake, populated session cookies. They verify local
+request binding and lifecycle rejection, not Auth.js cryptographic validity.
+Actual JWT verification, database registry checks, native/proxy cookie delivery,
+renewal and server revocation still require isolated staging verification.
+
+Auth options, response metadata and API exceptions provide redacted toJson
+representations for JSON diagnostics. Raw protocol fields remain accessible for
+transport/cookie handling and must never be manually dumped or crash-reported.
+No secure persistence, network repository, screen integration or live authentication
+has been added. Local logout is not proof of server revocation.
 
 Infrastructure owner must confirm isolated PostgreSQL, no production data, approved
 HTTPS host, separate secrets, migration/test-data authorization and safe test email.

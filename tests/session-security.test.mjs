@@ -168,13 +168,13 @@ function jar() {
     cookie: () => [...values].map(([k, v]) => `${k}=${v}`).join("; ")
   };
 }
-async function signIn(id = "user", password = initialPassword, expectedSuccess = true) {
+async function signIn(id = "user", password = initialPassword, expectedSuccess = true, extraHeaders = {}) {
   const cookies = jar();
   const csrf = await handlers.GET(new Request(`${origin}/api/auth/csrf`));
   cookies.remember(csrf);
   const { csrfToken } = await csrf.json();
   const response = await handlers.POST(new Request(`${origin}/api/auth/callback/password`, {
-    method: "POST", headers: { cookie: cookies.cookie(), "Content-Type": "application/x-www-form-urlencoded" },
+    method: "POST", headers: { ...extraHeaders, cookie: cookies.cookie(), "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ csrfToken, callbackUrl: "/dashboard", email: `${id}@fixture.invalid`, password })
   }));
   cookies.remember(response);
@@ -357,6 +357,28 @@ test("real Auth.js callbacks and password handlers enforce session security", as
         assert.equal(known.status, 200);
         assert.deepEqual(await known.json(), await unknown.json());
       }
+    });
+    await t.test("password callback admission preserves CSRF and generic errors while limiting valid and invalid attempts", async () => {
+      await seed();
+      state.users.set("limited", { ...state.users.get("user"), id: "limited", email: "limited@fixture.invalid" });
+      // Invalid CSRF never reaches the provider or consumes its account quota.
+      for (let i = 0; i < 12; i++) {
+        await handlers.POST(new Request(`${origin}/api/auth/callback/password`, {
+          method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ csrfToken: "invalid", email: "limited@fixture.invalid", password: initialPassword })
+        }));
+      }
+      const valid = await signIn("limited");
+      assert.equal((await session(valid.cookie())).user.id, "limited");
+      for (let i = 0; i < 9; i++) await signIn("LIMITED", "incorrect", false, {
+        "x-forwarded-for": i % 2 ? "malformed" : `192.0.2.${i}`, "x-real-ip": "victim"
+      });
+      const denied = await signIn("limited", initialPassword, false);
+      assert.equal(await session(denied.cookie()), null);
+      await signIn("unknown-account", "incorrect", false);
+      // Another account remains usable, without relying on claimed client IP.
+      state.users.set("separate", { ...state.users.get("user"), id: "separate", email: "separate@fixture.invalid" });
+      assert.equal((await session((await signIn("separate")).cookie())).user.id, "separate");
     });
   } finally {
     for (const [key, value] of Object.entries(oldEnv)) if (value === undefined) delete process.env[key]; else process.env[key] = value;

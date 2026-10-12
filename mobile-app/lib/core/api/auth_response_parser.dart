@@ -21,8 +21,8 @@ class AuthCallbackResult {
   bool get requiresSessionConfirmation => error == null;
 }
 
-class AuthSessionResult {
-  const AuthSessionResult(this.user, this.expires, this.cookies);
+final class AuthSessionResult {
+  const AuthSessionResult._(this.user, this.expires, this.cookies);
   final Map<String, Object?>? user;
   final DateTime? expires;
   final List<CookieInstruction> cookies;
@@ -110,7 +110,20 @@ abstract final class AuthResponseParser {
     );
   }
 
-  static AuthSessionResult session(ApiResponse response, {DateTime? now}) {
+  static AuthSessionResult session(
+    ApiResponse response, {
+    required ApiConfiguration configuration,
+    DateTime? now,
+  }) {
+    if (!ApiClient.hasSessionProvenance(response, configuration) ||
+        response.requestUri !=
+            configuration.endpoint('/api/auth/session', null) ||
+        response.headerValues('location').isNotEmpty) {
+      throw ApiException(
+        ApiFailure.invalidResponse,
+        responseMetadata: response.metadata(),
+      );
+    }
     ApiClient.checkStatus(response);
     if (response.status != 200) {
       throw ApiException(
@@ -121,7 +134,7 @@ abstract final class AuthResponseParser {
     final json = _json(response);
     final cookies = CookieInstruction.fromResponse(response);
     if (json == null) {
-      return AuthSessionResult(null, null, cookies);
+      return AuthSessionResult._(null, null, cookies);
     }
     if (json is! Map<String, dynamic> ||
         json['user'] is! Map<String, dynamic> ||
@@ -145,8 +158,8 @@ abstract final class AuthResponseParser {
       );
     }
     if (!expires.isAfter((now ?? DateTime.now()).toUtc())) {
-      return AuthSessionResult(null, expires, cookies);
+      return AuthSessionResult._(null, expires, cookies);
     }
-    return AuthSessionResult(Map.unmodifiable(user), expires, cookies);
+    return AuthSessionResult._(Map.unmodifiable(user), expires, cookies);
   }
 }

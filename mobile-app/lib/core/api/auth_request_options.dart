@@ -10,6 +10,12 @@ class AuthRequestOptions {
   }) : cookies = Map.unmodifiable(cookies);
   final Map<String, String> cookies;
   final bool returnRedirect;
+  Map<String, Object?> toJson() => {
+    'returnRedirect': returnRedirect,
+    'cookies': '[REDACTED]',
+  };
+  @override
+  String toString() => 'Auth request options (credentials redacted)';
 
   Map<String, String> headers(
     ApiConfiguration configuration,
