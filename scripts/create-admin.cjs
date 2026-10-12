@@ -36,17 +36,31 @@ async function main() {
   });
 
   const passwordHash = await hashPassword(password);
-  await db.passwordCredential.upsert({
-    create: {
-      passwordHash,
-      userId: user.id
-    },
-    update: {
-      passwordHash
-    },
-    where: {
-      userId: user.id
-    }
+  await db.$transaction(async (tx) => {
+    await tx.passwordCredential.upsert({
+      create: {
+        passwordHash,
+        userId: user.id
+      },
+      update: {
+        passwordHash
+      },
+      where: {
+        userId: user.id
+      }
+    });
+    await tx.user.update({
+      where: { id: user.id },
+      data: { sessionVersion: { increment: 1 } }
+    });
+    await tx.authSession.updateMany({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+    await tx.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() }
+    });
   });
 
   const profile = await db.profile.upsert({

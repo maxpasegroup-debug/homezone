@@ -52,7 +52,14 @@ export function AuthForm({
       return;
     }
 
-    window.location.href = result?.url ?? callbackUrl;
+    // The server validates callbacks; also constrain browser navigation to this origin.
+    try {
+      const destination = new URL(result?.url ?? "/", window.location.origin);
+      window.location.href = destination.origin === window.location.origin &&
+        !destination.username && !destination.password ? destination.href : "/";
+    } catch {
+      window.location.href = "/";
+    }
   }
 
   async function handleSignIn() {
@@ -99,7 +106,9 @@ export function AuthForm({
       method: "POST"
     });
     const data = await response.json().catch(() => null);
-    setStatus(data?.message ?? "If an account exists for this email, a reset link has been sent.");
+    setStatus(response.ok
+      ? data?.message ?? "If an account exists and delivery is available, you will receive password reset instructions."
+      : data?.error ?? "Could not request password recovery. Please retry.");
     setLoading(false);
   }
 

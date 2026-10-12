@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { leadSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
@@ -18,7 +18,7 @@ export async function GET() {
       isAdminRole(profile.role)
         ? {}
         : {
-            OR: [{ assignedTo: profile.id }, { userId: profile.id }]
+            assignedTo: profile.id
           },
     include: {
       property: true,
@@ -58,6 +58,8 @@ export async function POST(request: Request) {
     }
 
     const profile = await getOrCreateProfile(session.user);
+    // Manual CRM lead creation is the broker workflow, not buyer enquiry submission.
+    if (profile.role !== "BROKER" && !isAdminRole(profile.role)) return forbidden();
     const lead = await db.lead.create({
       data: {
         assignedTo: profile.id,

@@ -3,6 +3,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { resetPasswordSchema } from "@/lib/api/validation";
 import { hashPassword, hashResetToken } from "@/lib/auth/password";
 import { db } from "@/lib/db";
+import { changePassword } from "@/lib/auth/session-registry";
 
 export async function POST(request: Request) {
   try {
@@ -29,28 +30,16 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await hashPassword(parsed.data.password);
-    await db.$transaction([
-      db.passwordCredential.upsert({
-        create: {
-          passwordHash,
-          userId: resetToken.userId
-        },
-        update: {
-          passwordHash
-        },
-        where: {
-          userId: resetToken.userId
-        }
-      }),
-      db.passwordResetToken.update({
-        data: {
-          usedAt: new Date()
-        },
-        where: {
-          id: resetToken.id
-        }
-      })
-    ]);
+    const changed = await db.$transaction(async (tx) => {
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: { id: resetToken.id, tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
+        data: { usedAt: new Date() }
+      });
+      if (claimed.count !== 1) return false;
+      await changePassword(tx, resetToken.userId, passwordHash);
+      return true;
+    });
+    if (!changed) return validationError(null, "This reset link is invalid or expired.");
 
     return ok({
       message: "Password reset successfully."

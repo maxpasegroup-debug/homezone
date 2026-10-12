@@ -1,5 +1,6 @@
 import { db } from "../src/lib/db.ts";
 import { hashPassword } from "../src/lib/auth/password.ts";
+import { changePassword } from "../src/lib/auth/session-registry.ts";
 
 const allowedRoles = ["ADMIN", "SUPER_ADMIN"] as const;
 type AdminRole = (typeof allowedRoles)[number];
@@ -28,18 +29,7 @@ async function main() {
   });
 
   const passwordHash = await hashPassword(password);
-  await db.passwordCredential.upsert({
-    create: {
-      passwordHash,
-      userId: user.id
-    },
-    update: {
-      passwordHash
-    },
-    where: {
-      userId: user.id
-    }
-  });
+  await db.$transaction((tx) => changePassword(tx, user.id, passwordHash));
 
   const profile = await db.profile.upsert({
     where: {

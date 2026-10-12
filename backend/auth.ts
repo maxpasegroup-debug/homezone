@@ -9,6 +9,9 @@ import { env, isDemoLoginEnabled, isEmailLoginEnabled, isGoogleLoginEnabled, isM
 import { isDemoMobileOtp, normalizePhone } from "@/lib/auth/otp";
 import { verifyPassword } from "@/lib/auth/password";
 import { normalizeRole } from "@/lib/auth/roles";
+import { authRedirect } from "@/lib/auth/redirect";
+import { issueSession, revokeSession, sessionMaxAge, validateSession } from "@/lib/auth/session-registry";
+import { markLogoutFailure, withLogoutCheck } from "@/lib/auth/logout-context";
 
 const providers: Provider[] = [];
 const DEMO_USER_ID = "homezone-demo-user";
@@ -73,7 +76,8 @@ providers.push(
         email: user.email,
         id: user.id,
         image: user.image,
-        name: user.name
+        name: user.name,
+        sessionVersion: user.sessionVersion
       };
     }
   })
@@ -135,23 +139,38 @@ if (isMobileOtpLoginEnabled()) {
   );
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const authImplementation = NextAuth({
   adapter: PrismaAdapter(db),
   providers,
   secret: env.AUTH_SECRET ?? (env.NODE_ENV === "production" ? undefined : "development-only-auth-secret-change-before-deploy"),
   trustHost: true,
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: sessionMaxAge
   },
   pages: {
     error: "/auth",
     signIn: "/auth"
   },
   callbacks: {
+    redirect({ url }) {
+      return authRedirect(url);
+    },
     async jwt({ token, user }) {
       if (user?.id) {
-        token.id = user.id;
+        // Existing explicitly enabled demo providers use synthetic identities.
+        // Persist their user record so they use the same revocation registry.
+        if (user.id === DEMO_USER_ID || user.id === MOBILE_DEMO_USER_ID) {
+          await db.user.upsert({
+            where: { id: user.id }, update: {},
+            create: { id: user.id, email: user.email, name: user.name }
+          });
+        }
+        const claims = await issueSession(user.id, (user as typeof user & { sessionVersion?: number }).sessionVersion);
+        if (!claims) return null;
+        Object.assign(token, claims);
       }
+      if (!await validateSession(token)) return null;
       if (token.id === DEMO_USER_ID || token.id === MOBILE_DEMO_USER_ID) {
         token.role = "USER";
         token.whatsappVerified = true;
@@ -174,6 +193,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
     async session({ session, token }) {
+      session.expires = String(token.sessionExpires) as typeof session.expires;
       if (session.user) {
         session.user.id = String(token.id);
         session.user.role = normalizeRole(String(token.role ?? "USER"));
@@ -183,6 +203,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }
   },
   events: {
+    async signOut(message) {
+      if (!("token" in message) || !message.token) return;
+      try {
+        await revokeSession(message.token);
+      } catch {
+        markLogoutFailure();
+        throw new Error("Session revocation unavailable");
+      }
+    },
     async createUser({ user }) {
       if (!user.id) {
         return;
@@ -203,3 +232,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }
   }
 });
+
+export const { auth, signIn } = authImplementation;
+export const signOut: typeof authImplementation.signOut = (...args) =>
+  withLogoutCheck(() => authImplementation.signOut(...args));
+export const handlers = {
+  GET: authImplementation.handlers.GET,
+  async POST(request: Parameters<typeof authImplementation.handlers.POST>[0]) {
+    try {
+      return await withLogoutCheck(() => authImplementation.handlers.POST(request));
+    } catch {
+      return Response.json({ error: "Could not revoke session. Please retry." }, { status: 503 });
+    }
+  }
+};

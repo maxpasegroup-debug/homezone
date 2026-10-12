@@ -20,9 +20,6 @@ export function leadAccessWhere(profileId: string): Prisma.LeadWhereInput {
   return {
     OR: [
       {
-        userId: profileId
-      },
-      {
         assignedTo: profileId
       },
       {
@@ -87,11 +84,7 @@ export async function requireLeadAccess(leadId: string, profile: {
     } as const;
   }
 
-  const allowed =
-    isAdminRole(profile.role) ||
-    lead.userId === profile.id ||
-    lead.assignedTo === profile.id ||
-    lead.property?.ownerId === profile.id;
+  const allowed = canAccessLeadCrm(lead, profile);
 
   if (!allowed) {
     return {
@@ -102,6 +95,36 @@ export async function requireLeadAccess(leadId: string, profile: {
   return {
     lead
   } as const;
+}
+
+// Enquiry creation grants read-only tracking, never internal CRM access.
+export const buyerEnquirySelect = {
+  id: true, name: true, phone: true, message: true, stage: true,
+  contactAction: true, createdAt: true,
+  property: { select: { id: true, title: true } }
+} satisfies Prisma.LeadSelect;
+
+export function buyerEnquiryData(lead: {
+  id: string; name: string; phone: string | null; message: string | null;
+  stage: LeadStage; contactAction: string | null; createdAt: Date;
+  property?: { id: string; title: string } | null;
+}) {
+  return {
+    id: lead.id, name: lead.name, phone: lead.phone, message: lead.message,
+    stage: lead.stage, contactAction: lead.contactAction, createdAt: lead.createdAt,
+    property: lead.property ? { id: lead.property.id, title: lead.property.title } : null
+  };
+}
+
+export function canAccessLeadCrm(
+  lead: { assignedTo: string | null; property?: { ownerId: string | null } | null },
+  profile: { id: string; role: string }
+) {
+  return isAdminRole(profile.role) || lead.assignedTo === profile.id || lead.property?.ownerId === profile.id;
+}
+
+export async function getBuyerEnquiry(leadId: string, profileId: string) {
+  return db.lead.findFirst({ where: { id: leadId, userId: profileId }, select: buyerEnquirySelect });
 }
 
 export async function addLeadTimeline({

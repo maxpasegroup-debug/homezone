@@ -12,7 +12,7 @@ import {
 import { leadInboxFilterSchema, leadSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addLeadTimeline, createLeadNotification, leadAccessWhere } from "@/lib/leads/access";
+import { addLeadTimeline, buyerEnquiryData, buyerEnquirySelect, createLeadNotification, leadAccessWhere } from "@/lib/leads/access";
 
 export async function GET(request: Request) {
   try {
@@ -71,7 +71,25 @@ export async function GET(request: Request) {
       }
     });
 
-    return ok({ leads });
+    const enquiries = await db.lead.findMany({
+      select: buyerEnquirySelect,
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      where: {
+        AND: [
+          { userId: profile.id },
+          filters.stage !== "ALL" ? { stage: filters.stage } : {},
+          filters.q ? { OR: [
+            { name: { contains: filters.q, mode: "insensitive" } },
+            { phone: { contains: filters.q, mode: "insensitive" } },
+            { property: { title: { contains: filters.q, mode: "insensitive" } } }
+          ] } : {}
+        ]
+      }
+    });
+    const crmIds = new Set(leads.map((lead) => lead.id));
+    return ok({ leads: [...leads, ...enquiries.filter((lead) => !crmIds.has(lead.id)).map(buyerEnquiryData)]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 100) });
   } catch (error) {
     return handleApiError(error, {
       route: "GET /api/leads"
@@ -233,7 +251,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return ok({ lead, ok: true });
+    return ok({ lead: buyerEnquiryData(lead), ok: true });
   } catch (error) {
     return handleApiError(error, {
       route: "POST /api/leads"

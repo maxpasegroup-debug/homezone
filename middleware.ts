@@ -1,6 +1,8 @@
 import { getToken } from "next-auth/jwt";
 import { type NextRequest, NextResponse } from "next/server";
 import { isAdminRole } from "@/lib/auth/roles";
+import { authOrigin } from "@/lib/auth/redirect";
+import { validateSession } from "@/lib/auth/session-registry";
 
 const protectedPagePrefixes = [
   "/dashboard",
@@ -65,15 +67,14 @@ export async function middleware(request: NextRequest) {
       new URL(process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? request.url).protocol === "https:"
   });
 
-  if (!token?.id) {
+  if (!token?.id || !await validateSession(token)) {
     if (pathname.startsWith("/api/")) {
       return applySecurityHeaders(
         NextResponse.json({ error: "Unauthorized" }, { status: 401 })
       );
     }
 
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth";
+    const url = new URL("/auth", authOrigin());
     url.searchParams.set("next", pathname);
     return applySecurityHeaders(NextResponse.redirect(url));
   }
@@ -85,9 +86,7 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.search = "";
+    const url = new URL("/dashboard", authOrigin());
     return applySecurityHeaders(NextResponse.redirect(url));
   }
 
@@ -95,6 +94,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  runtime: "nodejs",
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"
   ]

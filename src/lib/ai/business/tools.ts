@@ -98,7 +98,6 @@ async function gatherBusinessContext(input: BusinessAIInput) {
           id: input.leadId,
           OR: [
             { assignedTo: input.profileId },
-            { userId: input.profileId },
             { property: { ownerId: input.profileId } }
           ]
         }

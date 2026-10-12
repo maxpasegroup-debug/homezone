@@ -6,6 +6,7 @@ import { getOrCreateProfile } from "@/lib/auth/profile";
 import { hashPassword } from "@/lib/auth/password";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { changePassword } from "@/lib/auth/session-registry";
 
 type RouteContext = {
   params: Promise<{
@@ -36,18 +37,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!profile) return notFound("Profile not found");
 
     const passwordHash = await hashPassword(parsed.data.password);
-    await db.passwordCredential.upsert({
-      create: {
-        passwordHash,
-        userId: profile.userId
-      },
-      update: {
-        passwordHash
-      },
-      where: {
-        userId: profile.userId
-      }
-    });
+    await db.$transaction((tx) => changePassword(tx, profile.userId, passwordHash));
 
     await auditLog({
       action: "ADMIN_PASSWORD_RESET",

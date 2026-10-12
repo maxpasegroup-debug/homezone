@@ -3,7 +3,7 @@ import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response"
 import { leadUpdateSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addLeadTimeline, createLeadNotification, requireLeadAccess } from "@/lib/leads/access";
+import { addLeadTimeline, createLeadNotification, getBuyerEnquiry, requireLeadAccess } from "@/lib/leads/access";
 
 type RouteContext = {
   params: Promise<{
@@ -24,6 +24,8 @@ export async function GET(_request: Request, context: RouteContext) {
     const access = await requireLeadAccess(id, profile);
 
     if ("error" in access) {
+      const enquiry = await getBuyerEnquiry(id, profile.id);
+      if (enquiry) return ok({ lead: enquiry });
       return access.error;
     }
 

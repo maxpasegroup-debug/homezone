@@ -5,10 +5,11 @@ import type { ReactNode } from "react";
 import { ArrowLeft, Bell, Clock3, Home, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { BuyerEnquiries } from "@/components/leads/buyer-enquiries";
 import { LeadLifecycleActions } from "@/components/leads/lead-lifecycle-actions";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
-import { requireLeadAccess } from "@/lib/leads/access";
+import { getBuyerEnquiry, requireLeadAccess } from "@/lib/leads/access";
 
 type PageProps = {
   params: Promise<{
@@ -36,6 +37,13 @@ export default async function LeadDetailPage({ params }: PageProps) {
   const access = await requireLeadAccess(id, profile);
 
   if ("error" in access) {
+    const enquiry = await getBuyerEnquiry(id, profile.id);
+    if (enquiry) return (
+      <main className="container py-10">
+        <Link className="text-sm font-bold text-violet-700" href="/dashboard/leads">Enquiries</Link>
+        <div className="mt-8"><BuyerEnquiries enquiries={[enquiry]} /></div>
+      </main>
+    );
     notFound();
   }
 

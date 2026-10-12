@@ -31,7 +31,7 @@ export async function POST(request: Request, context: RouteContext) {
       return notFound("Lead not found");
     }
 
-    if (!isAdminRole(profile.role) && lead.assignedTo !== profile.id && lead.userId !== profile.id) {
+    if (!isAdminRole(profile.role) && lead.assignedTo !== profile.id) {
       return forbidden();
     }
 

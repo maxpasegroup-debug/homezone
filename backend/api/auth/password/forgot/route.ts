@@ -4,7 +4,8 @@ import { forgotPasswordSchema } from "@/lib/api/validation";
 import { createResetToken, hashResetToken } from "@/lib/auth/password";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/email/resend";
-import { env } from "@/lib/env";
+import { authOrigin } from "@/lib/auth/redirect";
+import { logger } from "@/lib/logging/logger";
 
 export async function POST(request: Request) {
   try {
@@ -37,15 +38,20 @@ export async function POST(request: Request) {
         }
       });
 
-      const origin = env.NEXT_PUBLIC_SITE_URL ?? env.NEXTAUTH_URL ?? new URL(request.url).origin;
-      await sendPasswordResetEmail({
-        email,
-        resetUrl: `${origin}/auth?flow=reset&token=${token}`
-      });
+      const origin = authOrigin();
+      try {
+        const delivery = await sendPasswordResetEmail({
+          email,
+          resetUrl: `${origin}/auth?flow=reset&token=${token}`
+        });
+        if (!delivery.sent) logger.error("Password recovery delivery unavailable");
+      } catch {
+        logger.error("Password recovery delivery unavailable");
+      }
     }
 
     return ok({
-      message: "If an account exists for this email, a reset link has been sent."
+      message: "If an account exists and delivery is available, you will receive password reset instructions."
     });
   } catch (error) {
     return handleApiError(error, {

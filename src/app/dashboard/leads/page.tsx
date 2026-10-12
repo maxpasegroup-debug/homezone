@@ -6,10 +6,11 @@ import type { LeadStage, Prisma } from "@prisma/client";
 import { BarChart3, KanbanSquare, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { BuyerEnquiries } from "@/components/leads/buyer-enquiries";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { leadAccessWhere, leadInboxStages } from "@/lib/leads/access";
+import { buyerEnquirySelect, leadAccessWhere, leadInboxStages } from "@/lib/leads/access";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,19 @@ export default async function LeadsPage({ searchParams }: PageProps) {
   const stageFilter = leadInboxStages.includes(activeStage as (typeof leadInboxStages)[number])
     ? activeStage
     : "ALL";
+  const enquiries = await db.lead.findMany({
+    select: buyerEnquirySelect,
+    where: {
+      userId: profile.id,
+      ...(stageFilter !== "ALL" ? { stage: stageFilter as LeadStage } : {}),
+      ...(query ? { OR: [
+        { name: { contains: query, mode: "insensitive" as const } },
+        { phone: { contains: query, mode: "insensitive" as const } },
+        { property: { title: { contains: query, mode: "insensitive" as const } } }
+      ] } : {})
+    },
+    orderBy: { createdAt: "desc" }
+  });
   const where: Prisma.LeadWhereInput = {
     AND: [
       baseAccess,
@@ -116,6 +130,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
       <section className="container py-10 sm:py-16">
         <Link className="text-sm font-bold text-violet-700" href="/dashboard">Dashboard</Link>
+        {enquiries.length > 0 && <div className="mt-8"><BuyerEnquiries enquiries={enquiries} /></div>}
         <div className="mt-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-bold text-violet-700">Lead Management</p>
