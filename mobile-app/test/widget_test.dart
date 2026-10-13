@@ -91,31 +91,24 @@ void main() {
     await tester.pump();
     expect(tester.widget<EditableText>(editable).obscureText, isFalse);
   });
-  testWidgets(
-    'Valid sign-in disables button during preview and does not authenticate',
-    (tester) async {
-      await open(tester, '/sign-in');
-      await fill(tester, 'Email address', 'test@example.com');
-      await fill(tester, 'Password', 'local-only');
-      FocusManager.instance.primaryFocus?.unfocus();
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Sign In'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Sign In'));
-      await tester.pump();
-      expect(
-        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-        isNull,
-      );
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      await finishPreview(tester);
-      expect(
-        find.text('Local preview complete. You are not signed in.'),
-        findsOneWidget,
-      );
-      expect(find.text('Welcome Back'), findsOneWidget);
-    },
-  );
+  testWidgets('Unconfigured sign-in fails closed without network access', (
+    tester,
+  ) async {
+    await open(tester, '/sign-in');
+    await fill(tester, 'Email address', 'test@example.com');
+    await fill(tester, 'Password', 'local-only');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Sign In'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign In'));
+    await tester.pump();
+    expect(
+      find.text('Sign-in is not configured. You are not signed in.'),
+      findsOneWidget,
+    );
+    expect(find.text('Welcome Back'), findsOneWidget);
+  });
   testWidgets(
     'Sign-up requires valid fields and consent, then shows honest success',
     (tester) async {

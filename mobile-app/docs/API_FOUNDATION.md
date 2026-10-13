@@ -74,7 +74,7 @@ before status/auth parsing, including error responses; enforce host/domain/path
 and cookie prefixes; timestamp receipt for relative Max-Age; atomically replace
 chunks; isolate staging/development stores; and persist only through approved
 secure storage. Renewal/logout races and revocation failures need explicit lifecycle
-handling. None of this lifecycle, a login repository, or UI wiring is implemented.
+handling. The in-memory lifecycle is implemented. Live UI wiring and persistent sessions remain absent.
 
 Tests use synthetic responses and mocked transports, including header-gate and
 response-size checks. Actual wire-level header delivery, upstream proxies, secure
@@ -234,9 +234,112 @@ requests in flight cannot be retroactively erased: future integration must
 dispatch exclusively through the coordinator and never retain options.
 
 Local invalidation is **not server-side logout or revocation**. No network
-signout, durable pending logout, retry, cookie jar, secure storage, session
-repository or UI connection is implemented. Authentication and buyer screens
-remain local previews. Secure persistence requires separate approval; actual
+signout, durable pending logout, retry, persistent cookie jar or secure storage
+is implemented. Injected sign-in uses the protocol described below; default
+launch and buyer data remain offline previews. Secure persistence requires separate approval; actual
 cookie renewal, database revocation and browser/native compatibility still
 require isolated staging verification.
 
+
+## Phase 5R password protocol harness
+
+PasswordAuthProtocol orchestrates explicit CSRF bootstrap, form-encoded password callback and independent client-provenance session verification. It uses the existing client and coordinator; it is not instantiated by preview screens. It processes response cookies before parsing and received error metadata before propagating failures. Failed workflows locally invalidate their own generation without clearing a newer account. Concurrent calls on one harness are rejected; obsolete workflows cannot publish results. Callback success alone never establishes authentication. No automatic retries, signup, recovery, profile fetching, persistence or server logout are provided. Starting a new attempt clears prior local account cookies; this is not server revocation. Only injected mocks were used for tests; actual transport and backend lifecycle require authorized isolated verification.
+
+## Phase 5T harness hardening
+
+Before the password callback, the harness requires an applicable policy-approved CSRF cookie from the current snapshot. The installed Auth.js contract uses a 64-character lowercase hex token and SHA-256 hash separated by a pipe; percent encoding is decoded only for comparison, never rewriting stored cookie values. Token/cookie agreement and hash syntax are checked locally; only the server verifies the secret-bound hash. Missing, expired, deleted or inconsistent state aborts before credentials are submitted.
+
+Successful harness results omit cookie instructions and provide redacted JSON diagnostics. API failures process response metadata internally, then strip it before propagation. Protocol parser metadata remains internal and must not be manually logged. Coordinator hasProtocolCookie exposes presence only for protocol checks, never authentication state or cookie values. Concurrency tests cover same-harness rejection, shared-coordinator supersession, intermediate error-cookie application and newer-generation preservation. No UI, persistence or server revocation was added.
+
+## Phase 5V injectable sign-in UI
+
+HomezoneApp accepts an optional SignInController; only injected configurations connect the existing sign-in screen to PasswordAuthProtocol. The controller returns a safe error message or verified success without exposing session/cookie metadata. Callback acceptance alone never navigates. Duplicate submission is disabled; successful verification opens the existing buyer demo route. Buyer listings/profile remain demo data, and preview sign-out does not revoke the in-memory backend session. Signup/recovery/social screens remain local previews. main.dart supplies no controller or native client, so the ordinary launch reports sign-in not configured and sends no requests. No live target, persistence or server logout is activated. A later authorized composition phase must configure client ownership and session/logout behavior before live use.
+
+## Phase 5X app-owned volatile state
+
+HomezoneApp owns the injected final SignInController for its lifetime and disposes it (including its exclusively owned API client) on replacement/unmount. Do not share one client/controller across app roots. No controller is created by sign-in widgets; default main.dart remains offline. The controller stores only the verified user id, role, server-provided absolute expiry and coordinator generation. SessionScope exposes this safe state across routes. Expiry and coordinator lifecycle invalidation clear identity; state never survives app restart. No cookie or CSRF value is copied into widget state.
+
+SignInOutcome has private constructors and explicit verified/failure signaling. Only the final protocol-backed controller can publish success. Each widget retains its own operation cancellation handle; disposal cancels pending authority only if its generation is still current. Completed handles cannot clear successful or newer sessions. Requests already accepted by the server cannot be undone; cancellation and local exit never claim server revocation.
+
+The existing buyer route remains a demo, never an authorization guard. Verified entry records state before navigation; explicit preview entry clears local verified access. Profile distinguishes verified in-memory sign-in from demo data. Leave verified access clears local state/cookies and returns to sign-in; preview sign-out retains its disclosure. Protected APIs must still enforce server authorization. Signup, recovery, real profile data, persistence and server logout remain absent.
+
+## Phase 5Z owner-scoped clearing
+
+clearLocalSession checks the controller's owned generation at mutation time. Only the current owner may invalidate the coordinator and its cookies; an obsolete undisposed owner drops only its own stale identity. Cancellation, timer expiry and local profile exit use this scoped operation. Coordinator.invalidateForLogout remains the explicit app/protocol-wide boundary, not a widget shortcut. No new global invalidation call sites were introduced.
+
+SignInController accepts an optional clock for deterministic expiry checks; expiry still comes from independently verified server data. Tests advance a controllable clock and Flutter fake timers without wall-clock sleeps. Covered cases include explicit obsolete-owner clearing, exact-expiry reads before timer processing, old timer isolation, bootstrap/callback disposal and late completion after newer success. These checks do not establish current server validity or server revocation; no live services or persistence were added.
+
+## Phase 5AB exclusive protocol ownership
+
+Each API client can belong to only one PasswordAuthProtocol, and each protocol
+can be claimed by only one SignInController. Claims are synchronous, permanent
+for that resource lifetime and never transferred after disposal. A second
+controller, a second protocol using the same client, or a controller trying to
+claim a busy standalone protocol fails closed: it receives a safe failure and
+has no lifecycle listener, generation, clearing or disposal authority. Separate
+clients/protocols may still share a coordinator for generation-scoped supersession.
+
+Admission checks the private controller identity before clearing prior account
+state or starting I/O. It returns an immutable attempt with its admitted
+generation; controllers never infer ownership from the coordinator after a
+rejection. Direct standalone signIn calls are allowed only on unclaimed
+protocols. After controller ownership is established they cannot bypass it.
+Only the claiming controller can close its protocol's client. Application
+composition must not directly close resources owned by another controller;
+these checks enforce controller sharing boundaries, not isolation from arbitrary
+trusted Dart code holding a client or coordinator reference.
+
+Mocked tests hold an active request while a rejected controller clears and
+disposes, then complete independent session verification. Cancellation still
+invalidates local authority only; it cannot undo server-side work. No persistence,
+server logout, live configuration or staging verification is introduced.
+
+## Phase 5AD reentrant admission
+
+Coordinator transitions commit boundary, cookie clearing and any environment
+replacement before notifying synchronous lifecycle listeners. beginAccountSwitch
+returns its own minted generation, captured before notification; it never returns
+a nested transition's generation. No outer transition writes state after listeners,
+so nested logout or environment changes cannot be undone by the outer operation.
+
+Protocol admission uses that returned generation and verifies it is still current
+and ready after listeners return. A superseded admission fails before network
+dispatch and before returning an attempt to its controller. Its busy flag is
+released without clearing newer credentials. Nested admission on a different
+legitimate protocol may win; admission on the already-busy protocol still fails
+without a transition. Mocked tests dynamically re-enter admission through a
+controller listener, then verify the winning identity, generation and exact
+synthetic session cookie survive outer-owner clearing and disposal.
+
+## Phase 5AF lifecycle exception policy
+
+Transitions still commit all state before notifications and use a captured
+listener snapshot. Each synchronous listener failure is isolated so later captured
+listeners run. Additions participate in later dispatches; removals do not cancel
+callbacks already captured. Failures are reported after notification through
+FlutterError using only a fixed failure category and an empty stack. Original
+errors, callback identities, credentials and protocol metadata are never reported.
+If a custom FlutterError handler throws, a non-sensitive reporter-failure counter
+records that failure without interrupting invalidation. Diagnostics never restore
+state or change generation ownership.
+
+Controller disposal marks the owner disposed and drops identity before callbacks.
+Each timer/listener/invalidation/client/framework cleanup step is independently
+attempted; failures produce the same sanitized diagnostics rather than skipping
+later steps. Repeated disposal does not retry closing resources. This guarantees
+cleanup attempts, not successful recovery from an arbitrary failing transport.
+No persistence, server logout or live environment integration is introduced.
+
+## Phase 5AH bounded diagnostic reporting
+
+LifecycleDiagnostics guards synchronous reporting at its entry boundary. A nested
+report returns immediately without invoking FlutterError again; the outer guard
+is released in finally even if the handler throws. Later independent reports
+remain enabled. Original exception text and stacks are still excluded.
+
+reporterFailures counts thrown diagnostic-handler calls; suppressedReports counts
+reentrant reports. Both process-local, non-sensitive counters saturate at 65,535
+and never emit further reports. Saturation limits count precision, not delivery
+of independent reports. Only fixed categories and an empty stack reach the
+existing FlutterError handler. This does not prevent unrelated trusted code from
+changing that global handler or scheduling new asynchronous work outside reporting.

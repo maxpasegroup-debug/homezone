@@ -27,6 +27,13 @@ final class AuthSessionResult {
   final DateTime? expires;
   final List<CookieInstruction> cookies;
   bool get authenticatedSnapshot => user != null;
+  AuthSessionResult withoutProtocolCookies() =>
+      AuthSessionResult._(user, expires, const []);
+  Map<String, Object?> toJson() => {
+    'authenticatedSnapshot': authenticatedSnapshot,
+  };
+  @override
+  String toString() => 'Auth session result (protocol metadata redacted)';
 }
 
 abstract final class AuthResponseParser {

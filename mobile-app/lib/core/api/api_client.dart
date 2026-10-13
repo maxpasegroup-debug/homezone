@@ -200,7 +200,8 @@ class ApiClient {
         error.failure,
         status: error.status,
         retryAfterSeconds: error.retryAfterSeconds,
-        responseMetadata: error.responseMetadata ?? received,
+        // Preserve the verified request URI on body errors from injected/native responses.
+        responseMetadata: received ?? error.responseMetadata,
       );
     } on TimeoutException {
       throw ApiException(ApiFailure.timeout, responseMetadata: received);

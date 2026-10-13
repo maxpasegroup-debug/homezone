@@ -3,6 +3,7 @@ import 'api_client.dart';
 import 'api_configuration.dart';
 import 'api_transport.dart';
 import 'in_memory_cookie_store.dart';
+import 'lifecycle_diagnostics.dart';
 
 enum CookieLifecycleBoundary { ready, locallyInvalidated }
 
@@ -52,7 +53,19 @@ class CookieRequestCoordinator {
   CookieLifecycleBoundary _boundary = CookieLifecycleBoundary.ready;
   bool _metadataCommitted = false;
   int get generation => _generation;
+  final _lifecycleListeners = <void Function()>{};
+  void addLifecycleListener(void Function() listener) =>
+      _lifecycleListeners.add(listener);
+  void removeLifecycleListener(void Function() listener) =>
+      _lifecycleListeners.remove(listener);
   CookieLifecycleBoundary get boundary => _boundary;
+
+  /// Protocol observation only, never authentication status or raw values.
+  bool hasProtocolCookie(String name) => _store
+      .snapshot(_store.configuration.endpoint('/api/auth/session', null))
+      .requestOptions()
+      .cookies
+      .containsKey(name);
 
   Future<T> coordinate<T>(
     String path,
@@ -130,22 +143,41 @@ class CookieRequestCoordinator {
     return true;
   }
 
-  void invalidateForLogout() {
-    _generation++;
-    _boundary = CookieLifecycleBoundary.locallyInvalidated;
+  int _transition(
+    CookieLifecycleBoundary boundary, {
+    ApiConfiguration? configuration,
+  }) {
+    final minted = ++_generation;
+    _boundary = boundary;
     _active = null;
     _store.clear();
+    if (configuration != null) {
+      _store = InMemoryCookieStore(configuration: configuration, clock: _clock);
+    }
+    // Commit all state and capture ownership before calling reentrant listeners.
+    var failures = 0;
+    for (final listener in List.of(_lifecycleListeners)) {
+      try {
+        listener();
+      } catch (_) {
+        failures++;
+      }
+    }
+    // Report only after every captured listener has had its notification.
+    for (var i = 0; i < failures; i++) {
+      LifecycleDiagnostics.report(LifecycleFailure.listener);
+    }
+    return minted;
   }
 
-  void beginAccountSwitch() {
-    invalidateForLogout();
-    _boundary = CookieLifecycleBoundary.ready; // Empty, not authenticated.
-  }
+  void invalidateForLogout() =>
+      _transition(CookieLifecycleBoundary.locallyInvalidated);
+
+  /// Returns this transition's generation, never a nested listener's generation.
+  int beginAccountSwitch() => _transition(CookieLifecycleBoundary.ready);
 
   void changeEnvironment(ApiConfiguration configuration) {
-    invalidateForLogout();
-    _store = InMemoryCookieStore(configuration: configuration, clock: _clock);
-    _boundary = CookieLifecycleBoundary.ready; // Empty, not authenticated.
+    _transition(CookieLifecycleBoundary.ready, configuration: configuration);
   }
 
   @override

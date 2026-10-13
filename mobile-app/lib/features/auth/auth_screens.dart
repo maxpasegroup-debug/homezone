@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'auth_form_screen.dart';
+import 'sign_in_controller.dart';
 
 class SignInScreen extends StatelessWidget {
-  const SignInScreen({super.key});
+  const SignInScreen({super.key, this.controller});
+  final SignInController? controller;
   @override
   Widget build(BuildContext context) =>
-      const AuthFormScreen(mode: AuthFormMode.signIn);
+      AuthFormScreen(mode: AuthFormMode.signIn, signInController: controller);
 }
 
 class SignUpScreen extends StatelessWidget {

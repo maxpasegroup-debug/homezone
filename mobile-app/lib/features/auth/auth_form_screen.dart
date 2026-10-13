@@ -2,17 +2,40 @@ import 'package:flutter/material.dart';
 import '../../shared/ui/auth_components.dart';
 import '../../theme/design_tokens.dart';
 import 'validators.dart';
+import 'sign_in_controller.dart';
+import '../../app/session_scope.dart';
 
 enum AuthFormMode { signIn, signUp, forgotPassword, resetPassword }
 
 class AuthFormScreen extends StatefulWidget {
-  const AuthFormScreen({super.key, required this.mode});
+  const AuthFormScreen({super.key, required this.mode, this.signInController});
   final AuthFormMode mode;
+  final SignInController? signInController;
   @override
   State<AuthFormScreen> createState() => _AuthFormScreenState();
 }
 
-class _AuthFormScreenState extends State<AuthFormScreen> {
+class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
+  RouteObserver<ModalRoute<dynamic>>? _routeObserver;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _routeObserver?.unsubscribe(this);
+    _routeObserver = SessionScope.observerOf(context);
+    final route = ModalRoute.of(context);
+    if (route != null) _routeObserver?.subscribe(this, route);
+  }
+
+  @override
+  void didPushNext() {
+    _operation?.cancel();
+  }
+
+  @override
+  void didPop() {
+    _operation?.cancel();
+  }
+
   final form = GlobalKey<FormState>();
   final name = TextEditingController(),
       email = TextEditingController(),
@@ -20,8 +43,11 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
       confirmation = TextEditingController();
   bool loading = false;
   String? outcome;
+  SignInOperation? _operation;
   @override
   void dispose() {
+    _routeObserver?.unsubscribe(this);
+    _operation?.cancel();
     name.dispose();
     email.dispose();
     password.dispose();
@@ -36,6 +62,29 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
       loading = true;
       outcome = null;
     });
+    if (widget.mode == AuthFormMode.signIn) {
+      final controller = widget.signInController;
+      if (controller == null) {
+        setState(() {
+          loading = false;
+          outcome = 'Sign-in is not configured. You are not signed in.';
+        });
+        return;
+      }
+      final operation = controller.beginSignIn(email.text, password.text);
+      _operation = operation;
+      final result = await operation.result;
+      if (!mounted) return;
+      password.clear();
+      setState(() {
+        loading = false;
+        outcome = result.message;
+      });
+      if (result.verified && controller.verified) {
+        Navigator.pushNamedAndRemoveUntil(context, '/buyer', (route) => false);
+      }
+      return;
+    }
     await Future<void>.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
     setState(() {
@@ -322,7 +371,10 @@ class _AuthFormScreenState extends State<AuthFormScreen> {
             TextButton(
               onPressed: loading
                   ? null
-                  : () => Navigator.pushNamed(context, '/buyer'),
+                  : () {
+                      widget.signInController?.clearLocalSession();
+                      Navigator.pushNamed(context, '/buyer');
+                    },
               child: const Text('Explore buyer preview'),
             ),
         ],
