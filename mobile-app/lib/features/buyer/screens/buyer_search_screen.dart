@@ -15,6 +15,7 @@ class BuyerSearchScreen extends StatelessWidget {
     required this.onCategory,
     required this.favorites,
     required this.onFavorite,
+    this.onOpen,
   });
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -24,6 +25,7 @@ class BuyerSearchScreen extends StatelessWidget {
   final PropertyCategory? category;
   final ValueChanged<PropertyCategory?> onCategory;
   final Set<String> favorites;
+  final ValueChanged<DemoProperty>? onOpen;
   @override
   Widget build(BuildContext context) {
     final results = filterDemoProperties(
@@ -84,6 +86,7 @@ class BuyerSearchScreen extends StatelessWidget {
             properties: results,
             favorites: favorites,
             onFavorite: onFavorite,
+            onOpen: onOpen,
           ),
       ],
     );

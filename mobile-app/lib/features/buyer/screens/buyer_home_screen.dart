@@ -14,12 +14,16 @@ class BuyerHomeScreen extends StatelessWidget {
     required this.onCategory,
     required this.favorites,
     required this.onFavorite,
+    this.onOpen,
+    this.recentlyViewed = const [],
   });
   final String location;
   final VoidCallback onLocation, onSearch;
   final PropertyCategory? category;
   final ValueChanged<PropertyCategory?> onCategory;
   final Set<String> favorites;
+  final List<DemoProperty> recentlyViewed;
+  final ValueChanged<DemoProperty>? onOpen;
   final ValueChanged<String> onFavorite;
   @override
   Widget build(BuildContext context) {
@@ -91,6 +95,7 @@ class BuyerHomeScreen extends StatelessWidget {
             properties: featured,
             favorites: favorites,
             onFavorite: onFavorite,
+            onOpen: onOpen,
           ),
         const SizedBox(height: Space.lg),
         Text(
@@ -114,6 +119,7 @@ class BuyerHomeScreen extends StatelessWidget {
             properties: recommended,
             favorites: favorites,
             onFavorite: onFavorite,
+            onOpen: onOpen,
           ),
         const SizedBox(height: Space.lg),
         Text(
@@ -123,12 +129,26 @@ class BuyerHomeScreen extends StatelessWidget {
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: Space.md),
-        const EmptySection(
-          title: 'Your story starts here',
-          message:
-              'No recently viewed properties. Property details are coming in a later phase.',
-          icon: Icons.history,
-        ),
+        if (recentlyViewed.isEmpty)
+          const EmptySection(
+            title: 'Your story starts here',
+            message:
+                'Open a demo property to see it here. History stays in memory and resets when you leave the preview or restart the app.',
+            icon: Icons.history,
+          )
+        else ...[
+          const Text(
+            'Your recently opened demo listings. History is kept only for this buyer preview.',
+          ),
+          const SizedBox(height: Space.md),
+          PropertyResults(
+            key: const ValueKey('recent-properties'),
+            properties: recentlyViewed,
+            favorites: favorites,
+            onFavorite: onFavorite,
+            onOpen: onOpen,
+          ),
+        ],
       ],
     );
   }

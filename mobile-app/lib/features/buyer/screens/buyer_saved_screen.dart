@@ -8,9 +8,11 @@ class BuyerSavedScreen extends StatelessWidget {
     super.key,
     required this.favorites,
     required this.onFavorite,
+    this.onOpen,
     required this.onSearch,
   });
   final Set<String> favorites;
+  final ValueChanged<DemoProperty>? onOpen;
   final ValueChanged<String> onFavorite;
   final VoidCallback onSearch;
   @override
@@ -45,6 +47,7 @@ class BuyerSavedScreen extends StatelessWidget {
             properties: saved,
             favorites: favorites,
             onFavorite: onFavorite,
+            onOpen: onOpen,
           ),
       ],
     );

@@ -1,5 +1,14 @@
 enum PropertyCategory { buy, rent, commercial }
 
+/// Memory-only view ordering; identity is independent of title or object instance.
+List<DemoProperty> recordDemoView(
+  List<DemoProperty> history,
+  DemoProperty property,
+) => [
+  property,
+  ...history.where((item) => item.id != property.id),
+].take(10).toList();
+
 extension PropertyCategoryLabel on PropertyCategory {
   String get label => switch (this) {
     PropertyCategory.buy => 'Buy',
@@ -22,16 +31,22 @@ class DemoProperty {
     this.bedrooms,
     this.bathrooms,
     this.featured = false,
+    this.description,
+    this.furnishing,
   });
   final String id, title, location, city, price, type, area, image;
   final PropertyCategory category;
   final int? bedrooms, bathrooms;
   final bool featured;
+  final String? description, furnishing;
 }
 
 const demoProperties = [
   DemoProperty(
     id: 'garden-villa',
+    description:
+        'A fictional courtyard home designed around bright living spaces and a garden-facing lounge. Sample information for exploring HOMEZONE only.',
+    furnishing: 'Semi-furnished (demo)',
     title: 'Garden Courtyard Villa',
     location: 'Kakkanad, Kochi',
     city: 'Kochi',

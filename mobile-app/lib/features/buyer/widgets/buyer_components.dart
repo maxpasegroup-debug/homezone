@@ -89,10 +89,12 @@ class PropertyResults extends StatelessWidget {
     required this.properties,
     required this.favorites,
     required this.onFavorite,
+    this.onOpen,
   });
   final List<DemoProperty> properties;
   final Set<String> favorites;
   final ValueChanged<String> onFavorite;
+  final ValueChanged<DemoProperty>? onOpen;
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -101,6 +103,7 @@ class PropertyResults extends StatelessWidget {
           property: property,
           saved: favorites.contains(property.id),
           onFavorite: () => onFavorite(property.id),
+          onOpen: onOpen == null ? null : () => onOpen!(property),
         ),
     ],
   );

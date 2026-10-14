@@ -4,6 +4,7 @@ import 'screens/buyer_home_screen.dart';
 import 'screens/buyer_search_screen.dart';
 import 'screens/buyer_saved_screen.dart';
 import 'screens/buyer_profile_screen.dart';
+import 'screens/buyer_property_detail_screen.dart';
 
 class BuyerShell extends StatefulWidget {
   const BuyerShell({super.key});
@@ -16,12 +17,15 @@ class _BuyerShellState extends State<BuyerShell> {
   String location = 'All locations';
   PropertyCategory? category;
   final favorites = <String>{};
+  List<DemoProperty> recentlyViewed = [];
+  final favoriteRevision = ValueNotifier<int>(0);
   final query = TextEditingController();
   final searchFocus = FocusNode();
   @override
   void dispose() {
     query.dispose();
     searchFocus.dispose();
+    favoriteRevision.dispose();
     super.dispose();
   }
 
@@ -32,7 +36,24 @@ class _BuyerShellState extends State<BuyerShell> {
 
   void toggleFavorite(String id) => setState(() {
     if (!favorites.add(id)) favorites.remove(id);
+    favoriteRevision.value++;
   });
+  void openProperty(DemoProperty property) {
+    setState(() => recentlyViewed = recordDemoView(recentlyViewed, property));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AnimatedBuilder(
+          animation: favoriteRevision,
+          builder: (_, _) => BuyerPropertyDetailScreen(
+            property: property,
+            saved: favorites.contains(property.id),
+            onFavorite: () => toggleFavorite(property.id),
+          ),
+        ),
+      ),
+    );
+  }
+
   void browse({bool focus = false}) {
     selectTab(1);
     if (focus) {
@@ -96,6 +117,7 @@ class _BuyerShellState extends State<BuyerShell> {
         index: tab,
         children: [
           BuyerHomeScreen(
+            recentlyViewed: recentlyViewed,
             location: location,
             onLocation: chooseLocation,
             onSearch: () => browse(focus: true),
@@ -103,6 +125,7 @@ class _BuyerShellState extends State<BuyerShell> {
             onCategory: (value) => setState(() => category = value),
             favorites: favorites,
             onFavorite: toggleFavorite,
+            onOpen: openProperty,
           ),
           BuyerSearchScreen(
             controller: query,
@@ -114,10 +137,12 @@ class _BuyerShellState extends State<BuyerShell> {
             onCategory: (value) => setState(() => category = value),
             favorites: favorites,
             onFavorite: toggleFavorite,
+            onOpen: openProperty,
           ),
           BuyerSavedScreen(
             favorites: favorites,
             onFavorite: toggleFavorite,
+            onOpen: openProperty,
             onSearch: browse,
           ),
           const BuyerProfileScreen(),
