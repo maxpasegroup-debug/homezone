@@ -63,6 +63,7 @@ const envSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   RESEND_API_KEY: optionalString,
   RESEND_FROM_EMAIL: optionalEmail,
+  STAGING_EMAIL_RECIPIENTS: optionalString,
   SENTRY_DSN: z.string().url().optional(),
   SMTP_HOST: optionalString,
   SMTP_PASSWORD: optionalString,

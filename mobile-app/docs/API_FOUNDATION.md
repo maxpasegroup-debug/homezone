@@ -1,26 +1,29 @@
 # API foundation — Phases 5A and 5C
 
-The approved UI still runs entirely in local-preview mode. No screen creates an
-API client. No live sign-in, cookie jar, bearer tokens, credential persistence or
-production requests are implemented. Staging infrastructure, Phase 4D database
-integration and the native Auth.js session contract remain NOT VERIFIED.
+Default launches remain local-preview only. Explicitly configured service mode
+now constructs the existing client/protocol in main.dart and supplies a separate
+service-backed buyer experience. See [implementation handoff](IMPLEMENTATION_HANDOFF.md)
+for the untested implementation changes and remaining blockers. Credentials remain
+memory-only; no bearer tokens or persistent session restoration are introduced.
+No staging or production requests were executed. Remote infrastructure and the
+native Auth.js/proxy integration remain NOT VERIFIED.
 
 ## Configuration for future integration
 
-`ApiConfiguration.fromBuild()` requires both `HOMEZONE_API_ENV` (development or
-staging) and `HOMEZONE_API_BASE_URL` (an approved application origin, not an /api
+`ApiConfiguration.fromBuild()` requires both `HOMEZONE_API_ENV` (development,
+staging or production) and `HOMEZONE_API_BASE_URL` (an approved application origin, not an /api
 path). Missing or invalid configuration throws a generic configuration error.
 There is no default host. These public build parameters are not secret storage.
 
 For explicitly local development, the future integration build can use:
-`flutter run --dart-define=HOMEZONE_API_ENV=development --dart-define=HOMEZONE_API_BASE_URL=http://localhost:3000`
+`flutter run --dart-define=HOMEZONE_ENABLE_API=true --dart-define=HOMEZONE_API_ENV=development --dart-define=HOMEZONE_API_BASE_URL=http://localhost:3000`
 On Android emulators, explicitly use the host alias `http://10.0.2.2:3000` instead.
 Non-local targets and all staging configurations require HTTPS. On a physical
 device, localhost means that device; use an approved HTTPS development endpoint.
 
 For staging, obtain the approved origin from the infrastructure owner and supply
 it through `--dart-define=HOMEZONE_API_BASE_URL=<approved HTTPS origin>` together
-with `--dart-define=HOMEZONE_API_ENV=staging`. No staging hostname is proposed here.
+with `--dart-define=HOMEZONE_API_ENV=staging` and `--dart-define=HOMEZONE_ENABLE_API=true`. No staging hostname is proposed here.
 The origin must agree with the backend's AUTH_STAGING_ORIGIN/AUTH_URL settings.
 These flags do not activate networking in the existing preview screens.
 
@@ -83,7 +86,7 @@ and all existing preview screens remain disconnected from backend services.
 
 | Component | Source-grounded contract and pending work |
 | --- | --- |
-| Authentication repository | Auth.js GET/POST /api/auth/[...nextauth] handles browser CSRF/session/sign-out. Password signup POST /api/auth/password/signup returns user data, not a mobile session. Native sign-in/renewal/logout contract is PENDING verification and approval; bearer support is not established. |
+| Authentication repository | Auth.js GET/POST /api/auth/[...nextauth] handles CSRF/session/sign-out. Password signup POST /api/auth/password/signup now returns a pending email challenge; /signup/verify activates an account but never issues a session. The configured mobile journey then runs password sign-in and independent session verification. Live verification remains pending; bearer support is not established. |
 | Session controller | Future owner of session state, expiry, unauthorized transitions and approved credential transport. Browser JWT cookies are checked through the Phase 4D registry. Native persistence/renewal is MISSING; do not add cookies/storage until approved. |
 | Profile repository | GET /api/profile returns {profile}; PATCH validates profile updates and authenticates through auth(). Exact mobile field/role/onboarding mapping is PENDING. Do not redefine backend roles locally. |
 | Property repository | GET /api/properties parses marketplace filters and returns {properties}. Detail GET is not exported by backend/api/properties/[id]/route.ts (PATCH/DELETE exist). Verify actual website detail data flow, filters, pagination and saved-property contracts before replacing demos. |
@@ -343,3 +346,12 @@ and never emit further reports. Saturation limits count precision, not delivery
 of independent reports. Only fixed categories and an empty stack reach the
 existing FlutterError handler. This does not prevent unrelated trusted code from
 changing that global handler or scheduling new asynchronous work outside reporting.
+
+## Current configured registration journey
+
+The earlier phase notes above are historical. Configured service registration now
+uses pending email verification followed by the existing password protocol and
+independent session parsing. It opens /buyer (service marketplace), while explicit
+/buyer-preview remains offline. See REGISTRATION_IMPLEMENTATION.md for schema,
+provider configuration, provisional shared quotas, font fallback and rollout gates.
+Default launches still create no transport. No disk session restoration was added.

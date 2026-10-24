@@ -8,9 +8,15 @@ import '../../app/session_scope.dart';
 enum AuthFormMode { signIn, signUp, forgotPassword, resetPassword }
 
 class AuthFormScreen extends StatefulWidget {
-  const AuthFormScreen({super.key, required this.mode, this.signInController});
+  const AuthFormScreen({
+    super.key,
+    required this.mode,
+    this.signInController,
+    this.serviceMode = false,
+  });
   final AuthFormMode mode;
   final SignInController? signInController;
+  final bool serviceMode;
   @override
   State<AuthFormScreen> createState() => _AuthFormScreenState();
 }
@@ -363,7 +369,9 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
           PreviewNotice(
             message:
                 outcome ??
-                (reset
+                (widget.serviceMode
+                    ? 'Sign-in uses the explicitly configured HOMEZONE service. Session credentials stay in memory only.'
+                    : reset
                     ? 'Local UI preview. No reset link is verified and no password will change.'
                     : 'Local UI preview. No account, sign-in or email service is connected.'),
           ),
@@ -373,7 +381,10 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                   ? null
                   : () {
                       widget.signInController?.clearLocalSession();
-                      Navigator.pushNamed(context, '/buyer');
+                      Navigator.pushNamed(
+                        context,
+                        widget.serviceMode ? '/buyer-preview' : '/buyer',
+                      );
                     },
               child: const Text('Explore buyer preview'),
             ),

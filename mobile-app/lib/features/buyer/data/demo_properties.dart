@@ -1,4 +1,26 @@
-enum PropertyCategory { buy, rent, commercial }
+enum PropertyCategory { buy, rent, land, commercial }
+
+enum Furnishing {
+  furnished('Furnished'),
+  semiFurnished('Semi-Furnished'),
+  unfurnished('Unfurnished');
+
+  const Furnishing(this.label);
+  final String label;
+
+  /// Only exact supported labels are classified. The fictional fixtures may
+  /// append the explicit '(demo)' annotation. Missing/unknown labels stay null.
+  static Furnishing? fromLabel(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    for (final furnishing in values) {
+      final label = furnishing.label.toLowerCase();
+      if (normalized == label || normalized == '$label (demo)') {
+        return furnishing;
+      }
+    }
+    return null;
+  }
+}
 
 /// Memory-only view ordering; identity is independent of title or object instance.
 List<DemoProperty> recordDemoView(
@@ -13,6 +35,7 @@ extension PropertyCategoryLabel on PropertyCategory {
   String get label => switch (this) {
     PropertyCategory.buy => 'Buy',
     PropertyCategory.rent => 'Rent',
+    PropertyCategory.land => 'Land',
     PropertyCategory.commercial => 'Commercial',
   };
 }
@@ -33,17 +56,20 @@ class DemoProperty {
     this.featured = false,
     this.description,
     this.furnishing,
+    this.amount,
   });
   final String id, title, location, city, price, type, area, image;
   final PropertyCategory category;
   final int? bedrooms, bathrooms;
   final bool featured;
   final String? description, furnishing;
+  final int? amount;
 }
 
 const demoProperties = [
   DemoProperty(
     id: 'garden-villa',
+    amount: 12500000,
     description:
         'A fictional courtyard home designed around bright living spaces and a garden-facing lounge. Sample information for exploring HOMEZONE only.',
     furnishing: 'Semi-furnished (demo)',
@@ -61,6 +87,7 @@ const demoProperties = [
   ),
   DemoProperty(
     id: 'palm-residence',
+    amount: 9500000,
     title: 'Palm Grove Residence',
     location: 'Aluva, Kochi',
     city: 'Kochi',
@@ -74,6 +101,7 @@ const demoProperties = [
   ),
   DemoProperty(
     id: 'lakeside-rental',
+    amount: 32000,
     title: 'Lakeside Family Home',
     location: 'Vyttila, Kochi',
     city: 'Kochi',
@@ -88,6 +116,7 @@ const demoProperties = [
   ),
   DemoProperty(
     id: 'studio-office',
+    amount: 48000,
     title: 'Neighbourhood Studio Office',
     location: 'Edappally, Kochi',
     city: 'Kochi',

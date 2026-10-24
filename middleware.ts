@@ -51,6 +51,14 @@ function isApiMutation(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (isApiMutation(request)) {
+    // Browser ambient cookies must not authorize cross-origin writes. Native
+    // clients supply cookies explicitly and normally send neither browser header.
+    const origin = request.headers.get("origin");
+    if ((origin !== null && origin !== authOrigin()) || request.headers.get("sec-fetch-site") === "cross-site") {
+      return applySecurityHeaders(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+    }
+  }
   const requiresAuth =
     startsWithAny(pathname, protectedPagePrefixes) ||
     startsWithAny(pathname, adminPrefixes) ||

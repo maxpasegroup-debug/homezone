@@ -122,6 +122,20 @@ test("middleware cookie detection and route authorization", async (t) => {
         }
         passed(await middleware(request(origin, "/api/properties", cookie, "POST")));
       });
+      await t.test(`${new URL(origin).protocol} browser writes require the canonical origin while native writes retain access`, async () => {
+        const cookie = await sessionCookie(origin);
+        const same = request(origin, "/api/mobile/account", cookie, "PATCH");
+        same.headers.set("origin", origin);
+        passed(await middleware(same));
+        for (const suppliedOrigin of ["https://attacker.example.invalid", "null", `${origin}/unexpected-path`]) {
+          const foreign = request(origin, "/api/mobile/account", cookie, "PATCH");
+          foreign.headers.set("origin", suppliedOrigin);
+          assert.equal((await middleware(foreign)).status, 403);
+        }
+        const crossSite = request(origin, "/api/shortlists", cookie, "POST");
+        crossSite.headers.set("sec-fetch-site", "cross-site");
+        assert.equal((await middleware(crossSite)).status, 403);
+      });
 
       await t.test(`${new URL(origin).protocol} missing, malformed, expired, and incorrectly signed sessions are rejected`, async () => {
         const cookies = [
@@ -190,6 +204,7 @@ test("middleware cookie detection and route authorization", async (t) => {
     await t.test("redirects use explicit origins and reject unsafe destinations", async () => {
       process.env.NODE_ENV = "production";
       const publicOrigin = "https://homezone-production.up.railway.app";
+      process.env.AUTH_URL = publicOrigin;
       assert.equal(authRedirect("/dashboard?tab=saved"), `${publicOrigin}/dashboard?tab=saved`);
       for (const destination of ["https://0.0.0.0:8080/dashboard", "https://evil.example/dashboard", "//evil.example", "/\\evil.example", "javascript:alert(1)", "https://user@homezone-production.up.railway.app/dashboard", "http://[", "https://service.railway.internal/dashboard"]) {
         assert.equal(authRedirect(destination), publicOrigin);
@@ -198,11 +213,12 @@ test("middleware cookie detection and route authorization", async (t) => {
         process.env.AUTH_URL = configured;
         assert.throws(() => authRedirect("/dashboard"));
       }
-      delete process.env.AUTH_URL;
+      process.env.AUTH_URL = publicOrigin;
       const redirect = await middleware(new NextRequest("https://0.0.0.0:8080/dashboard", {
         headers: { host: "evil.example", "x-forwarded-host": "evil.example", "x-forwarded-proto": "http" }
       }));
       assert.equal(redirect.headers.get("location"), `${publicOrigin}/auth?next=%2Fdashboard`);
+      delete process.env.AUTH_URL;
       process.env.NODE_ENV = "test";
     });
 
@@ -227,8 +243,8 @@ test("middleware cookie detection and route authorization", async (t) => {
       process.env.NEXTAUTH_URL = staging;
       assert.equal(authOrigin(), staging);
       delete process.env.NEXTAUTH_URL;
-      assert.equal(authOrigin(), "https://homezone-production.up.railway.app");
-      assert.equal(authRedirect(`${staging}/dashboard`), "https://homezone-production.up.railway.app");
+      assert.throws(() => authOrigin());
+      assert.throws(() => authRedirect(`${staging}/dashboard`));
       process.env.AUTH_URL = "https://unapproved.example.com";
       assert.throws(() => authOrigin());
       delete process.env.AUTH_URL;
@@ -244,6 +260,29 @@ test("middleware cookie detection and route authorization", async (t) => {
       }
       delete process.env.AUTH_STAGING_ORIGIN;
       process.env.NODE_ENV = "test";
+    });
+
+    await t.test("production cannot fall back and staging cannot select production or conflicting URLs", () => {
+      const saved = Object.fromEntries(["NODE_ENV", "AUTH_URL", "NEXTAUTH_URL", "AUTH_STAGING_ORIGIN"].map(key => [key, process.env[key]]));
+      try {
+        process.env.NODE_ENV = "production";
+        delete process.env.AUTH_URL; delete process.env.NEXTAUTH_URL;
+        assert.throws(() => authOrigin());
+        process.env.AUTH_STAGING_ORIGIN = "https://staging.example.com";
+        process.env.AUTH_URL = "https://homezone-production.up.railway.app";
+        assert.throws(() => authOrigin());
+        process.env.AUTH_URL = "https://staging.example.com";
+        process.env.NEXTAUTH_URL = "https://homezone-production.up.railway.app";
+        assert.throws(() => authOrigin());
+        process.env.NEXTAUTH_URL = "https://staging.example.com/";
+        assert.equal(authOrigin(), "https://staging.example.com");
+        delete process.env.NEXTAUTH_URL;
+        for (const value of ["", " https://staging.example.com", "https://staging.example.com/path", "https://staging.example.com?secret=synthetic"]) {
+          process.env.AUTH_URL = value; assert.throws(() => authOrigin());
+        }
+      } finally {
+        for (const [key,value] of Object.entries(saved)) { if(value === undefined) delete process.env[key]; else process.env[key] = value; }
+      }
     });
 
     for (const origin of ["https://homezone-production.up.railway.app", "http://localhost:3000", "https://0.0.0.0:8080", "https://staging.example.com"]) {

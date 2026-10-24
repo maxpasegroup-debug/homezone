@@ -47,6 +47,7 @@ final class SignInController extends ChangeNotifier {
   Timer? _expiry;
   bool _disposed = false;
   bool _pending = false;
+  bool _signingOut = false;
   VerifiedIdentity? get identity =>
       !_disposed &&
           _verifiedGeneration == _protocol.coordinator.generation &&
@@ -73,7 +74,7 @@ final class SignInController extends ChangeNotifier {
   }
 
   SignInOperation beginSignIn(String email, String password) {
-    if (_disposed || _pending || !_ownsProtocol) {
+    if (_disposed || _pending || _signingOut || !_ownsProtocol) {
       return SignInOperation._(
         Future.value(
           const SignInOutcome._(false, 'A sign-in attempt is already active.'),
@@ -177,6 +178,65 @@ final class SignInController extends ChangeNotifier {
       }
     }();
     return SignInOperation._(result, cancel);
+  }
+
+  Future<bool> signOut() async {
+    if (_disposed ||
+        !_ownsProtocol ||
+        _pending ||
+        _signingOut ||
+        _ownedGeneration != _protocol.coordinator.generation) {
+      return false;
+    }
+    _signingOut = true;
+    final generation = _ownedGeneration;
+    try {
+      return await _protocol.signOutOwned(_owner);
+    } finally {
+      _signingOut = false;
+      if (!_disposed && generation == _protocol.coordinator.generation) {
+        clearLocalSession();
+      }
+    }
+  }
+
+  /// Reverify the existing volatile session after resume; never restore from disk.
+  Future<void> revalidateSession() async {
+    if (_disposed || !_ownsProtocol || _pending || _signingOut || !verified) {
+      return;
+    }
+    final generation = _ownedGeneration;
+    final previousId = identity!.id;
+    _pending = true;
+    try {
+      final result = await _protocol.verifyOwned(_owner);
+      if (_disposed || generation != _protocol.coordinator.generation) return;
+      if (!result.authenticatedSnapshot ||
+          result.user!['id'] != previousId ||
+          result.expires == null ||
+          !result.expires!.isAfter(_clock().toUtc())) {
+        clearLocalSession();
+        return;
+      }
+      _identity = VerifiedIdentity._(
+        previousId,
+        result.user!['role'] as String,
+        result.expires!,
+      );
+      _expiry?.cancel();
+      _expiry = Timer(result.expires!.difference(_clock().toUtc()), () {
+        if (!_disposed && _verifiedGeneration == generation) {
+          clearLocalSession();
+        }
+      });
+      notifyListeners();
+    } catch (_) {
+      if (!_disposed && generation == _protocol.coordinator.generation) {
+        clearLocalSession();
+      }
+    } finally {
+      _pending = false;
+    }
   }
 
   @override

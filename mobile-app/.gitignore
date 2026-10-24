@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Never track signing material or local service configuration.
+*.jks
+*.keystore
+key.properties
+release-signing.properties
+*.p12
+*.mobileprovision
+config/*.local.json

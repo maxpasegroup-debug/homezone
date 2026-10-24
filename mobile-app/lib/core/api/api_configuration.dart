@@ -1,4 +1,4 @@
-enum ApiEnvironment { development, staging }
+enum ApiEnvironment { development, staging, production }
 
 class ApiConfigurationException implements Exception {
   const ApiConfigurationException();
@@ -38,6 +38,7 @@ class ApiConfiguration {
     final environment = switch (name) {
       'development' => ApiEnvironment.development,
       'staging' => ApiEnvironment.staging,
+      'production' => ApiEnvironment.production,
       _ => throw const ApiConfigurationException(),
     };
     return ApiConfiguration(

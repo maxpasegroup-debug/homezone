@@ -135,6 +135,89 @@ final class PasswordAuthProtocol {
     return admitSignIn(email: email, password: password).result;
   }
 
+  /// Uses the current generation; never begins an account switch during logout.
+  /// The controller clears local authority even when remote revocation is uncertain.
+  Future<bool> signOutOwned(Object owner) async {
+    if (!_ownsClient ||
+        _disposed ||
+        _busy ||
+        !identical(owner, _controllerOwner)) {
+      return false;
+    }
+    _busy = true;
+    final generation = coordinator.generation;
+    try {
+      final token = await coordinator.coordinate('/api/auth/csrf', (
+        ticket,
+      ) async {
+        final response = await _exchange(ticket, 'GET', '/api/auth/csrf');
+        ApiClient.checkStatus(response);
+        if (response.status != 200 ||
+            response.headerValues('location').isNotEmpty) {
+          throw const ApiException(ApiFailure.invalidResponse);
+        }
+        final json = jsonDecode(response.body);
+        if (json is! Map<String, dynamic> || json['csrfToken'] is! String) {
+          throw const ApiException(ApiFailure.invalidResponse);
+        }
+        return json['csrfToken'] as String;
+      }, expectedGeneration: generation);
+      await coordinator.coordinate('/api/auth/signout', (ticket) async {
+        _validateCsrf(token, ticket);
+        final response = await _exchange(
+          ticket,
+          'POST',
+          '/api/auth/signout',
+          redirect: true,
+          body: <String, String>{'csrfToken': token, 'callbackUrl': '/'},
+        );
+        final result = AuthResponseParser.callback(
+          response,
+          client.configuration,
+        );
+        if (result.error != null) {
+          throw const ApiException(ApiFailure.invalidResponse);
+        }
+      }, expectedGeneration: generation);
+      // Revocation is acknowledged by this server's logout handler, not proven by local clearing.
+      return coordinator.generation == generation;
+    } catch (_) {
+      return false;
+    } finally {
+      _busy = false;
+    }
+  }
+
+  Future<AuthSessionResult> verifyOwned(Object owner) async {
+    if (!_ownsClient ||
+        _disposed ||
+        _busy ||
+        !identical(owner, _controllerOwner)) {
+      throw const ApiException(ApiFailure.invalidRequest);
+    }
+    _busy = true;
+    final generation = coordinator.generation;
+    try {
+      final result = await coordinator.coordinate('/api/auth/session', (
+        ticket,
+      ) async {
+        final response = await _exchange(ticket, 'GET', '/api/auth/session');
+        return AuthResponseParser.session(
+          response,
+          configuration: client.configuration,
+        ).withoutProtocolCookies();
+      }, expectedGeneration: generation);
+      if (coordinator.generation != generation) {
+        throw const CookieLifecycleInvalidated();
+      }
+      return result;
+    } on ApiException catch (error) {
+      throw ApiException(error.failure, status: error.status);
+    } finally {
+      _busy = false;
+    }
+  }
+
   Future<AuthSessionResult> _runSignIn(
     String email,
     String password,

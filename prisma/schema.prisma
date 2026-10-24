@@ -2,6 +2,28 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Pending credentials never become an authenticatable User before email proof.
+model EmailRegistration {
+  id           String   @id
+  email        String   @unique
+  name         String
+  passwordHash String   @db.Text
+  codeHash     String
+  attempts     Int      @default(0)
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime @default(now())
+  @@index([expiresAt])
+}
+
+// Shared PostgreSQL admission counters, independent of process restarts.
+model RegistrationBudget {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+  @@index([resetAt])
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")

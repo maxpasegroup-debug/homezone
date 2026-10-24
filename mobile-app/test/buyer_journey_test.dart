@@ -184,6 +184,239 @@ void main() {
     expect(opened, isTrue);
   });
 
+  testWidgets(
+    'system back preserves buyer state and explicit exit resets it all',
+    (tester) async {
+      Future<void> back() async {
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+      }
+
+      await tester.pumpWidget(const HomezoneApp(initialRoute: '/sign-in'));
+      await tester.pumpAndSettle();
+      await buyer.tapVisible(tester, find.text('Explore buyer preview'));
+      await buyer.tapVisible(
+        tester,
+        find.byKey(const ValueKey('favorite-garden-villa')),
+      );
+      await buyer.tapVisible(
+        tester,
+        find.byKey(const ValueKey('open-garden-villa')),
+      );
+      await back();
+      await buyer.tab(tester, 'search');
+      await buyer.tapVisible(
+        tester,
+        find.byKey(const ValueKey('open-palm-residence')),
+      );
+      await buyer.tapVisible(
+        tester,
+        find.byKey(const ValueKey('detail-favorite')),
+      );
+      await back();
+      await buyer.tab(tester, 'saved');
+      expect(find.byType(PropertyCard), findsNWidgets(2));
+      await buyer.tapVisible(tester, find.text('Shortlists'));
+      await buyer.tapVisible(tester, find.text('Create shortlist'));
+      await tester.enterText(find.byType(TextField), 'Journey state');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      await buyer.tapVisible(tester, find.text('Journey state'));
+      await buyer.tapVisible(
+        tester,
+        find.widgetWithText(CheckboxListTile, 'Garden Courtyard Villa'),
+      );
+      await buyer.tapVisible(tester, find.text('Rename'));
+      await tester.enterText(find.byType(TextField), 'Renamed journey');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      await buyer.tapVisible(
+        tester,
+        find.byKey(const ValueKey('open-garden-villa')),
+      );
+      await back();
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.widgetWithText(CheckboxListTile, 'Garden Courtyard Villa'),
+            )
+            .value,
+        isTrue,
+      );
+      await back();
+      await buyer.tapVisible(tester, find.text('Compare Properties'));
+      for (final title in ['Garden Courtyard Villa', 'Palm Grove Residence']) {
+        await buyer.tapVisible(tester, find.widgetWithText(FilterChip, title));
+      }
+      await back();
+
+      await buyer.tab(tester, 'search');
+      await tester.enterText(
+        find.byKey(const ValueKey('property-search')),
+        'Garden',
+      );
+      await buyer.tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Filters'),
+      );
+      await buyer.tapVisible(
+        tester,
+        find.widgetWithText(ChoiceChip, 'Buy').last,
+      );
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kochi').last);
+      await tester.pumpAndSettle();
+      tester.widget<Slider>(find.byType(Slider)).onChanged!(15000000);
+      await tester.pumpAndSettle();
+      await buyer.tapVisible(tester, find.widgetWithText(ChoiceChip, '3'));
+      await buyer.tapVisible(
+        tester,
+        find.byType(DropdownButtonFormField<Furnishing>),
+      );
+      await tester.tap(find.text('Semi-Furnished').last);
+      await tester.pumpAndSettle();
+      await buyer.tapVisible(tester, find.text('Apply Filters'));
+      await buyer.tapVisible(tester, find.text('Sort ▾'));
+      await tester.tap(find.text('Title A–Z'));
+      await tester.pumpAndSettle();
+      await buyer.tapVisible(
+        tester,
+        find.byKey(const ValueKey('open-garden-villa')),
+      );
+      await back();
+      expect(find.text('1 demo results'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('property-search')))
+            .controller!
+            .text,
+        'Garden',
+      );
+      await buyer.tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Filters'),
+      );
+      expect(find.text('Maximum listed amount: ₹15000000'), findsOneWidget);
+      expect(
+        tester
+            .widget<DropdownButtonFormField<Furnishing>>(
+              find.byType(DropdownButtonFormField<Furnishing>),
+            )
+            .initialValue,
+        Furnishing.semiFurnished,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '3'))
+            .selected,
+        isTrue,
+      );
+      expect(find.text('Kochi'), findsOneWidget);
+      await back();
+
+      await buyer.tab(tester, 'profile');
+      await buyer.tapVisible(tester, find.text('My Enquiries'));
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+      await buyer.tapVisible(tester, find.text('Garden Courtyard Villa'));
+      await back();
+      expect(find.text('Preview status: example only'), findsOneWidget);
+      await back();
+      await buyer.tapVisible(tester, find.text('Shortlists'));
+      expect(find.text('Renamed journey'), findsOneWidget);
+      await buyer.tapVisible(tester, find.text('Renamed journey'));
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.widgetWithText(CheckboxListTile, 'Garden Courtyard Villa'),
+            )
+            .value,
+        isTrue,
+      );
+      await back();
+      await buyer.tapVisible(tester, find.text('Compare properties'));
+      expect(find.text('2,400 sq ft'), findsOneWidget);
+      expect(find.text('1,850 sq ft'), findsOneWidget);
+      await back();
+      await buyer.tapVisible(tester, find.text('Recently Viewed'));
+      expect(
+        tester
+            .widgetList<PropertyCard>(find.byType(PropertyCard))
+            .map((card) => card.property.id),
+        ['garden-villa', 'palm-residence'],
+      );
+      await back();
+      await buyer.tapVisible(
+        tester,
+        find.byKey(const ValueKey('preview-signout')),
+      );
+      expect(find.text('Welcome Back'), findsOneWidget);
+      await buyer.tapVisible(tester, find.text('Explore buyer preview'));
+      expect(find.text('Your story starts here'), findsOneWidget);
+      await buyer.tab(tester, 'search');
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('property-search')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'All'))
+            .selected,
+        isTrue,
+      );
+      expect(
+        tester
+            .widgetList<PropertyCard>(find.byType(PropertyCard))
+            .map((card) => card.property.id),
+        demoProperties.map((property) => property.id),
+      ); // Demo order is restored, rather than retaining Title A–Z.
+      await buyer.tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, 'Filters'),
+      );
+      expect(find.text('Budget: any listed amount'), findsOneWidget);
+      expect(find.text('All locations'), findsOneWidget);
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Any'))
+            .selected,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<DropdownButtonFormField<Furnishing>>(
+              find.byType(DropdownButtonFormField<Furnishing>),
+            )
+            .initialValue,
+        isNull,
+      );
+      await back();
+      await buyer.tab(tester, 'saved');
+      expect(find.text('A little inspiration, saved'), findsOneWidget);
+      await buyer.tapVisible(tester, find.text('Shortlists'));
+      expect(find.text('No shortlists yet'), findsOneWidget);
+      await back();
+      await buyer.tapVisible(tester, find.text('Compare Properties'));
+      expect(find.text('Choose properties to compare'), findsOneWidget);
+      await back();
+      await buyer.tab(tester, 'profile');
+      await buyer.tapVisible(tester, find.text('My Enquiries'));
+      expect(find.text('No enquiries yet'), findsOneWidget);
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isFalse,
+      );
+      await back();
+      await buyer.tapVisible(tester, find.text('Recently Viewed'));
+      expect(find.text('No recently viewed properties'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('dark large-text buyer journey supports history and every tab', (
     tester,
   ) async {

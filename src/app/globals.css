@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    /* Offline-safe system fallback; no build-time font requests or copied binaries. */
+    --font-geist-sans: Arial, Helvetica, system-ui, sans-serif;
+    --font-geist-mono: Consolas, "Liberation Mono", monospace;
     --background: 270 33% 99%;
     --foreground: 240 24% 12%;
     --card: 0 0% 100%;

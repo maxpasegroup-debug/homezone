@@ -4,11 +4,13 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import ts from "typescript";
+import { sharedSigninStore } from './fixtures/shared-signin-store.mjs';
 const source = ts.transpileModule(readFileSync(new URL('../src/lib/auth/password-signin-limit.ts', import.meta.url), 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-function load(env = {}) {
+function load(env = {}, db = {}) {
   const exports = {};
-  runInNewContext(source, { exports, require: createRequire(import.meta.url), process: { env }, Date, Map, Number });
+  const nativeRequire = createRequire(import.meta.url);
+  runInNewContext(source, { exports, require: id => id === '@/lib/db' ? {db} : nativeRequire(id), process: { env }, Date, Map, Number });
   return exports;
 }
 const { createPasswordSigninLimiter: create, passwordSigninPolicy } = load();
@@ -45,10 +47,10 @@ test('config rejects zero malformed and excessive values', () => {
   }
   assert.equal(passwordSigninPolicy({PASSWORD_SIGNIN_ACCOUNT_ATTEMPTS:'3'}).accountAttempts, 3);
 });
-test('failure is closed and generic', () => {
+test('failure is closed and generic', async () => {
   const broken = load({PASSWORD_SIGNIN_WINDOW_MS:'invalid'});
-  assert.equal(broken.allowPasswordSignin('unknown'), false);
-  assert.equal(broken.allowPasswordSignin('known'), false);
+  assert.equal(await broken.allowPasswordSignin('unknown'), false);
+  assert.equal(await broken.allowPasswordSignin('known'), false);
   assert.equal(create(policy, () => NaN).allow('anything'), false);
 });
 test('process instances and restarts have independent budgets', () => {
@@ -64,4 +66,52 @@ test('forwarded client identities cannot select admission buckets', () => {
     // Request headers are not accepted by the admission API.
     assert.equal(limiter.allow('account', headers), Object.keys(headers).length === 0 || headers['x-forwarded-for'] === 'malformed');
   }
+});
+
+const sharedSecret = 'synthetic-shared-signin-hmac-key-32-characters';
+const shared = load().createSharedPasswordSigninLimiter;
+test('shared instances and recreated clients cannot exceed normalized account admission', async () => {
+  const fixture=sharedSigninStore(),a=shared(fixture.db,policy,sharedSecret),b=shared(fixture.db,policy,sharedSecret);
+  const results=await Promise.all(Array.from({length:50},(_,i)=>(i%2?a:b).allow(i%2?' User@Example.COM ':'user@example.com')));
+  assert.equal(results.filter(Boolean).length,2);
+  assert.equal(await shared(fixture.db,policy,sharedSecret).allow('user@example.com'),false);
+  assert.equal(fixture.rows.get('password-signin:v1:global').count,10);
+  const keys=[...fixture.rows.keys()];assert.equal(keys.length,2);assert.ok(!keys.join('').includes('user@example.com'));
+});
+test('shared aggregate admission bounds concurrently rotating accounts', async () => {
+  const fixture=sharedSigninStore(),p={...policy,totalAttempts:3,maxAccounts:20};
+  const a=shared(fixture.db,p,sharedSecret),b=shared(fixture.db,p,sharedSecret);
+  const results=await Promise.all(Array.from({length:30},(_,i)=>(i%2?a:b).allow(`account-${i}`)));
+  assert.equal(results.filter(Boolean).length,3);assert.equal(fixture.rows.size,4);
+});
+test('shared window expiry uses store time at exact boundary without live eviction', async () => {
+  const fixture=sharedSigninStore(),p={...policy,maxAccounts:1},a=shared(fixture.db,p,sharedSecret),b=shared(fixture.db,p,sharedSecret);
+  assert.equal(await a.allow('one'),true);assert.equal(await b.allow('two'),false);
+  fixture.now=99;assert.equal(await b.allow('two'),false);
+  fixture.now=100;assert.equal(await b.allow('two'),true);assert.equal(await a.allow('one'),false);
+  assert.equal(fixture.rows.size,2);
+});
+test('shared failures and malformed state deny without memory fallback and recover safely', async () => {
+  const fixture=sharedSigninStore(),limiter=shared(fixture.db,policy,sharedSecret);
+  fixture.fail=true;assert.equal(await limiter.allow('known'),false);assert.equal(await limiter.allow('unknown'),false);assert.equal(fixture.rows.size,0);
+  fixture.fail=false;fixture.badClock=true;assert.equal(await limiter.allow('known'),false);assert.equal(fixture.rows.size,0);
+  fixture.badClock=false;fixture.corrupt=true;assert.equal(await limiter.allow('known'),false);assert.equal(fixture.rows.size,0);
+  fixture.corrupt=false;assert.equal(await limiter.allow('known'),true);
+  const before=structuredClone(fixture.rows);fixture.failCount=true;
+  assert.equal(await limiter.allow('new-account'),false);assert.deepEqual(fixture.rows,before);fixture.failCount=false;
+  fixture.fail=true;assert.equal(await limiter.allow('known'),false);fixture.fail=false;
+  assert.equal(await limiter.allow('known'),true);assert.equal(await limiter.allow('known'),false);
+});
+test('shared capacity creation is serialized and does not touch registration quotas', async () => {
+  const fixture=sharedSigninStore();fixture.rows.set('registration:delivery',{key:'registration:delivery',count:9,resetAt:new Date(1000)});
+  const a=shared(fixture.db,{...policy,maxAccounts:1},sharedSecret),b=shared(fixture.db,{...policy,maxAccounts:1},sharedSecret);
+  assert.equal((await Promise.all([a.allow('one'),b.allow('two')])).filter(Boolean).length,1);
+  fixture.now=100;assert.equal(await b.allow('two'),true);assert.equal(fixture.rows.get('registration:delivery').count,9);
+});
+test('runtime shared admission requires explicit key and valid configuration', async () => {
+  const fixture=sharedSigninStore();
+  assert.equal(await load({},fixture.db).allowPasswordSignin('unknown'),false);assert.equal(fixture.transactions,0);
+  assert.throws(()=>shared(fixture.db,policy,'short'));
+  const runtime=load({PASSWORD_SIGNIN_HMAC_KEY:sharedSecret,PASSWORD_SIGNIN_WINDOW_MS:'100',PASSWORD_SIGNIN_ACCOUNT_ATTEMPTS:'1'},fixture.db);
+  assert.equal(await runtime.allowPasswordSignin('same'),true);assert.equal(await runtime.allowPasswordSignin(' SAME '),false);
 });

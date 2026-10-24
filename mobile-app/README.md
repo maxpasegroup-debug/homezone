@@ -1,7 +1,13 @@
 # HOMEZONE Mobile — Phase 2B
 
-UI-only Flutter authentication experience within the existing HOMEZONE repository.
+Flutter buyer preview with an explicitly configured service-backed implementation.
 Developed with Flutter 3.44.0 / Dart 3.12.0. No new dependencies.
+
+Default launches remain offline. Service mode requires `HOMEZONE_ENABLE_API=true`,
+an explicit environment and an approved API origin. See
+[implementation handoff](docs/IMPLEMENTATION_HANDOFF.md) for contracts, ownership,
+release configuration, deferred validation and unresolved release blockers.
+The continuous implementation changes have not been built or tested.
 
 ## Development
 From mobile-app:
@@ -20,9 +26,13 @@ Continue to Home still returns to onboarding. The separate buyer demo is accessi
 
 Role selection lives in widget state and is passed only to the account screen.
 Form controllers are disposed. Consent is local only and not persisted.
-Sign-in, social buttons, email actions and password changes are disconnected.
-Loading is a 600ms local UI demonstration. Every outcome states that no real
-authentication, account creation, email or password change happened.
+Default offline forms retain their disclosed preview behavior. Configured sign-in
+uses independent session verification; configured recovery/reset use the existing
+backend contracts. Service-mode registration now uses email OTP followed by the
+existing independently verified password sign-in protocol; see
+[registration configuration and rollout gates](docs/REGISTRATION_IMPLEMENTATION.md).
+Social authentication remains unavailable. Service listings, account collections and enquiries use separate screens
+and never substitute fictional demo data for server inventory.
 The legal-consent dialog is placeholder information, not approved legal terms.
 
 ## Architecture
@@ -30,7 +40,7 @@ lib/app: named route configuration
 lib/theme: forest/ivory/gold tokens, typography, system light/dark themes
 lib/shared/ui: reusable layouts, fields, buttons and notices
 lib/features/auth: onboarding, role selection, forms and recovery/success screens
-test/widget_test.dart: 16 navigation, role selection, validation, loading,
+Historical foundation coverage in test/widget_test.dart includes navigation, role selection, validation, loading,
 visibility, social-preview, small-screen and dark-mode widget tests
 
 ## Reference and differences

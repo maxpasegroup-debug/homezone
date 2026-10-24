@@ -4,12 +4,17 @@ import '../data/demo_properties.dart';
 import 'property_card.dart';
 
 class BuyerPage extends StatelessWidget {
-  const BuyerPage({super.key, required this.children});
+  const BuyerPage({
+    super.key,
+    required this.children,
+    this.padding = const EdgeInsets.all(Space.lg),
+  });
   final List<Widget> children;
+  final EdgeInsetsGeometry padding;
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-    padding: const EdgeInsets.all(Space.lg),
+    padding: padding,
     child: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
@@ -60,27 +65,43 @@ class CategoryFilter extends StatelessWidget {
     super.key,
     required this.category,
     required this.onChanged,
+    this.compact = false,
   });
   final PropertyCategory? category;
   final ValueChanged<PropertyCategory?> onChanged;
+  final bool compact;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: Space.sm,
-    runSpacing: Space.sm,
-    children: [
+  Widget build(BuildContext context) {
+    final chips = [
       ChoiceChip(
         label: const Text('All'),
         selected: category == null,
+        visualDensity: compact ? VisualDensity.compact : null,
         onSelected: (_) => onChanged(null),
       ),
       for (final value in PropertyCategory.values)
         ChoiceChip(
           label: Text(value.label),
           selected: category == value,
+          visualDensity: compact ? VisualDensity.compact : null,
           onSelected: (selected) => onChanged(selected ? value : null),
         ),
-    ],
-  );
+    ];
+    if (compact) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final chip in chips) ...[
+              chip,
+              const SizedBox(width: Space.sm),
+            ],
+          ],
+        ),
+      );
+    }
+    return Wrap(spacing: Space.sm, runSpacing: Space.sm, children: chips);
+  }
 }
 
 class PropertyResults extends StatelessWidget {
@@ -90,21 +111,37 @@ class PropertyResults extends StatelessWidget {
     required this.favorites,
     required this.onFavorite,
     this.onOpen,
+    this.grid = false,
   });
   final List<DemoProperty> properties;
   final Set<String> favorites;
   final ValueChanged<String> onFavorite;
   final ValueChanged<DemoProperty>? onOpen;
+  final bool grid;
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      for (final property in properties)
-        PropertyCard(
-          property: property,
-          saved: favorites.contains(property.id),
-          onFavorite: () => onFavorite(property.id),
-          onOpen: onOpen == null ? null : () => onOpen!(property),
-        ),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns =
+          grid &&
+          constraints.maxWidth >= 340 &&
+          MediaQuery.textScalerOf(context).scale(14) <= 18;
+      return Wrap(
+        spacing: Space.md,
+        children: [
+          for (final property in properties)
+            SizedBox(
+              width: columns
+                  ? (constraints.maxWidth - Space.md) / 2
+                  : constraints.maxWidth,
+              child: PropertyCard(
+                property: property,
+                saved: favorites.contains(property.id),
+                onFavorite: () => onFavorite(property.id),
+                onOpen: onOpen == null ? null : () => onOpen!(property),
+              ),
+            ),
+        ],
+      );
+    },
   );
 }

@@ -5,7 +5,30 @@ import '../widgets/buyer_components.dart';
 import '../../../app/session_scope.dart';
 
 class BuyerProfileScreen extends StatelessWidget {
-  const BuyerProfileScreen({super.key});
+  const BuyerProfileScreen({
+    super.key,
+    this.onSaved,
+    this.onShortlists,
+    this.onRecent,
+    this.onCompare,
+    this.onEnquiries,
+  });
+  final VoidCallback? onSaved, onShortlists, onRecent, onCompare, onEnquiries;
+  void info(BuildContext context, String title, String message) =>
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          scrollable: true,
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
   @override
   Widget build(BuildContext context) {
     final session = SessionScope.of(context);
@@ -32,9 +55,42 @@ class BuyerProfileScreen extends StatelessWidget {
         const SizedBox(height: Space.lg),
         const AppCard(
           child: Text(
-            'Explore with confidence. This space will hold your profile once secure backend integration is ready.',
+            'Buyer preview identity. No editable personal account or remotely saved settings are available.',
           ),
         ),
+        const SizedBox(height: Space.lg),
+        for (final item in <(String, IconData, VoidCallback?)>[
+          ('My Enquiries', Icons.chat_bubble_outline, onEnquiries),
+          ('Saved properties', Icons.favorite_border, onSaved),
+          ('Shortlists', Icons.playlist_add, onShortlists),
+          ('Recently Viewed', Icons.history, onRecent),
+          ('Compare properties', Icons.compare_arrows, onCompare),
+          (
+            'Preferences & settings',
+            Icons.settings_outlined,
+            () => info(
+              context,
+              'Preview preferences',
+              'Appearance follows the app theme. Filters and collections are memory-only. Nothing is saved remotely.',
+            ),
+          ),
+          (
+            'Help & support',
+            Icons.help_outline,
+            () => info(
+              context,
+              'Preview help',
+              'Browse fictional listings, save favorites and compare properties. No enquiries, calls or messages are sent. Live customer support is unavailable in this offline preview.',
+            ),
+          ),
+        ])
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(item.$2),
+            title: Text(item.$1),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: item.$3,
+          ),
         const SizedBox(height: Space.lg),
         FilledButton.icon(
           key: const ValueKey('preview-signout'),
@@ -54,8 +110,8 @@ class BuyerProfileScreen extends StatelessWidget {
         const SizedBox(height: Space.sm),
         Text(
           verified
-              ? 'Clears local sign-in and favorites only. No server session is revoked.'
-              : 'Returns to the sign-in UI and discards local favorites. No real session is ended.',
+              ? 'Leaving clears verified in-memory sign-in and preview favorites, shortlists, comparison, Recently Viewed history, and enquiry examples. Local clearing does not revoke a server-side session.'
+              : 'Leaving clears memory-only preview favorites, shortlists, comparison, Recently Viewed history, and enquiry examples. No server-side session is revoked.',
           textAlign: TextAlign.center,
         ),
       ],

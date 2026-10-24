@@ -57,7 +57,7 @@ providers.push(
       const email = String(credentials?.email ?? "").trim().toLowerCase();
       const password = String(credentials?.password ?? "");
 
-      if (!allowPasswordSignin(email)) return null;
+      if (!await allowPasswordSignin(email)) return null;
 
       if (!email || !password) return null;
 

@@ -26,8 +26,15 @@ function stagingOrigin() {
 export function authOrigin() {
   const approvedStagingOrigin = stagingOrigin();
   const configured = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
-  const fallback = process.env.NODE_ENV === "production" ? productionOrigin : "http://localhost:3000";
-  const url = new URL(configured ?? fallback);
+  const error = "Explicit, consistent canonical authentication origins are required";
+  if ((process.env.NODE_ENV === "production" || approvedStagingOrigin) && !configured) throw new Error(error);
+  if ((process.env.NODE_ENV === "production" || approvedStagingOrigin) &&
+      process.env.AUTH_URL !== undefined && process.env.NEXTAUTH_URL !== undefined &&
+      process.env.AUTH_URL.replace(/\/$/, "") !== process.env.NEXTAUTH_URL.replace(/\/$/, "")) throw new Error(error);
+  let url: URL;
+  try { url = new URL(configured ?? "http://localhost:3000"); } catch { throw new Error(error); }
+  if ((approvedStagingOrigin && url.origin !== approvedStagingOrigin) ||
+      (url.pathname !== "/") || (configured !== undefined && configured.replace(/\/$/, "") !== url.origin)) throw new Error(error);
   const local = process.env.NODE_ENV !== "production" &&
     url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
   if (url.username || url.password || url.search || url.hash ||

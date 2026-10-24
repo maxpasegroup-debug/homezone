@@ -5,6 +5,14 @@ import 'screens/buyer_search_screen.dart';
 import 'screens/buyer_saved_screen.dart';
 import 'screens/buyer_profile_screen.dart';
 import 'screens/buyer_property_detail_screen.dart';
+import 'screens/buyer_filter_sheet.dart';
+import 'data/buyer_filters.dart';
+import '../../theme/design_tokens.dart';
+import 'data/buyer_collections.dart';
+import 'screens/buyer_shortlists_screen.dart';
+import 'screens/buyer_compare_screen.dart';
+import 'screens/buyer_enquiries_screen.dart';
+import 'widgets/buyer_components.dart';
 
 class BuyerShell extends StatefulWidget {
   const BuyerShell({super.key});
@@ -14,9 +22,21 @@ class BuyerShell extends StatefulWidget {
 
 class _BuyerShellState extends State<BuyerShell> {
   int tab = 0;
+  bool showEnquiryExamples = false;
   String location = 'All locations';
   PropertyCategory? category;
+  int? maxAmount, bedrooms;
+  Furnishing? furnishing;
+  bool sortByTitle = false;
+  BuyerFilters get filters => BuyerFilters(
+    category: category,
+    location: location,
+    maxAmount: maxAmount,
+    bedrooms: bedrooms,
+    furnishing: furnishing,
+  );
   final favorites = <String>{};
+  late final collections = BuyerCollections(favorites);
   List<DemoProperty> recentlyViewed = [];
   final favoriteRevision = ValueNotifier<int>(0);
   final query = TextEditingController();
@@ -26,6 +46,7 @@ class _BuyerShellState extends State<BuyerShell> {
     query.dispose();
     searchFocus.dispose();
     favoriteRevision.dispose();
+    collections.dispose();
     super.dispose();
   }
 
@@ -34,12 +55,21 @@ class _BuyerShellState extends State<BuyerShell> {
     setState(() => tab = index);
   }
 
+  void selectCategory(PropertyCategory? next) => setState(() {
+    maxAmount = budgetAfterCategoryChange(category, next, maxAmount);
+    category = next;
+  });
+
   void toggleFavorite(String id) => setState(() {
-    if (!favorites.add(id)) favorites.remove(id);
+    if (!favorites.add(id)) {
+      favorites.remove(id);
+    }
+    collections.favoriteChanged(id);
     favoriteRevision.value++;
   });
   void openProperty(DemoProperty property) {
     setState(() => recentlyViewed = recordDemoView(recentlyViewed, property));
+    favoriteRevision.value++;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => AnimatedBuilder(
@@ -52,6 +82,63 @@ class _BuyerShellState extends State<BuyerShell> {
         ),
       ),
     );
+  }
+
+  void openRecent() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) {
+          return AnimatedBuilder(
+            animation: favoriteRevision,
+            builder: (_, _) {
+              return Scaffold(
+                appBar: AppBar(title: const Text('Recently Viewed')),
+                body: SafeArea(
+                  child: BuyerPage(
+                    children: [
+                      const Text(
+                        'Fictional demo listings. History stays in memory only.',
+                      ),
+                      const SizedBox(height: 16),
+                      if (recentlyViewed.isEmpty)
+                        const EmptySection(
+                          title: 'No recently viewed properties',
+                          message: 'Open a property to see it here.',
+                        )
+                      else
+                        PropertyResults(
+                          properties: recentlyViewed,
+                          favorites: favorites,
+                          onFavorite: toggleFavorite,
+                          onOpen: openProperty,
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> openFilters() async {
+    FocusScope.of(context).unfocus();
+    final selected = await showModalBottomSheet<BuyerFilters>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => BuyerFilterSheet(initial: filters),
+    );
+    if (!mounted || selected == null) return;
+    setState(() {
+      category = selected.category;
+      location = selected.location;
+      maxAmount = selected.maxAmount;
+      bedrooms = selected.bedrooms;
+      furnishing = selected.furnishing;
+    });
   }
 
   void browse({bool focus = false}) {
@@ -100,9 +187,16 @@ class _BuyerShellState extends State<BuyerShell> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text(
+      toolbarHeight: tab == 0 ? 48 : null,
+      backgroundColor: tab == 0 ? BrandColors.forest : null,
+      foregroundColor: tab == 0 ? Colors.white : null,
+      title: Text(
         'HOMEZONE',
-        style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 1.5),
+        style: TextStyle(
+          fontSize: tab == 0 ? 18 : null,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.5,
+        ),
       ),
       actions: [
         IconButton(
@@ -117,35 +211,90 @@ class _BuyerShellState extends State<BuyerShell> {
         index: tab,
         children: [
           BuyerHomeScreen(
+            refinements: filters,
+            onLocality: (value) {
+              query.text = value;
+              browse();
+            },
             recentlyViewed: recentlyViewed,
             location: location,
             onLocation: chooseLocation,
             onSearch: () => browse(focus: true),
             category: category,
-            onCategory: (value) => setState(() => category = value),
+            onCategory: selectCategory,
             favorites: favorites,
             onFavorite: toggleFavorite,
             onOpen: openProperty,
           ),
           BuyerSearchScreen(
+            refinements: filters,
+            onFilters: openFilters,
+            sortByTitle: sortByTitle,
+            onSort: (value) => setState(() => sortByTitle = value),
             controller: query,
             focusNode: searchFocus,
             onQuery: (_) => setState(() {}),
             location: location,
             onLocation: chooseLocation,
             category: category,
-            onCategory: (value) => setState(() => category = value),
+            onCategory: selectCategory,
             favorites: favorites,
             onFavorite: toggleFavorite,
             onOpen: openProperty,
           ),
           BuyerSavedScreen(
+            onShortlists: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BuyerShortlistsScreen(
+                  collections: collections,
+                  onFavorite: toggleFavorite,
+                  onOpen: openProperty,
+                ),
+              ),
+            ),
+            onCompare: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BuyerCompareScreen(collections: collections),
+              ),
+            ),
             favorites: favorites,
             onFavorite: toggleFavorite,
             onOpen: openProperty,
             onSearch: browse,
           ),
-          const BuyerProfileScreen(),
+          BuyerProfileScreen(
+            onSaved: () => selectTab(2),
+            onShortlists: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BuyerShortlistsScreen(
+                  collections: collections,
+                  onFavorite: toggleFavorite,
+                  onOpen: openProperty,
+                ),
+              ),
+            ),
+            onCompare: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BuyerCompareScreen(collections: collections),
+              ),
+            ),
+            onEnquiries: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => AnimatedBuilder(
+                  animation: favoriteRevision,
+                  builder: (_, _) => BuyerEnquiriesScreen(
+                    showExamples: showEnquiryExamples,
+                    onExamples: (value) {
+                      setState(() => showEnquiryExamples = value);
+                      favoriteRevision.value++;
+                    },
+                    onOpen: openProperty,
+                  ),
+                ),
+              ),
+            ),
+            onRecent: openRecent,
+          ),
         ],
       ),
     ),

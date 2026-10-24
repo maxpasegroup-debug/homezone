@@ -8,13 +8,17 @@ import { fileURLToPath } from "node:url";
 import { Auth } from "@auth/core";
 import { encode } from "next-auth/jwt";
 import ts from "typescript";
+import { sharedSigninStore } from './fixtures/shared-signin-store.mjs';
 
 const state = { users: new Map(), sessions: new Map(), resets: new Map(), cookie: "", failWrite: false, failRevoke: false, delivery: "false" };
+const signinStore = sharedSigninStore();
 globalThis.__sessionSecurity = state;
 state.secret = randomBytes(32).toString("hex");
 state.core = Auth;
 let queue = Promise.resolve();
 const db = {
+  registrationBudget: signinStore.db.registrationBudget,
+  $queryRaw: signinStore.db.$queryRaw,
   user: {
     create: async ({ data }) => {
       const user = { id: "new", email: data.email, name: data.name, role: data.profile.create.role,
@@ -76,8 +80,9 @@ const db = {
     queue = new Promise((resolve) => { release = resolve; });
     await previous;
     const snapshot = structuredClone({ users: state.users, sessions: state.sessions, resets: state.resets });
+    const budgetSnapshot = structuredClone(signinStore.rows);
     try { return await callback(db); }
-    catch (error) { Object.assign(state, snapshot); throw error; }
+    catch (error) { Object.assign(state, snapshot); signinStore.rows.clear(); for(const [key,row] of budgetSnapshot)signinStore.rows.set(key,row); throw error; }
     finally { release(); }
   }
 };
@@ -117,7 +122,7 @@ const hooks = registerHooks({
 });
 const { handlers } = await import("../backend/auth.ts");
 const resetRoute = await import("../backend/api/auth/password/reset/route.ts");
-const signupRoute = await import("../backend/api/auth/password/signup/route.ts");
+
 const adminRoute = await import("../backend/api/admin/users/[id]/password/route.ts");
 const forgotRoute = await import("../backend/api/auth/password/forgot/route.ts");
 const profileRoute = await import("../backend/api/profile/route.ts");
@@ -133,9 +138,10 @@ state.config.basePath = "/api/auth";
 const initialPassword = randomBytes(16).toString("hex") + "Az1";
 const newPassword = randomBytes(16).toString("hex") + "Az2";
 const origin = "https://homezone-production.up.railway.app";
-const oldEnv = { AUTH_SECRET: process.env.AUTH_SECRET, AUTH_URL: process.env.AUTH_URL, AUTH_STAGING_ORIGIN: process.env.AUTH_STAGING_ORIGIN };
+const oldEnv = { AUTH_SECRET: process.env.AUTH_SECRET, AUTH_URL: process.env.AUTH_URL, AUTH_STAGING_ORIGIN: process.env.AUTH_STAGING_ORIGIN, PASSWORD_SIGNIN_HMAC_KEY: process.env.PASSWORD_SIGNIN_HMAC_KEY };
 
 async function seed() {
+  signinStore.rows.clear(); process.env.PASSWORD_SIGNIN_HMAC_KEY = 'synthetic-session-fixture-signin-hmac-key';
   state.users = new Map(); state.sessions = new Map(); state.resets = new Map();
   state.failWrite = false; state.failRevoke = false; state.cookie = "";
   for (const id of ["user", "other", "admin"]) state.users.set(id, {
@@ -235,14 +241,28 @@ test("real Auth.js callbacks and password handlers enforce session security", as
       state.cookie = current.cookie();
       assert.equal((await profileRoute.GET()).status, 200);
     });
-    await t.test("existing password signup can sign in using the new session registry", async () => {
+    await t.test("verified registration credentials can sign in using the session registry", async () => {
       await seed();
-      const response = await signupRoute.POST(jsonRequest("/api/auth/password/signup", {
-        name: "Fixture New User", email: "new@fixture.invalid", password: initialPassword
-      }));
-      assert.equal(response.status, 201);
+      // Registration activation is exercised against real handlers in registration.test.mjs.
+      await db.user.create({ data: { name: "Fixture New User", email: "new@fixture.invalid",
+        emailVerified: new Date(), passwordCredential: { create: { passwordHash: await passwords.hashPassword(initialPassword) } },
+        profile: { create: { role: "USER" } } } });
       assert.equal(state.users.get("new").role, "USER");
       assert.ok((await session((await signIn("new")).cookie())).user);
+    });
+    await t.test("shared admission failure never issues sessions and recovery retains quotas", async () => {
+      await seed();const query=db.$queryRaw;
+      try {
+        db.$queryRaw=async()=>{throw new Error('SYNTHETIC_PRIVATE_SHARED_FAILURE');};
+        assert.equal(await session((await signIn('user',initialPassword,false)).cookie()),null);
+        assert.equal(await session((await signIn('missing',initialPassword,false)).cookie()),null);
+        assert.equal(state.sessions.size,0);assert.equal(signinStore.rows.size,0);
+      } finally {db.$queryRaw=query;}
+      assert.ok((await session((await signIn()).cookie())).user);
+      const account=[...signinStore.rows.values()].find(v=>v.key.includes(':account:'));
+      account.count=10;const before=state.sessions.size;
+      assert.equal(await session((await signIn('user',initialPassword,false)).cookie()),null);
+      assert.equal(state.sessions.size,before);assert.equal(account.count,10);
     });
     await t.test("administrator password change revokes only the affected user", async () => {
       await seed(); const user = await signIn(), admin = await signIn("admin"), other = await signIn("other");

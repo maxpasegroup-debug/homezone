@@ -3,6 +3,7 @@ import '../../../shared/ui/auth_components.dart';
 import '../../../theme/design_tokens.dart';
 import '../data/demo_properties.dart';
 import '../widgets/buyer_components.dart';
+import '../data/buyer_filters.dart';
 
 class BuyerHomeScreen extends StatelessWidget {
   const BuyerHomeScreen({
@@ -16,6 +17,8 @@ class BuyerHomeScreen extends StatelessWidget {
     required this.onFavorite,
     this.onOpen,
     this.recentlyViewed = const [],
+    this.refinements = const BuyerFilters(),
+    this.onLocality,
   });
   final String location;
   final VoidCallback onLocation, onSearch;
@@ -24,16 +27,24 @@ class BuyerHomeScreen extends StatelessWidget {
   final Set<String> favorites;
   final List<DemoProperty> recentlyViewed;
   final ValueChanged<DemoProperty>? onOpen;
+  final BuyerFilters refinements;
+  final ValueChanged<String>? onLocality;
   final ValueChanged<String> onFavorite;
   @override
   Widget build(BuildContext context) {
     final properties = filterDemoProperties(
       location: location,
       category: category,
-    );
+    ).where(refinements.accepts).toList();
     final featured = properties.where((p) => p.featured).toList();
     final recommended = properties.where((p) => !p.featured).toList();
     return BuyerPage(
+      padding: const EdgeInsets.fromLTRB(
+        Space.md,
+        Space.sm,
+        Space.md,
+        Space.lg,
+      ),
       children: [
         Align(
           alignment: Alignment.centerLeft,
@@ -44,13 +55,12 @@ class BuyerHomeScreen extends StatelessWidget {
             label: Text('$location · Preview'),
           ),
         ),
-        const SizedBox(height: Space.md),
-        const SectionHeader(
-          eyebrow: 'WELCOME TO HOMEZONE',
-          title: 'Find your next chapter.',
-          subtitle: 'A home that feels like you.',
+        const SizedBox(height: Space.xs),
+        Text(
+          'Find your next chapter.',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
-        const SizedBox(height: Space.lg),
+        const SizedBox(height: Space.sm),
         TextField(
           key: const ValueKey('home-search'),
           readOnly: true,
@@ -60,14 +70,60 @@ class BuyerHomeScreen extends StatelessWidget {
             prefixIcon: Icon(Icons.search),
           ),
         ),
-        const SizedBox(height: Space.md),
-        CategoryFilter(category: category, onChanged: onCategory),
-        const SizedBox(height: Space.lg),
-        const PreviewNotice(
-          message:
-              'Demo properties only. Search, location and favorites stay on this screen session. No live inventory.',
+        const SizedBox(height: Space.sm),
+        CategoryFilter(
+          category: category,
+          onChanged: onCategory,
+          compact: true,
         ),
-        const SizedBox(height: Space.lg),
+        const SizedBox(height: Space.md),
+        Text(
+          'Popular localities',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: Space.xs),
+        Wrap(
+          spacing: Space.sm,
+          runSpacing: Space.sm,
+          children: [
+            for (final entry in [
+              ('Kakkanad', 'assets/images/residence-day.jpg'),
+              ('Aluva', 'assets/images/residence-evening.jpg'),
+              ('Vyttila', 'assets/images/residence-day.jpg'),
+            ])
+              SizedBox(
+                width: 86,
+                child: InkWell(
+                  onTap: onLocality == null
+                      ? null
+                      : () => onLocality!(entry.$1),
+                  child: Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.asset(
+                          entry.$2,
+                          height: 52,
+                          width: 86,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(entry.$1, textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: Space.md),
+        Text(
+          'Fictional demo listings · Offline preview',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: Space.xs),
         Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -84,7 +140,7 @@ class BuyerHomeScreen extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: Space.md),
+        const SizedBox(height: Space.sm),
         if (featured.isEmpty)
           const EmptySection(
             title: 'No featured demos',
@@ -93,11 +149,17 @@ class BuyerHomeScreen extends StatelessWidget {
         else
           PropertyResults(
             properties: featured,
+            grid: true,
             favorites: favorites,
             onFavorite: onFavorite,
             onOpen: onOpen,
           ),
-        const SizedBox(height: Space.lg),
+        const SizedBox(height: Space.md),
+        const PreviewNotice(
+          message:
+              'Demo properties only. Search, location and favorites stay in this buyer preview. No live inventory.',
+        ),
+        const SizedBox(height: Space.md),
         Text(
           'Recommended properties',
           style: Theme.of(
@@ -117,6 +179,7 @@ class BuyerHomeScreen extends StatelessWidget {
         else
           PropertyResults(
             properties: recommended,
+            grid: true,
             favorites: favorites,
             onFavorite: onFavorite,
             onOpen: onOpen,

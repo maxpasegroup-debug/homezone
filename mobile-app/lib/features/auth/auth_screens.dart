@@ -3,11 +3,15 @@ import 'auth_form_screen.dart';
 import 'sign_in_controller.dart';
 
 class SignInScreen extends StatelessWidget {
-  const SignInScreen({super.key, this.controller});
+  const SignInScreen({super.key, this.controller, this.serviceMode = false});
   final SignInController? controller;
+  final bool serviceMode;
   @override
-  Widget build(BuildContext context) =>
-      AuthFormScreen(mode: AuthFormMode.signIn, signInController: controller);
+  Widget build(BuildContext context) => AuthFormScreen(
+    mode: AuthFormMode.signIn,
+    signInController: controller,
+    serviceMode: serviceMode,
+  );
 }
 
 class SignUpScreen extends StatelessWidget {

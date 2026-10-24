@@ -145,7 +145,7 @@ void main() {
         await tester.pumpAndSettle();
       }
       await tester.drag(
-        find.byType(SingleChildScrollView),
+        find.byType(SingleChildScrollView).first,
         const Offset(0, -400),
       );
       await tester.pumpAndSettle();
