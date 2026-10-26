@@ -15,6 +15,20 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         documents = DocumentBridge(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "homezone/public-media-browser")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "open") result.notImplemented()
+                else try {
+                    val raw = call.argument<String>("url") ?: ""
+                    val hosts = call.argument<List<String>>("hosts") ?: emptyList()
+                    val uri = Uri.parse(raw)
+                    require(raw.length <= 2048 && raw.none { it.isWhitespace() || it.isISOControl() } &&
+                        hosts.size in 1..32 && uri.scheme == "https" && uri.host != null &&
+                        hosts.contains(uri.host!!.lowercase()) && uri.encodedUserInfo == null &&
+                        (uri.port == -1 || uri.port == 443) && uri.fragment == null)
+                    startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE)); result.success(true)
+                } catch (_: Exception) { result.success(false) }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "homezone/private-documents")
             .setMethodCallHandler { call, result -> documents?.handle(call, result) }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "homezone/account-browser")

@@ -50,6 +50,8 @@ final class Listing {
       'country',
       'currency',
       'areaUnit',
+      'videoUrl',
+      'virtualTourUrl',
     ]) {
       if (data[key] != null && data[key] is! String) {
         throw const ApiException(ApiFailure.invalidResponse);
@@ -207,6 +209,9 @@ final class MarketplaceRepository {
   }
 
   Future<ListingPage> listings(Map<String, String> filters, int page) async {
+    if (page < 1 || page > 1000) {
+      throw const ApiException(ApiFailure.validation);
+    }
     final data = await call(
       'GET',
       '/api/mobile/properties',
@@ -218,8 +223,13 @@ final class MarketplaceRepository {
         data['page'] != page) {
       throw const ApiException(ApiFailure.invalidResponse);
     }
+    final rows = objects(data['properties']);
+    // Enforce the requested page size before exposing catalog data to widgets.
+    if (rows.length > 12 || (data['hasMore'] == true && rows.length != 12)) {
+      throw const ApiException(ApiFailure.invalidResponse);
+    }
     return ListingPage(
-      objects(data['properties']).map(Listing.parse).toList(),
+      rows.map(Listing.parse).toList(),
       data['hasMore'] as bool,
     );
   }

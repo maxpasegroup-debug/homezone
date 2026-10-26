@@ -1125,3 +1125,674 @@ build/owner-media-continuation/. No reset, clean, stash, revert, stage, commit,
 push, deployment or remote migration. Source advanced; remaining functionality
 and external gates are not declared complete. G7 remains BLOCKED; staging and
 production remain NOT VERIFIED.
+
+## Amenities, public media and configuration milestone — 2026-10-26
+
+Actual baseline changed since the historical report: main at
+2a31a9102afc9a26a57561eeb941b2ca83badcd5, **clean working tree**, zero staged.
+This commit was already present before this pass; no commit/index/history change
+was performed here. The preceding implementation is retained in that baseline.
+Earlier QA and APK artifacts remain present.
+
+### Completed source changes
+
+- Owner amenities: existing backend array now has a reusable newline-list editor,
+  loaded through the owned-workspace projection. Trim/dedup/clear semantics and
+  server/client limits are explicit (100 entries, 120 characters each), matching
+  the existing mobile listing-array bound. No fictional amenities or unsupported
+  furnishing fields are invented. Blank PATCH does not erase a missing legacy
+  field. Owner description input now supports the actual 3,000-character contract.
+- Owner video/tour controls: set/change/remove existing public links through the
+  established media API. New URL writes are validated HTTPS without userinfo,
+  fragments or managed private-document routes. Existing profile/property locks,
+  suspension/owner checks, photo quota and stale-write checks remain. Digest state
+  now includes videoUrl/virtualTourUrl as well as cover/gallery. No file deletion,
+  media-provider cleanup or remote upload is performed by removing a link.
+- Buyer integration: published projections and the safe Listing model include
+  existing public video/tour fields. Details offers a confirmed external-browser
+  handoff only for explicitly approved hosts. Missing/unapproved links have honest
+  unavailable states. App credentials/cookies are never transferred. No autoplay,
+  embedded playback, fake video or floor-plan content is claimed.
+- Native source: separate homezone/public-media-browser channel on Android/iOS,
+  with repeated HTTPS/approved-host/port/userinfo/fragment checks. Existing account
+  payment-browser and authenticated document channels were not broadened.
+- Configuration: optional HOMEZONE_MEDIA_HOSTS and --media-hosts, independent from
+  image hosts; empty default disables handoff. Existing four-setting local files
+  remain accepted. Unknown/secret keys are rejected, domains are exact lowercase
+  hostnames (maximum 32), and preparation now enforces the existing build wrapper
+  4 KiB settings bound before writing. No approved origin/config file was supplied
+  or generated and no actual media URL was opened.
+- Role inspection: prior owner lifecycle checks, broker/builder scoped modules,
+  service request/quote/booking and Studio workflows were retained. No duplicate
+  role screens, new delegation privileges, refund execution or deletion policy
+  were introduced merely to claim completion.
+
+### Files changed
+
+New:
+- mobile-app/lib/features/marketplace/public_listing_media_button.dart
+
+Updated:
+- mobile-app/lib/features/workspace/workspace_screen.dart
+- mobile-app/lib/features/workspace/listing_photographs_screen.dart
+- mobile-app/lib/features/marketplace/marketplace_screen.dart
+- mobile-app/lib/features/marketplace/marketplace_repository.dart
+- mobile-app/android/app/src/main/kotlin/com/example/homezone_mobile/MainActivity.kt
+- mobile-app/ios/Runner/AppDelegate.swift
+- backend/api/properties/[id]/media/route.ts
+- src/app/api/mobile/workspace/route.ts
+- src/lib/properties/mobile-catalog.ts
+- src/lib/api/validation.ts
+- mobile-app/scripts/prepare-service-config.mjs
+- mobile-app/scripts/service-config.mjs
+- mobile-app/config/README.md
+- mobile-app/docs/CONTINUATION_ACCOUNT_AND_SERVICE_GATES.md
+- mobile-app/docs/MASTER_IMPLEMENTATION.md
+
+No package, schema or migration changes in this pass. Existing unexecuted
+migrations still need owner review; nothing was applied to a database.
+
+### Remaining source/external gates
+
+| Area | Remaining actual limitation |
+|---|---|
+| Owner/buyer media | Public video/tour handoff is source-implemented, not operationally verified. No native embedded player or video-upload picker was added. Floor plans remain unavailable. Owner must approve hosts/content/provider privacy; new URL validation is not proof of public-content safety or harmlessness. Legacy invalid URLs are not migrated or silently replaced. |
+| Private files/scanning | Existing bounded encrypted PDF/scanner integration remains fail-closed. No provider/scanner availability was exercised. Large private media, streaming/resumable transfer, quarantine/promotion and retention remain dependent on a selected approved storage/scanner contract. |
+| Broker/builder/team | Existing authorized workflows remain. Account-link consent, invitation, delegated actions and revocation/reassignment require explicit policy. No inferred cross-team access. PostgreSQL reservation/concurrency behavior remains unverified. |
+| Provider/Studio/financial | Existing booking/quote/Studio controls retained. Provider credentials, verified webhooks, financial/store policies and large private delivery support remain gates. No actual refund execution. |
+| Account lifecycle | Human review source remains available, with no irreversible deletion/purge, automatic reopening or refund authorization. Retention, eligibility, execution authority and reconciliation policies must be approved. |
+| Auth/service/release | Exact owner-approved origin and operational backend configuration still not supplied/used in this pass. G7 remains blocked; iOS compilation needs Mac/Xcode; approved identity/signing and later authorized runtime/security checks remain outstanding. |
+
+No live connectivity, complete product milestone or production readiness claimed.
+Future regression cases are deferred to separately authorized testing: amenity
+round-trip/clear/legacy values, URL validation, media digest conflicts, missing
+provider/host config, native handoff failure, no credential transfer, browser
+consent/cancellation, accessibility and iOS behavior. Compilation is not evidence
+those security/runtime journeys passed.
+
+### Exact owner configuration path
+
+Approved API origin: **NOT SUPPLIED OR USED IN THIS PASS**. Do not infer approval
+from existing backend source URL constants. Owner supplies a reachable canonical
+HTTPS origin matching trusted backend auth configuration, explicit environment,
+exact public-image hosts and separately approved public-video/tour hosts.
+From mobile-app, only after values and use are authorized:
+
+    node scripts/prepare-service-config.mjs --environment staging --origin <APPROVED_HTTPS_ORIGIN> --image-hosts <EXACT_IMAGE_HOSTS> --media-hosts <APPROVED_PUBLIC_MEDIA_HOSTS>
+    node scripts/build-android.mjs --mode service --config config/staging.local.json
+
+--media-hosts is optional; omission disables media handoff. Four required public
+settings plus optional HOMEZONE_MEDIA_HOSTS are the only accepted build settings.
+Server-only inputs remain isolated DATABASE_URL/migration/recovery evidence,
+canonical auth URLs and AUTH_SECRET/OTP_PEPPER/PASSWORD_SIGNIN_HMAC_KEY,
+restricted Resend delivery settings, approved Cloudinary photo configuration,
+private encryption keys and PRIVATE_FILE_SCANNER_APPROVED/URL/KEY under the
+strict documented contract. No credential or URL value is fabricated or embedded
+in the app. Scanner, private-storage and payment operational ownership/retention
+requirements are in the related continuation documents. Remote settings unchanged.
+
+### Actual development checks
+
+1. npm run typecheck — two invocations, both exit 0; final run includes the
+   private-document-path rejection for new public media links.
+2. From mobile-app, CI=true:
+   C:\src\flutter\bin\cache\dart-sdk\bin\dart.exe --suppress-analytics format lib/features/workspace/workspace_screen.dart lib/features/workspace/listing_photographs_screen.dart lib/features/marketplace/marketplace_screen.dart lib/features/marketplace/marketplace_repository.dart lib/features/marketplace/public_listing_media_button.dart
+   exit 0: five files formatted, four changed.
+3. node --check scripts/service-config.mjs; node --check scripts/prepare-service-config.mjs;
+   node --check scripts/build-android.mjs — all exit 0. The preparation syntax
+   check was repeated after adding the 4 KiB guard, exit 0. No real config generated.
+4. From mobile-app, JAVA_HOME=C:\Program Files\Java\jdk-17:
+   node scripts/build-android.mjs --mode preview
+   exit 0: BUILD SUCCESSFUL in 36s, 53 actionable tasks (18 executed, 35 up-to-date).
+   Cached --offline universal debug packaging; existing Gradle/Kotlin warnings
+   remain. New Dart/Android source compiled. iOS source not compiled on Windows.
+5. Local artifact existence/size/SHA-256 and prior archived APK inspected.
+
+No tests, analyzer/lint, QA/UAT, installation/launch, device checks, scanner/media
+requests, database connection, migrations, emails, refunds, deletion, staging or
+production verification occurred. No code diagnostics failed in these checks.
+
+### APK and repository preservation
+
+New APK warranted by the amenity/media UI and native channel implementation:
+C:\Users\kkyad\OneDrive\Desktop\homezone\homezone\mobile-app\build\app\outputs\apk\debug\app-debug.apk
+Universal debug, 184651650 bytes; SHA-256:
+574968D6C641EE5AEE74DDF506A24C8A60FCC6A6CE998C6F8F838F100703A331.
+Freshly written; OFFLINE PREVIEW, no API origin or approved public-media hosts.
+Not installed/launched/tested. Service UI is in the bundle, not a live connection.
+
+Evidence: build/android-source-builds/2026-10-26T09-20-57-084Z-6984/ contains
+build-record.json, gradle.log and previous-app-debug.apk. Earlier APK SHA-256
+EF5B8548E13A9F3F949868C486E3C5719A308298B191150C3C6F3626DF561E56 is
+preserved there. Earlier QA evidence was not deleted or overwritten.
+
+Final branch/commit unchanged: main / 2a31a9102afc9a26a57561eeb941b2ca83badcd5.
+Final tree: 15 modified tracked files, one untracked source file, zero staged.
+Initial/final status snapshots: build/amenity-media-continuation/. No reset,
+clean, stash, revert, stage, commit, push, deployment or remote migration. Earlier
+historical counts refer to older checkpoints, not this clean starting baseline.
+G7 remains BLOCKED; staging and production remain NOT VERIFIED.
+
+## Phase 2 - real backend connection (2026-10-26)
+
+Source inspection only; no runtime verification. Initial and final branch/commit:
+main / 2a31a9102afc9a26a57561eeb941b2ca83badcd5. Initial tree: 15 modified
+tracked files, one untracked source file, zero staged. Existing work retained.
+This phase updates this handoff only. No missing independent connection code
+was established that warrants replacing the existing implementation.
+
+### Existing source integration
+
+- lib/main.dart explicitly selects preview or service startup. Service startup
+  constructs the configured transport, coordinator, owned password protocol,
+  controller and shared marketplace repository. Invalid configuration shows an
+  error; it does not silently substitute fictional live data.
+- core/api/api_client.dart enforces origin boundaries, bounded response size,
+  timeouts, redirect restrictions and safe typed status/network errors.
+- core/api/password_auth_protocol.dart uses Auth.js CSRF bootstrap, password
+  callback and independent /api/auth/session verification before identity.
+- features/auth/sign_in_controller.dart restoreSession, revalidateSession and
+  signOut preserve generation/expiry checks. SessionVault uses origin/environment
+  scoped native protected storage. Stored credentials alone do not prove identity.
+  Local clearing alone does not revoke a server session.
+- features/marketplace/marketplace_repository.dart uses coordinated cookie tickets,
+  session admission and generation-scoped results. Catalog parsing requires
+  database provenance and published listings; service errors do not select demo data.
+- Existing src/app/api/mobile/properties, account and workspace routes are shared
+  website/backend contracts. Account and role authorization remains server-side.
+  Website admin is retained; no separate Flutter admin was introduced.
+
+These facts describe source wiring, not proven network or native behavior.
+
+### Blocking owner input: approved origin
+
+railway.json defines build/start and migration preDeploy commands but no hostname.
+None was executed. src/lib/auth/redirect.ts contains the existing allowlist entry
+https://homezone-production.up.railway.app. That source literal does NOT establish
+current deployment state, isolation, approval or permission to contact production.
+INFRASTRUCTURE_OWNER_SIGNOFF.md still marks the approved canonical HTTPS origin
+and media hosts NOT PROVIDED. No approved service configuration can be selected
+from that evidence. No URL was guessed, configured, resolved or contacted.
+
+Required owner inputs:
+1. Exact approved canonical HTTPS API origin and environment, with isolated
+   application/database/migration-target ownership evidence.
+2. Matching backend AUTH_URL/NEXTAUTH_URL and staging AUTH_STAGING_ORIGIN where
+   applicable. authOrigin rejects missing/conflicting required selectors; the
+   backend development localhost default is not a phone endpoint.
+3. Exact public image hosts and optional approved public video/tour hosts.
+4. Server-only database/auth/OTP/limiter, restricted-email, photo-provider and
+   private encryption/scanner provisioning. No secrets in Flutter build settings.
+5. Separate authorization for subsequent connection and runtime verification.
+
+Existing preparation command from mobile-app, NOT executed:
+
+    node scripts/prepare-service-config.mjs --environment staging --origin <APPROVED_HTTPS_ORIGIN> --image-hosts <EXACT_IMAGE_HOSTS> --media-hosts <APPROVED_PUBLIC_MEDIA_HOSTS>
+
+The existing script validates public inputs and writes ignored local configuration
+without overwriting files or contacting services. Android service packaging rejects
+loopback/cleartext and unknown settings. Configuration or packaging alone cannot
+prove connectivity. No service config or APK generated in this phase.
+
+### Actual checks and preservation
+
+Local Git branch/HEAD/status, source/document reads and APK SHA-256 inspections:
+exit 0. No tests, analyzer/lint, compilation, builds, installation, launch, database
+access, migrations or external requests. No source changes required compilation.
+An attempted context patch could not decode this existing document as UTF-8; no
+bytes changed in that failed operation. This section was appended without rewriting
+its existing contents.
+Existing offline-preview APK SHA-256 unchanged:
+574968D6C641EE5AEE74DDF506A24C8A60FCC6A6CE998C6F8F838F100703A331.
+Final tree: 15 modified tracked files, one untracked file, zero staged; branch and
+commit unchanged. No index/history changes or QA artifact removal.
+Connection status: BLOCKED ON APPROVED ORIGIN AND OWNER INFRASTRUCTURE EVIDENCE.
+G7 remains BLOCKED. Staging and production remain NOT VERIFIED.
+## Backend URL identification - local evidence (2026-10-26)
+
+No host contacted and no deployment state verified. Additional evidence reveals
+an unresolved custom-domain conflict:
+- docs/GOOGLE_OAUTH_SETUP.md names https://maxpase.com as production, including
+  AUTH_URL/NEXTAUTH_URL/site URL and Google callback configuration instructions.
+  These are setup instructions, not evidence that settings were applied.
+- src/lib/auth/redirect.ts:1 permits the production origin
+  https://homezone-production.up.railway.app. Without a matching explicit approved
+  staging origin, authOrigin rejects maxpase.com. Do not repurpose the staging
+  approval selector to bypass an unresolved production-domain decision.
+- railway.json has no assigned hostname. .env.example contains development
+  localhost URLs, not a mobile production endpoint. No concrete staging URL was
+  identified in inspected configuration/readiness documents.
+- Next.js serves /api/mobile/properties, /api/mobile/properties/[id] and the
+  Auth.js catch-all on the website origin. Mobile base URL is the origin without
+  /api; endpoint paths already include /api. No separate backend hostname was found.
+- next.config.ts permits HTTPS res.cloudinary.com and images.unsplash.com for
+  website images. This does not configure Flutter: HOMEZONE_IMAGE_HOSTS needs an
+  explicitly approved exact-host list; HOMEZONE_MEDIA_HOSTS is separate and empty
+  disables public video/tour handoff. Actual listing hosts remain unverified.
+
+Recommendation: owner first confirms whether the intended canonical backend is
+its Railway hostname or maxpase.com and supplies a nonsecret deployment/domain
+and canonical-auth-settings attestation. Railway is the candidate compatible
+with the current production allowlist, not a verified/recommended production
+connection authorization. A separate isolated staging hostname requires owner
+identification and the existing explicit staging configuration contract.
+No origin/configuration/code change is made pending that decision. Backend
+secret/provider/database/ingress readiness remains unverified; values not inspected.
+Only this handoff was appended. No tests/builds/app/migrations/network actions.
+Git remains main / 2a31a9102afc9a26a57561eeb941b2ca83badcd5, 15 modified tracked
+files, one untracked file, zero staged. Existing APK and other work untouched.
+## Domain activation preparation: speeko.online (2026-10-26)
+
+Owner identified speeko.online as the intended domain and reported adding it.
+This supersedes earlier maxpase.com documentation as owner intent, but is NOT
+proof of DNS assignment, deployment identity, certificate issuance or API readiness.
+No external requests, DNS lookups, dashboard access or runtime checks performed.
+
+Hosting evidence: railway.json configures Railpack/npm build/start and automatic
+preDeploy npm run db:migrate. Actual Railway project/service/environment/domain
+assignment is unavailable locally. Do not trigger redeploy or variable-change
+rollouts without migration-target/history/backup review and separate approval.
+
+Remaining owner dashboard evidence/actions (not performed): identify the HOMEZONE
+web service and intended environment; inspect speeko.online domain entry and its
+exact provider-issued DNS/verification records and target-port requirements;
+confirm authoritative DNS matches those records without competing web records
+or changing mail records; resolve provider-reported verification issues; require
+valid active HTTPS for speeko.online. DNS values, certificate status and waiting
+period cannot be determined from this repository. Do not substitute a guessed
+CNAME/A/AAAA/TXT value or bypass certificate verification. Supply nonsecret domain
+status/record evidence; later separately authorize checking the actual app/API.
+
+Conditional API origin: https://speeko.online (no /api suffix), ONLY after the
+assigned target is confirmed as this Next.js HOMEZONE backend and HTTPS/API
+readiness is established. Repository routes exist at /api/mobile/properties,
+/api/mobile/properties/[id] and /api/auth/[...nextauth]; current deployment of
+those routes is not established by their source presence.
+
+Confirmed source blocker: src/lib/auth/redirect.ts permits the old Railway
+production origin. Merely setting AUTH_URL/NEXTAUTH_URL to speeko.online will
+not enable the current production auth guard. A separately approved canonical
+production-origin code change and subsequent authorized validation/deployment
+are needed. Do not label production as staging through AUTH_STAGING_ORIGIN to
+bypass that decision. If this is truly isolated staging, owner must approve that
+classification and its explicit marker/restricted-email policy.
+
+Required configuration names, values not inspected or provisioned:
+- Backend canonical selectors: AUTH_URL, NEXTAUTH_URL, NEXT_PUBLIC_SITE_URL;
+  agree on the final approved HTTPS origin. AUTH_STAGING_ORIGIN only for genuine
+  explicitly approved staging, with STAGING_EMAIL_RECIPIENTS restrictions.
+- Runtime/auth/database: NODE_ENV, DATABASE_URL, AUTH_SECRET, OTP_PEPPER,
+  PASSWORD_SIGNIN_HMAC_KEY; existing demo providers must remain appropriately
+  disabled. Shared limiter/ingress evidence remains outstanding (G7 BLOCKED).
+- Email: RESEND_API_KEY, RESEND_FROM_EMAIL or EMAIL_FROM; approved sender and
+  delivery restrictions. Domain TLS activation does not configure email delivery.
+- Photography: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+  where uploads are enabled. Optional private-document keys/scanner settings
+  remain server-only under the existing private-file contract.
+- Flutter public build settings: HOMEZONE_ENABLE_API, HOMEZONE_API_ENV,
+  HOMEZONE_API_BASE_URL, HOMEZONE_IMAGE_HOSTS, optional HOMEZONE_MEDIA_HOSTS.
+  No server secret belongs in the APK. No local service config generated.
+
+next.config.ts allows res.cloudinary.com and images.unsplash.com for website
+images; actual listing hosts still require approval. Flutter has its own exact
+host allowlists, empty image list uses fallback and empty media list disables
+public video/tour handoff. Private media remains protected, never made public.
+Auth.js password/CSRF/session verification and scoped protected restoration are
+already source-implemented and unchanged. Website remains the admin interface.
+
+Next single action: owner provides nonsecret Railway HOMEZONE service/domain
+status evidence showing the intended target, prescribed DNS records and current
+verification/HTTPS status. This permits identifying the exact remaining domain
+step without guessing. No credentials or full variable exports requested.
+
+Only this handoff appended; existing bytes/work/APK/QA evidence preserved. Local
+inspection commands exit 0. No tests/builds/migrations/network actions. Initial
+and final Git: main / 2a31a9102afc9a26a57561eeb941b2ca83badcd5; 15 modified
+tracked files, one untracked file, zero staged. No index/history changes.
+Domain, backend connection, staging and production remain NOT VERIFIED.
+## Phase 2 continuation - catalog and workspace integration (2026-10-26)
+
+Actual implementation in this task, without tests/builds/runtime access:
+- Marketplace discovery no longer silently stops after 120 records while the
+  backend reports more. Load-more follows the existing catalog contract up to
+  page 1000, with a visible refinement message at that API boundary. Each request
+  remains twelve records; backend validation/authorization/projections unchanged.
+- Repository catalog admission rejects out-of-range pages before dispatch and
+  rejects oversized or contradictory hasMore/page-size responses before widgets
+  consume them. Existing database provenance and listing parsing remain required.
+- Keyboard search now observes the same busy admission rule as the search button.
+  Previously it could change applied filters while load() refused the new request,
+  leaving displayed results associated with different filters.
+- Shared role-workspace invalidation clears loading, cursor, page and hasMore
+  together with records. The epoch/generation guard still prevents the obsolete
+  request from publishing. This benefits every existing workspace module without
+  adding permissions or altering business transitions.
+
+Files changed in this task:
+- lib/features/marketplace/marketplace_repository.dart
+- lib/features/marketplace/marketplace_screen.dart
+- lib/features/workspace/workspace_screen.dart
+- docs/MASTER_IMPLEMENTATION.md (this appended record)
+
+Existing buyer collections, owner media/amenities, broker notes/tasks/assignment,
+builder inventory/reservation, provider quotes/bookings and Studio controls are
+retained. Inspected existing contracts include mobile catalog, account collections,
+workspace and leads. This was not an exhaustive verification of every endpoint;
+no claim is made that all remaining product workflows are complete or functional.
+Existing shared Auth.js identity/session ownership, suspended-account enforcement,
+private-media/scanner fail-closed boundary and website administration are unchanged.
+No backend schema/route, dependency, secret, environment or host setting changed.
+
+Remaining work/dependencies: source compilation and later separately authorized
+regressions for more than ten catalog pages, API limit handling, malformed page
+responses, keyboard submissions during loads, and role-session invalidation.
+Operational scanner/storage/media, team-delegation policy, commission/payment
+rules, deletion/retention/refund execution and provider approvals remain owner or
+infrastructure gates. No business policy was inferred. G7 remains BLOCKED.
+
+Owner screenshot now supplies dashboard evidence: Railway environment label
+staging, HomeZone service Online, speeko.online assigned to port 8080 with
+Waiting for DNS update. This is evidence of the displayed status only; it does
+not prove isolation, HTTPS, current source deployment or endpoint availability.
+Exact provider-issued DNS records, successful verification/certificate status,
+approved environment classification and canonical auth-origin decision remain
+needed. The existing production-origin guard was NOT weakened or changed.
+No old hostname workaround, connected config or fictitious service success.
+
+Actual development command from mobile-app, CI=true:
+C:\src\flutter\bin\cache\dart-sdk\bin\dart.exe --suppress-analytics format lib/features/marketplace/marketplace_repository.dart lib/features/marketplace/marketplace_screen.dart lib/features/workspace/workspace_screen.dart
+Exit 0: formatted 3 files, 2 changed. Local source/Git reads and diff statistics
+also exited 0; Git emitted existing LF/CRLF normalization warnings. No analyzer,
+typecheck, tests, QA/UAT, builds, runtime checks, APK install/launch, migrations,
+external requests or provider actions. Existing APK not regenerated or changed.
+
+Initial/final branch main, commit 2a31a9102afc9a26a57561eeb941b2ca83badcd5.
+Initial/final status: 15 modified tracked files, one untracked source file, zero
+staged. All modifications were layered onto existing work; no reset/clean/stash/
+revert/stage/commit/push/deploy or QA-artifact removal. Staging/production and
+live mobile connectivity remain NOT VERIFIED. Implementation is not certification.
+## Role workflow continuation - guarded detail actions (2026-10-26)
+
+This task implements scoped source fixes, not completion/verification of all role
+features. Existing work preserved. Branch main, commit
+2a31a9102afc9a26a57561eeb941b2ca83badcd5; initial tree 15 modified tracked
+files, one untracked source file, zero staged.
+
+Implemented in lib/features/workspace/workspace_screen.dart:
+- Shared detail action now reserves busy synchronously before showing its
+  confirmation dialog. Previously busy was set only after confirmation, allowing
+  repeated activations to queue independent confirmations for the same record.
+  Cancellation, dialog failure, request failure and completion release the guard
+  through finally. Session identity/generation is checked again before dispatch.
+- Shared detail form navigation has the same early admission and finally release;
+  repeated taps cannot queue multiple edit forms. Stale forms cannot pop a newer
+  owner's route; existing current-generation checks remain.
+- Confirmed nonempty successful action responses produce explicit server-confirmed
+  feedback; empty/explicit ok:false bodies are rejected. Errors after dispatch use
+  existing mutation-aware wording (timeout is not proof the change was undone).
+  This is a UI guard, not server idempotency or concurrency certification.
+- Builder creation/edit tower floors now require integer 0..200; creation unit
+  floors accept integer -10..200, and bedroom/bathroom counts require integer
+  0..20, matching builderTowerSchema/builderUnitSchema rather than rejecting
+  valid basement floors or admitting unsupported fractional counts.
+- Broker commission percent input now enforces the existing server maximum 100.
+  No commission calculation, payout rule or authorization changed.
+
+Source trace/evidence and remaining gaps by role:
+- Buyer: marketplace repository/account collection/catalog routes retained;
+  visits/notifications use workspace routes. Shared action guard covers visit
+  cancellation and supported notification actions. Live collection consistency,
+  expiry/back-navigation behavior and all buyer journeys remain untested here.
+- Owner: properties and ownerEnquiries workspace modules retain actor filters;
+  detail status mutations use /api/properties/[id], existing media forms and
+  photo management retained. Shared guarded action/form navigation applies.
+  Operational upload/scanner/media availability and lifecycle races unverified.
+- Broker: crm/calendar/team/commissions workspace modules preserve BROKER gate;
+  task actions use /api/leads/[id]/tasks/[id], commission form uses
+  /api/pro/leads/[id]/commission with brokerCommissionSchema constraints.
+  Assignment/invitation/delegation policy remains limited to existing rules.
+- Builder: projects/units/towers/team/campaigns/bookings keep server BUILDER
+  gate and parent ownership. Unit creation route uses builderUnitSchema; tower
+  uses builderTowerSchema. Guard applies to booking/status detail actions.
+  Real PostgreSQL reservation/counter integrity and all project paths need later
+  authorized validation; no new concurrency guarantee is claimed.
+- Provider/Studio: providerRequests/requestQuotes/serviceBookings/studio preserve
+  existing authorized quote/booking/Studio endpoints and status choices. Guard
+  applies to shared detail mutations/forms. Provider approvals, payment execution,
+  operational availability and every response contract are not verified here.
+
+No exhaustive review of every endpoint is claimed. No backend route/schema or
+permission policy changed, no new endpoint/dependency/demo replacement. Existing
+website remains admin; session ownership, expiry, suspended-account enforcement,
+private-file authorization/scanner fail-closed behavior and UI design retained.
+
+Owner/external gates: speeko.online dashboard evidence still shows staging and
+Waiting for DNS update; HTTPS and correct deployed backend are NOT VERIFIED.
+Approved canonical origin/environment, exact DNS records, server/media/provider
+configuration and later separately authorized connection checks are required.
+Production-origin guard unchanged, no old-host workaround. Team delegation,
+commission/payment approvals, deletion, retention, refunds and provider approval
+policy are not invented. G7 remains BLOCKED pending authorized real evidence.
+
+Files changed during this task: workspace_screen.dart and this handoff only.
+Actual development command (from mobile-app, CI=true):
+C:\src\flutter\bin\cache\dart-sdk\bin\dart.exe --suppress-analytics format lib/features/workspace/workspace_screen.dart
+Exit 0: formatted one file, one changed. Local source/Git inspection and diff
+statistics performed; an exploratory search returned exit 1 for a nonexistent
+visits path, then existing mobile visit paths were used. No tests, analyzer,
+compilation/build, QA/UAT/runtime checks, APK installation/launch, requests,
+migrations or infrastructure actions. Formatting does not prove correctness.
+Regression work deferred: rapid repeated confirmation/form taps, cancel/dismiss,
+session change while confirming, failure/retry and success response feedback,
+negative basement floor, fractional floor/count rejection and commission >100.
+
+Final Git unchanged in count: 15 modified tracked files, one untracked, zero
+staged; branch/commit unchanged. Existing code/APK/QA evidence preserved. No
+reset/clean/stash/revert/stage/commit/push/deploy. Source remains untested in this
+phase; live backend connectivity, staging and production remain NOT VERIFIED.
+## Domain identity hold - owner-reported SPEEKO LABS page (2026-10-26)
+
+Inspection/preparation only. The owner now reports speeko.online opens a page
+identifying itself as SPEEKO LABS. This is owner-reported evidence, not an
+independently fetched observation. Earlier DNS-pending screenshot is historical.
+Current DNS/HTTPS status, deployed app identity and canonical origin remain
+UNVERIFIED. Do NOT supply this origin to Flutter authentication yet.
+
+Local identity evidence:
+- src/app/layout.tsx metadata title is HomeZone | Your AI Property Companion,
+  description describes real estate, and metadataBase is https://homezone.ai.
+  That metadata URL is another source identity inconsistency to reconcile only
+  after domain ownership/canonical origin is approved, not proof of a deployment.
+- src/app/page.tsx and existing components present HomeZone property/Studio/AI
+  content. No SPEEKO LABS branding was found in the inspected application source.
+- package.json names the application homezone and uses Next.js. railway.json
+  selects Railpack, npm run build and npm start -- --hostname 0.0.0.0.
+- docs/RAILWAY_VARIABLES.md specifies /homezone root and /homezone/railway.json
+  when the connected repository contains this inner directory. Confirm the
+  connected repository tree: do not blindly apply /homezone to a repository
+  whose root already contains package.json/prisma/railway.json.
+- Existing owner screenshot shows Railway HomeZone service in an environment
+  labelled staging, not evidence of current deployed revision or DB isolation.
+
+Conclusion: reported public branding does not match the local HOMEZONE source.
+The repository cannot determine whether this is a different service, wrong DNS,
+wrong connected source/root, stale deployment or a cache/proxy issue. These are
+possibilities, not diagnosed causes. A working domain or Railway service name
+alone is insufficient to approve a backend origin.
+
+Required owner evidence (nonsecret, no changes/redeployment): domain assignment
+and provider-issued DNS target; connected repository and branch; effective build
+root/config path; latest successful deployment commit and build/start log identity;
+service/environment and displayed certificate status. Compare the deployed source
+revision with the intended code (local changes remain uncommitted and are not
+made remote by their local presence). Owner confirms whether speeko.online is
+intended for HOMEZONE or intentionally remains assigned to another application.
+No removal of another app's domain/records without that ownership decision.
+
+Source/config preparation, NOT performed:
+- src/lib/auth/redirect.ts:1 currently pins the old Railway production origin.
+  If HOMEZONE production identity and canonical ownership are confirmed, the
+  precise production guard change is to replace its productionOrigin constant
+  with the approved canonical origin, retaining canonical URL, explicit selector,
+  same-origin redirect and staging-separation checks. Do not expand trust to
+  arbitrary hosts or use AUTH_STAGING_ORIGIN as a production bypass. Approval
+  of the domain name is distinct from proof it serves the intended backend.
+- For genuinely isolated staging, the existing explicit AUTH_STAGING_ORIGIN
+  mechanism is available; owner must approve the environment classification,
+  isolated DB and restricted email policy. No guard change was made here.
+- Website and API are one Next.js service. Existing src/app/api/auth catch-all
+  reexports backend Auth.js handlers; mobile catalog/detail/account/workspace
+  paths are existing routes. Actual deployment of these routes remains unknown.
+- Backend Auth.js JWT sessions, CSRF/password callback/independent session
+  verification, Flutter restoration/revalidation and native protected credential
+  storage retained. No separate Flutter admin or authentication system added.
+
+Railway/server settings requiring owner-approved provisioning, not inspected:
+AUTH_URL, NEXTAUTH_URL, NEXT_PUBLIC_SITE_URL must agree on the finally approved
+origin. NODE_ENV=production describes Next.js runtime even on staged hosting;
+it does not establish environment isolation. Genuine staging additionally uses
+AUTH_STAGING_ORIGIN and STAGING_EMAIL_RECIPIENTS. DATABASE_URL, AUTH_SECRET,
+OTP_PEPPER, PASSWORD_SIGNIN_HMAC_KEY, RESEND_API_KEY, RESEND_FROM_EMAIL (or
+EMAIL_FROM) require private provisioning/validation. Disable unapproved demo
+providers (DEMO_LOGIN_ENABLED, DEMO_MOBILE_LOGIN_ENABLED); no OTP diagnostic
+logging. Existing code sets trustHost:true; an environment switch does not prove
+trusted ingress. Distributed enforcement G7 and ingress approval remain gates.
+Photography uploads use CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/
+CLOUDINARY_API_SECRET. Optional private storage/scanner credentials stay server-only.
+
+Flutter build settings, only after identity/HTTPS approval: HOMEZONE_ENABLE_API,
+HOMEZONE_API_ENV, HOMEZONE_API_BASE_URL (origin without /api), HOMEZONE_IMAGE_HOSTS,
+optional HOMEZONE_MEDIA_HOSTS. No server secrets in APK. Website next.config.ts
+allows res.cloudinary.com/images.unsplash.com; actual approved listing hosts must
+be established separately for Flutter. No config file or APK created/changed.
+
+Migration risk: railway.json preDeployCommand runs npm run db:migrate;
+package.json resolves this to prisma migrate deploy. Any rollout that executes
+this hook may modify the database selected by that deployment's DATABASE_URL.
+Before redeployment require target/history/pending migration review, backup and
+recovery evidence plus explicit owner authorization. No deploy/migration performed.
+
+Single next action requiring owner approval: authorize an infrastructure owner
+to perform a READ-ONLY Railway/domain evidence review and provide the nonsecret
+service/source/root/deployment/domain evidence above. This is not authorization
+to change DNS/configuration, redeploy, run migrations or probe authentication.
+
+Only this handoff updated. Inspected railway.json, package.json, src/app/layout.tsx,
+src/app/page.tsx, src/lib/auth/redirect.ts, docs/RAILWAY_VARIABLES.md, next.config.ts,
+backend/auth.ts, Auth.js/mobile catalog route sources, Flutter main/API config/
+session controller/service-config script and environment example variable names.
+Local inspections only: some exploratory rg queries encountered the absent public
+folder/path and returned nonzero; no application validation claimed. No external
+requests, tests, builds, runtime checks, secrets inspection or Git mutations.
+Initial/final main / 2a31a9102afc9a26a57561eeb941b2ca83badcd5: 15 modified tracked
+files, one untracked, zero staged. Existing work and APK preserved. Backend
+connection, staging and production remain NOT VERIFIED.
+## Read-only Railway deployment review (2026-10-26)
+
+Current dashboard access unavailable: agent-browser and Railway CLI not found on
+PATH; no Railway connected integration discovered. Existing UI inventory returned
+no browsers/apps and native pipe unavailable (os error 2). No browser launch,
+login, remote settings request or public domain request attempted. No current
+Railway setting is represented as independently verified.
+
+Confirmed local facts: remote.origin.url is
+https://github.com/maxpasegroup-debug/homezone.git; local branch main, HEAD
+2a31a9102afc9a26a57561eeb941b2ca83badcd5. This does not prove the connected
+Railway repository/branch or deployed SHA. Existing uncommitted changes are not
+part of that commit merely because they exist locally.
+
+Evidence classification:
+- Prior owner screenshot: Railway project homezone, service HomeZone, selected
+  staging environment, speeko.online assigned with DNS pending at that time.
+  Historical screenshot is not current DNS/HTTPS or deployment evidence.
+- Documented root /homezone and config /homezone/railway.json apply only if the
+  connected repository has that inner directory. Effective dashboard root unknown.
+- Local railway.json: npm run build; npm start -- --hostname 0.0.0.0;
+  preDeploy npm run db:migrate. Actual dashboard overrides/deployed config unknown.
+- Local package.json maps db:migrate to prisma migrate deploy: redeployment can
+  change the selected DATABASE_URL target. Require migration/target/history,
+  backup/recovery review and separate approval before any rollout.
+- Local layout/page branding is HOMEZONE, not the owner-reported SPEEKO LABS page.
+  Actual domain target cannot be determined locally. No diagnosed DNS/root/source
+  cause; wrong target, older deployment and caching remain unproven possibilities.
+- layout.tsx metadataBase homezone.ai is a local metadata reference, not evidence
+  of DNS ownership or live hosting. Reconcile with approved canonical domain only
+  after target identity is established; nothing edited.
+- redirect.ts productionOrigin still pins the old Railway origin. After explicit
+  production-domain identity/approval, update that constant to the canonical
+  production origin while retaining all checks. Genuine staging has its existing
+  explicit approval mechanism, not a production bypass. No code change here.
+
+Single next owner action: provide nonsecret Railway Source settings (connected
+repository/branch/root), effective commands/config path, latest successful
+Deployment commit, selected environment and Networking domain/certificate status.
+Owner-approved read-only dashboard review is already authorized; these missing
+artifacts/access are the blocker, not a need to reapprove the same inspection.
+Do not supply Variables screenshots, secrets or full credential-bearing logs.
+Compare those artifacts with local facts before approving any correction. No
+configuration change, deployment, migration or Flutter connection is authorized
+by this evidence request.
+
+Only this handoff updated. Git/source reads and tool availability inspection
+completed; no tests/builds/runtime/API checks. Initial/final Git main / same HEAD,
+15 modified tracked files, one untracked, zero staged. Existing source/APK/QA work
+preserved. Backend connection, staging and production remain NOT VERIFIED.
+## Post-domain-verification preparation (2026-10-26)
+
+Owner now reports domain verification complete. Record this as owner-reported,
+not independently verified DNS/HTTPS/application evidence. It supersedes the old
+DNS-pending report only at that evidence level. Earlier SPEEKO LABS identity
+concern remains unresolved: no supplied deployment/source/domain evidence shows
+this domain serves the HOMEZONE backend. Owner intent for speeko.online is
+recorded in this handoff; source still references other origins.
+
+Exact proposed changes/settings after identity and environment approval (none
+performed here):
+1. Production: src/lib/auth/redirect.ts productionOrigin would change from the
+   old Railway hostname to https://speeko.online, preserving canonical-selector,
+   HTTPS/redirect and staging-separation checks. For genuinely isolated staging,
+   use the existing explicit staging contract instead; do not infer production
+   from NODE_ENV or misuse a staging marker to approve production.
+2. src/app/layout.tsx metadataBase would change from https://homezone.ai to the
+   approved canonical origin. Review docs/GOOGLE_OAUTH_SETUP.md obsolete maxpase
+   URL instructions alongside that change; no third-party OAuth console change
+   is made or implied. Metadata is not API configuration or domain verification.
+3. Railway canonical selectors AUTH_URL and NEXTAUTH_URL must agree, with
+   NEXT_PUBLIC_SITE_URL aligned. Genuine staging additionally requires approved
+   AUTH_STAGING_ORIGIN and restricted STAGING_EMAIL_RECIPIENTS. Auth secrets,
+   isolated database, OTP/email/shared-limiter/provider prerequisites remain
+   server-only and unverified. No environment/secret values inspected.
+4. Flutter public build configuration, not created:
+   HOMEZONE_ENABLE_API=true;
+   HOMEZONE_API_ENV=<owner-confirmed staging or production>;
+   HOMEZONE_API_BASE_URL=https://speeko.online ONLY after target approval;
+   HOMEZONE_IMAGE_HOSTS=<approved exact lowercase listing-image hosts>;
+   HOMEZONE_MEDIA_HOSTS=<optional approved public video/tour hosts, otherwise empty>.
+   No /api suffix. Existing website image allowlist res.cloudinary.com and
+   images.unsplash.com is source evidence, not approval/verification of actual
+   listing hosts. Private file credentials/keys never enter this configuration.
+
+Existing Next.js catalog/Auth.js routes, Flutter configured client, CSRF/password
+callback, independent /api/auth/session verification and session safeguards
+inspected and unchanged. No new authentication mechanism needed for preparation.
+Missing/invalid service config remains explicit failure; preview is separate.
+
+Single next owner action: supply one nonsecret Railway evidence set showing
+HomeZone service, connected repository/branch, effective root/config path, latest
+successful deployed commit, selected environment and speeko.online assignment
+with current HTTPS/certificate status. Root /homezone applies only when that
+inner directory exists in the connected repository. Local HEAD does not include
+uncommitted work on the remote. This evidence must also resolve the reported
+SPEEKO LABS mismatch before any origin change or connection is approved.
+
+Redeploy risk unchanged: railway.json preDeploy npm run db:migrate resolves in
+package.json to prisma migrate deploy; rollout can change its DATABASE_URL target.
+Require database/migration-history/backup/recovery review and explicit separate
+migration/deployment authorization. Verification complete is not that approval.
+
+Only this handoff appended. Local Git/source inspection command exited 0; no
+external requests, tests/builds/runtime checks, app actions, configuration/source
+changes or migrations. Initial/final branch main, commit
+2a31a9102afc9a26a57561eeb941b2ca83badcd5; 15 modified tracked files, one
+untracked source file, zero staged. Existing work/APK preserved. Backend identity,
+connectivity, staging and production remain NOT VERIFIED. Stop pending evidence.

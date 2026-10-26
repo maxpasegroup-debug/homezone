@@ -256,6 +256,10 @@ export const serviceReviewSchema = z.object({
   rating: z.coerce.number().int().min(1).max(5)
 });
 
+const publicListingMediaUrl=z.string().url().max(2048).refine(value=>{
+  try{const url=new URL(value);const path=decodeURIComponent(url.pathname).toLowerCase();return url.protocol==="https:"&&!url.username&&!url.password&&!url.hash&&(!url.port||url.port==="443")&&
+    !["/api/private-files","/api/mobile/documents"].some(prefix=>path===prefix||path.startsWith(prefix+"/"));}catch{return false;}
+},"Use a public HTTPS media URL without credentials or fragments");
 export const propertyCreateSchema = z.object({
   title: z.string().min(3).max(160),
   description: z.string().min(10).max(3000),
@@ -277,10 +281,10 @@ export const propertyCreateSchema = z.object({
   areaUnit: z.string().default("sqft"),
   bedrooms: optionalInteger(0, 20),
   bathrooms: optionalInteger(0, 20),
-  amenities: z.array(z.string()).default([]),
+  amenities: z.array(z.string().trim().min(1).max(120)).max(100).transform(values=>[...new Set(values)]).default([]),
   mediaUrls: z.array(z.string().url()).max(40).optional(),
-  videoUrl: z.string().url().optional(),
-  virtualTourUrl: z.string().url().optional(),
+  videoUrl: publicListingMediaUrl.optional(),
+  virtualTourUrl: publicListingMediaUrl.optional(),
   status: z.enum(["DRAFT", "PENDING_REVIEW"]).default("PENDING_REVIEW")
 });
 
@@ -308,11 +312,11 @@ export const propertyMediaSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("replace-video"),
-    videoUrl: z.string().url().optional()
+    videoUrl: publicListingMediaUrl.optional()
   }),
   z.object({
     action: z.literal("set-virtual-tour"),
-    virtualTourUrl: z.string().url().optional()
+    virtualTourUrl: publicListingMediaUrl.optional()
   })
 ]).and(z.object({expectedUpdatedAt:z.string().datetime().optional(),expectedMediaState:z.string().regex(/^[a-f0-9]{64}$/).optional()}));
 

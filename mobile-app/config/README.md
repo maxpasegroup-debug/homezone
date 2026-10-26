@@ -6,12 +6,20 @@ not authorization to connect to that environment.
 
 From mobile-app (replace the placeholders with owner-approved public values):
 
-    node scripts/prepare-service-config.mjs --environment staging --origin <APPROVED_HTTPS_ORIGIN> --image-hosts <EXACT_CDN_HOSTNAMES_COMMA_SEPARATED>
+    node scripts/prepare-service-config.mjs --environment staging --origin <APPROVED_HTTPS_ORIGIN> --image-hosts <EXACT_CDN_HOSTNAMES_COMMA_SEPARATED> --media-hosts <APPROVED_PUBLIC_VIDEO_AND_TOUR_HOSTS>
 
 The script writes ignored config/staging.local.json without overwriting existing
 files. It accepts only nonsecret build settings, performs no DNS/network request,
 and rejects credentials, URL paths, query parameters and insecure public HTTP.
 An empty image-host list causes remote images to use fallbacks.
+The optional media-host list controls explicit public video/tour browser handoff;
+it defaults to empty (disabled), independently of image hosts. Use exact lowercase
+hosts, no wildcards, paths or credentials, at most 32 media hosts. The complete
+nonsecret JSON must fit 4 KiB. Existing four-setting configuration files remain
+accepted; the validator normalizes a missing HOMEZONE_MEDIA_HOSTS to empty.
+Browser handoff opens only after confirmation and transfers no app credentials.
+Native browser launch is not evidence that a provider loaded or played media.
+Provider privacy, URL ownership and genuinely public content need owner approval.
 
 For a cached Android debug build containing current source (no installation or
 runtime checks), use the explicit mode wrapper from mobile-app:
@@ -21,7 +29,8 @@ runtime checks), use the explicit mode wrapper from mobile-app:
 
 On this workstation set JAVA_HOME to the existing JDK 17 installation first.
 The wrapper runs Gradle assembleDebug with --offline for armv7, arm64 and x86_64.
-It validates the four allowed nonsecret settings, rejects unknown keys, and
+It validates four required public settings plus optional HOMEZONE_MEDIA_HOSTS,
+rejects unknown keys, and
 rejects loopback/emulator aliases and HTTP for Android service artifacts. The
 existing Android manifest disables cleartext; this wrapper does not weaken it.
 Explicit development-loopback configurations produced by the preparation script

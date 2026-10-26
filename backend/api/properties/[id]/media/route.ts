@@ -13,8 +13,8 @@ type RouteContext = {
     id: string;
   }>;
 };
-function mediaState(property:{coverImageUrl:string|null;mediaUrls:string[]}){
-  return createHash("sha256").update(JSON.stringify([property.coverImageUrl,property.mediaUrls])).digest("hex");
+function mediaState(property:{coverImageUrl:string|null;mediaUrls:string[];videoUrl:string|null;virtualTourUrl:string|null}){
+  return createHash("sha256").update(JSON.stringify([property.coverImageUrl,property.mediaUrls,property.videoUrl,property.virtualTourUrl])).digest("hex");
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -137,7 +137,7 @@ export async function GET(_request:Request,context:RouteContext){
  try{const session=await auth();if(!session?.user?.id)return unauthorized();
  const profile=await getOrCreateProfile(session.user);if(profile.verificationStatus==='SUSPENDED')return forbidden();
  const {id}=await context.params;if(!/^[A-Za-z0-9_-]{8,128}$/.test(id))return apiError('Invalid property reference',400);
- const property=await db.property.findFirst({where:{id,...(!isAdminRole(profile.role)?{ownerId:profile.id}:{})},select:{id:true,title:true,coverImageUrl:true,mediaUrls:true,updatedAt:true}});
+ const property=await db.property.findFirst({where:{id,...(!isAdminRole(profile.role)?{ownerId:profile.id}:{})},select:{id:true,title:true,coverImageUrl:true,mediaUrls:true,videoUrl:true,virtualTourUrl:true,updatedAt:true}});
  if(!property)return notFound('Property unavailable');
  return ok({property:{...property,mediaState:mediaState(property)}},{headers:{'Cache-Control':'private, no-store'}});
  }catch{return apiError('Listing photographs unavailable',503);}

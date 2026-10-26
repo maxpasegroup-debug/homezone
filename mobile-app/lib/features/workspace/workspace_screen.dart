@@ -25,6 +25,8 @@ class FieldSpec {
     this.minimum,
     this.maximum,
     this.integer = false,
+    this.stringList = false,
+    this.maxLength,
   });
   final String key, label;
   final bool required, number, date;
@@ -32,6 +34,8 @@ class FieldSpec {
   final List<String>? options;
   final num? minimum, maximum;
   final bool integer;
+  final bool stringList;
+  final int? maxLength;
 }
 
 const _name = FieldSpec('name', 'Name', required: true);
@@ -52,7 +56,13 @@ const _description = FieldSpec(
 );
 const _propertyFields = [
   FieldSpec('title', 'Property title', required: true),
-  _description,
+  FieldSpec(
+    'description',
+    'Description',
+    required: true,
+    lines: 4,
+    maxLength: 3000,
+  ),
   _city,
   FieldSpec('locality', 'Locality'),
   FieldSpec('country', 'Country'),
@@ -98,6 +108,13 @@ const _propertyFields = [
   FieldSpec('bathrooms', 'Bathrooms', number: true, integer: true, maximum: 20),
   FieldSpec('areaValue', 'Area', number: true),
   FieldSpec('areaUnit', 'Area unit'),
+  FieldSpec(
+    'amenities',
+    'Amenities — one per line',
+    lines: 5,
+    stringList: true,
+    maxLength: 12100,
+  ),
 ];
 const _projectFields = [
   _name,
@@ -370,6 +387,10 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
       epoch++;
       setState(() {
         items.clear();
+        loading = false;
+        more = false;
+        cursor = null;
+        page = 0;
         error = 'Your session changed. Sign in again.';
       });
     }
@@ -488,15 +509,40 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
           const FieldSpec('unitType', 'Unit type', required: true),
           _price,
           const FieldSpec('areaValue', 'Area', number: true),
-          const FieldSpec('floor', 'Floor', number: true),
-          const FieldSpec('bedrooms', 'Bedrooms', number: true),
-          const FieldSpec('bathrooms', 'Bathrooms', number: true),
+          const FieldSpec(
+            'floor',
+            'Floor',
+            number: true,
+            integer: true,
+            minimum: -10,
+            maximum: 200,
+          ),
+          const FieldSpec(
+            'bedrooms',
+            'Bedrooms',
+            number: true,
+            integer: true,
+            maximum: 20,
+          ),
+          const FieldSpec(
+            'bathrooms',
+            'Bathrooms',
+            number: true,
+            integer: true,
+            maximum: 20,
+          ),
         ]);
         break;
       case 'towers':
         await edit('Add tower', '/api/builder/projects/$parent/towers', [
           _name,
-          const FieldSpec('floors', 'Floors', number: true),
+          const FieldSpec(
+            'floors',
+            'Floors',
+            number: true,
+            integer: true,
+            maximum: 200,
+          ),
         ]);
         break;
       case 'team':
@@ -811,21 +857,32 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
     JsonObject fixed = const {},
     JsonObject? initial,
   }) async {
-    final saved = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WorkspaceForm(
-          repository: widget.repository,
-          title: title,
-          path: path,
-          method: method,
-          fields: fields,
-          fixed: fixed,
-          initial: initial ?? widget.item,
+    if (busy || !current) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      final saved = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WorkspaceForm(
+            repository: widget.repository,
+            title: title,
+            path: path,
+            method: method,
+            fields: fields,
+            fixed: fixed,
+            initial: initial ?? widget.item,
+          ),
         ),
-      ),
-    );
-    if (saved == true && current) Navigator.pop(context);
+      );
+      if (saved == true && current) Navigator.pop(context);
+    } catch (failure) {
+      if (current) setState(() => error = marketplaceError(failure));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   Future<void> action(
@@ -835,32 +892,48 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
     String method = 'PATCH',
   }) async {
     if (busy || !current) return;
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(label),
-        content: const Text(
-          'This changes your HOMEZONE account record. Continue?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
-    if (yes != true || !current) return;
-    setState(() => busy = true);
+    // Reserve before awaiting confirmation so repeated taps cannot queue changes.
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    var dispatched = false;
     try {
-      await widget.repository.call(method, path, body: body);
-      if (current) Navigator.pop(context);
-    } catch (e) {
-      if (current) setState(() => error = marketplaceError(e, mutation: true));
+      final yes = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(label),
+          content: const Text(
+            'This changes your HOMEZONE account record. Continue?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+      if (yes != true || !current) return;
+      dispatched = true;
+      final response = await widget.repository.call(method, path, body: body);
+      if (response.isEmpty || response['ok'] == false) {
+        throw const FormatException();
+      }
+      if (current) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Server confirmed the change.')),
+        );
+        Navigator.pop(context);
+      }
+    } catch (failure) {
+      if (current) {
+        setState(() => error = marketplaceError(failure, mutation: dispatched));
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1193,6 +1266,7 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                           'Commission percent',
                           required: true,
                           number: true,
+                          maximum: 100,
                         ),
                         const FieldSpec(
                           'status',
@@ -1296,7 +1370,13 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                           : widget.module == 'towers'
                           ? [
                               _name,
-                              const FieldSpec('floors', 'Floors', number: true),
+                              const FieldSpec(
+                                'floors',
+                                'Floors',
+                                number: true,
+                                integer: true,
+                                maximum: 200,
+                              ),
                             ]
                           : widget.module == 'builderTeam'
                           ? [
@@ -1725,7 +1805,9 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     super.initState();
     for (final f in widget.fields) {
       controls[f.key] = TextEditingController(
-        text: widget.initial[f.key]?.toString() ?? '',
+        text: f.stringList && widget.initial[f.key] is List
+            ? (widget.initial[f.key] as List).whereType<String>().join('\n')
+            : widget.initial[f.key]?.toString() ?? '',
       );
     }
   }
@@ -1741,6 +1823,19 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     final payload = <String, dynamic>{...widget.fixed};
     for (final field in widget.fields) {
       final value = controls[field.key]!.text.trim();
+      if (field.stringList) {
+        if (widget.method == 'PATCH' &&
+            !widget.initial.containsKey(field.key) &&
+            value.isEmpty)
+          continue;
+        payload[field.key] = value
+            .split(RegExp(r'\r?\n'))
+            .map((v) => v.trim())
+            .where((v) => v.isNotEmpty)
+            .toSet()
+            .toList();
+        continue;
+      }
       if (value.isEmpty) continue;
       payload[field.key] = field.number
           ? num.parse(value)
@@ -1849,7 +1944,9 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                               controller: controls[field.key],
                               enabled: !busy,
                               readOnly: field.date,
-                              maxLength: field.lines > 1 ? 2000 : 240,
+                              maxLength:
+                                  field.maxLength ??
+                                  (field.lines > 1 ? 2000 : 240),
                               maxLines: field.lines,
                               keyboardType: field.number
                                   ? TextInputType.numberWithOptions(
@@ -1872,6 +1969,16 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                                   return field.required
                                       ? 'This field is required'
                                       : null;
+                                if (field.stringList) {
+                                  final values = value
+                                      .split(RegExp(r'\r?\n'))
+                                      .map((v) => v.trim())
+                                      .where((v) => v.isNotEmpty)
+                                      .toSet();
+                                  if (values.length > 100 ||
+                                      values.any((v) => v.length > 120))
+                                    return 'Use up to 100 amenities, at most 120 characters each';
+                                }
                                 if (field.number &&
                                     (num.tryParse(value) == null ||
                                         !num.parse(value).isFinite ||

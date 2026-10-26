@@ -1,12 +1,13 @@
 // Nonsecret build settings only. Never resolves DNS or reads server credentials.
 export function validateServiceConfig(value, { android = false } = {}) {
-  const keys = ['HOMEZONE_ENABLE_API', 'HOMEZONE_API_ENV', 'HOMEZONE_API_BASE_URL', 'HOMEZONE_IMAGE_HOSTS'];
+  const keys = ['HOMEZONE_ENABLE_API', 'HOMEZONE_API_ENV', 'HOMEZONE_API_BASE_URL', 'HOMEZONE_IMAGE_HOSTS','HOMEZONE_MEDIA_HOSTS'];
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-      Object.keys(value).length !== keys.length || Object.keys(value).some(k => !keys.includes(k)) ||
+      (Object.keys(value).length !== 4 && Object.keys(value).length !== 5) || Object.keys(value).some(k => !keys.includes(k)) ||
       value.HOMEZONE_ENABLE_API !== true ||
       !['development', 'staging', 'production'].includes(value.HOMEZONE_API_ENV) ||
-      typeof value.HOMEZONE_API_BASE_URL !== 'string' || typeof value.HOMEZONE_IMAGE_HOSTS !== 'string') {
-    throw Error('Only the four documented nonsecret service settings are accepted.');
+      typeof value.HOMEZONE_API_BASE_URL !== 'string' || typeof value.HOMEZONE_IMAGE_HOSTS !== 'string' ||
+      (value.HOMEZONE_MEDIA_HOSTS!==undefined && typeof value.HOMEZONE_MEDIA_HOSTS!=='string')) {
+    throw Error('Only documented nonsecret service settings are accepted.');
   }
   let origin;
   try { origin = new URL(value.HOMEZONE_API_BASE_URL); } catch { throw Error('Approved canonical origin required.'); }
@@ -25,5 +26,7 @@ export function validateServiceConfig(value, { android = false } = {}) {
       !h.split('.').every(l => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(l)))) {
     throw Error('Image hosts must be exact lowercase hostnames without wildcards, paths or credentials.');
   }
-  return Object.freeze({ ...value, HOMEZONE_IMAGE_HOSTS: [...new Set(hosts)].join(',') });
+  const mediaHosts=value.HOMEZONE_MEDIA_HOSTS?value.HOMEZONE_MEDIA_HOSTS.split(','):[];
+  if(mediaHosts.length>32||mediaHosts.some(h=>h!==h.toLowerCase()||h.length>253||!h.split('.').every(l=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(l))))throw Error('Media hosts must be exact lowercase hostnames.');
+  return Object.freeze({ ...value, HOMEZONE_IMAGE_HOSTS: [...new Set(hosts)].join(','),HOMEZONE_MEDIA_HOSTS:[...new Set(mediaHosts)].join(',') });
 }

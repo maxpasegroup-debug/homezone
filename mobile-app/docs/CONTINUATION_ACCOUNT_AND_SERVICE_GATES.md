@@ -129,3 +129,42 @@ existing USER-to-OWNER transition now commit together under current-profile
 admission; successful creation still revalidates the independently verified
 mobile session. No new role promotion policy was added. Draft fallback copy no
 longer claims that an unsubmitted draft is already awaiting review.
+
+## Amenities and public video/tour controls
+
+Owner create/edit forms now load and edit the existing amenities array with one
+entry per line. Whitespace is trimmed and exact duplicates removed. Empty known
+lists can be cleared; an absent legacy field is not silently cleared by an empty
+PATCH. Server/client use at most 100 entries, at most 120 characters each, aligned
+with the existing listing parser's array bound. Stored legacy data is not migrated;
+out-of-bounds new writes receive validation errors. No amenity is preselected or
+invented as a fact. Property descriptions can use the existing 3,000-character
+backend limit rather than being constrained to the old generic 2,000 UI limit.
+
+The existing listing media screen now edits/removes videoUrl and virtualTourUrl
+using replace-video / set-virtual-tour, with the existing transaction, profile/
+ownership checks and optimistic state preconditions. Media-state digests include
+both link fields, so concurrent photo/video/tour edits conflict appropriately.
+New video/tour writes require public HTTPS, port 443/default, no URL credentials
+or fragments and reject managed private-document API paths. Removing a listing
+link neither deletes media nor revokes a previously distributed URL.
+
+Published-property projections include those existing public link fields. Buyer
+Details can hand off supplied links to a browser only if their exact host is in
+HOMEZONE_MEDIA_HOSTS and the buyer confirms. Missing, malformed or unapproved
+links do not pretend to play. No authenticated client, cookies or tokens are
+passed to the native browser channel. Browser launch is not playback/provider
+verification. Native code repeats HTTPS/host/port/credential/fragment checks.
+Android source compiled; iOS source needs Mac/Xcode compilation and later QA.
+No autoplay, embedded player, video upload, fake gallery media or floor-plan
+content was added. Source fields are intended for publicly approved content;
+validation cannot prove provider privacy or absence of secret query values.
+Owner moderation, approved provider hosts and genuinely public links remain
+required. Private documents must use the protected/scanned workflow.
+
+Service configuration adds optional HOMEZONE_MEDIA_HOSTS (empty disables handoff),
+separate from image-host permission. Older four-setting files remain accepted.
+Preparation/build accept only documented public settings and enforce the same
+4 KiB JSON bound; no real settings file or credential was supplied/generated.
+Scanner/storage/payment configuration and deletion/refund policy gates are
+unchanged. No new authority or live-provider success is implied by these controls.

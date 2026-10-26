@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'marketplace_repository.dart';
+import 'public_listing_media_button.dart';
 import 'account_listing_screen.dart';
 import 'listing_location.dart';
 import 'listing_media.dart';
@@ -82,7 +83,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   Future<void> load({bool next = false}) async {
-    if (loading) return;
+    if (loading || (next && (!more || page >= 1000))) return;
     final request = ++revision;
     final generation = widget.repository.coordinator.generation;
     setState(() {
@@ -107,7 +108,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   for (final row in [...listings, ...result.items]) row.id: row,
                 }.values.toList())
               : result.items;
-          more = result.hasMore && listings.length < 120;
+          more = result.hasMore && page < 1000;
         });
         if (tab == 0 && verified) {
           try {
@@ -589,6 +590,10 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     if (listings.isEmpty && !loading && error == null)
       empty('No matching published listings. Try changing the filters.'),
     ...listings.map(card),
+    if (page >= 1000 && !more && listings.isNotEmpty)
+      const Text(
+        'Search page limit reached. Refine your filters to narrow the results.',
+      ),
     if (more)
       FilledButton(
         onPressed: loading ? null : () => load(next: true),
@@ -606,6 +611,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     ],
   ];
   void search() {
+    // Keyboard submission must obey the same admission rule as the search button.
+    if (loading) return;
     final value = query.text.trim();
     if (value.isEmpty) {
       filters.remove('keyword');
@@ -1225,8 +1232,16 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
               ),
               child: const Text('View photos'),
             ),
+            PublicListingMediaButton(
+              url: property.data['videoUrl'] as String?,
+              label: 'Property video',
+            ),
+            PublicListingMediaButton(
+              url: property.data['virtualTourUrl'] as String?,
+              label: 'Virtual tour',
+            ),
             const Text(
-              'Videos and floor plans are not available in this build. Listing information is supplied by the service.',
+              'Floor plans are not available in this build. Listing information and public links are supplied by the service.',
             ),
             if (property.data['latitude'] != null &&
                 property.data['longitude'] != null)

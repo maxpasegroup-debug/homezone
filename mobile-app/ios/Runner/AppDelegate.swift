@@ -17,6 +17,17 @@ import UniformTypeIdentifiers
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "HomezoneSessionVault") else { return }
     documentBridge = HomezoneDocumentPicker()
+    FlutterMethodChannel(name: "homezone/public-media-browser", binaryMessenger: registrar.messenger())
+      .setMethodCallHandler { call, result in
+        guard call.method == "open" else { result(FlutterMethodNotImplemented); return }
+        guard let args = call.arguments as? [String: Any], let raw = args["url"] as? String,
+          let hosts = args["hosts"] as? [String], !hosts.isEmpty, hosts.count <= 32, raw.count <= 2048,
+          raw.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
+          let parts = URLComponents(string: raw), parts.scheme == "https", let host = parts.host,
+          hosts.contains(host.lowercased()), parts.user == nil, parts.password == nil, parts.fragment == nil,
+          (parts.port == nil || parts.port == 443), let destination = parts.url else { result(false); return }
+        UIApplication.shared.open(destination, options: [:]) { result($0) }
+      }
     FlutterMethodChannel(name: "homezone/private-documents", binaryMessenger: registrar.messenger())
       .setMethodCallHandler { [weak self] call, result in self?.documentBridge?.handle(call, result: result) }
     FlutterMethodChannel(name: "homezone/account-browser", binaryMessenger: registrar.messenger())

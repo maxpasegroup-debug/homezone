@@ -57,6 +57,8 @@ class _PhotosState extends State<ListingPhotographsScreen> {
   JsonObject parse(JsonObject data) {
     final next = object(data['property']);
     if (next['id'] != widget.id ||
+        (next['videoUrl'] != null && next['videoUrl'] is! String) ||
+        (next['virtualTourUrl'] != null && next['virtualTourUrl'] is! String) ||
         next['mediaState'] is! String ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(next['mediaState'] as String) ||
         next['updatedAt'] is! String ||
@@ -152,10 +154,34 @@ class _PhotosState extends State<ListingPhotographsScreen> {
     change({'action': 'reorder', 'mediaUrls': ordered});
   }
 
+  bool editingLink = false;
+  Future<void> editLink(bool tour) async {
+    if (!current || busy || loading || editingLink || property == null) return;
+    editingLink = true;
+    try {
+      final value = await showDialog<String>(
+        context: context,
+        builder: (_) => _PublicMediaLinkDialog(
+          tour: tour,
+          initial:
+              property![tour ? 'virtualTourUrl' : 'videoUrl'] as String? ?? '',
+        ),
+      );
+      if (value != null && current) {
+        await change({
+          'action': tour ? 'set-virtual-tour' : 'replace-video',
+          if (value.isNotEmpty) (tour ? 'virtualTourUrl' : 'videoUrl'): value,
+        });
+      }
+    } finally {
+      editingLink = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Listing photographs'),
+      title: const Text('Listing media'),
       actions: [
         IconButton(
           tooltip: 'Refresh',
@@ -178,6 +204,24 @@ class _PhotosState extends State<ListingPhotographsScreen> {
         if (!current) const Text('Account access ended.'),
         if (loading || busy) const LinearProgressIndicator(),
         if (current && property != null) ...[
+          Text(
+            property!['videoUrl'] == null
+                ? 'No video link provided.'
+                : 'Public video link is on record.',
+          ),
+          OutlinedButton(
+            onPressed: busy || loading ? null : () => editLink(false),
+            child: const Text('Edit / remove video link'),
+          ),
+          Text(
+            property!['virtualTourUrl'] == null
+                ? 'No tour link provided.'
+                : 'Public virtual-tour link is on record.',
+          ),
+          OutlinedButton(
+            onPressed: busy || loading ? null : () => editLink(true),
+            child: const Text('Edit / remove tour link'),
+          ),
           Text(
             textValue(property!['title'], 'My listing'),
             style: Theme.of(context).textTheme.titleLarge,
@@ -268,5 +312,71 @@ class _PhotosState extends State<ListingPhotographsScreen> {
           ),
       ],
     ),
+  );
+}
+
+class _PublicMediaLinkDialog extends StatefulWidget {
+  const _PublicMediaLinkDialog({required this.tour, required this.initial});
+  final bool tour;
+  final String initial;
+  @override
+  State<_PublicMediaLinkDialog> createState() => _LinkDialogState();
+}
+
+class _LinkDialogState extends State<_PublicMediaLinkDialog> {
+  late final controller = TextEditingController(text: widget.initial);
+  final key = GlobalKey<FormState>();
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
+    title: Text(widget.tour ? 'Public virtual-tour link' : 'Public video link'),
+    content: Form(
+      key: key,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Use a public HTTPS link you are authorized to publish. Never paste private files, session credentials or signed private-download links. Leave blank to remove the listing link. No media file is uploaded or deleted here.',
+          ),
+          TextFormField(
+            controller: controller,
+            maxLength: 2048,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(labelText: 'Public HTTPS URL'),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) return null;
+              final uri = Uri.tryParse(value.trim());
+              return uri == null ||
+                      uri.scheme != 'https' ||
+                      uri.host.isEmpty ||
+                      uri.userInfo.isNotEmpty ||
+                      uri.port != 443 ||
+                      uri.hasFragment
+                  ? 'Use a public HTTPS URL without credentials or a fragment'
+                  : null;
+            },
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () {
+          if (key.currentState!.validate())
+            Navigator.pop(context, controller.text.trim());
+        },
+        child: const Text('Save listing link'),
+      ),
+    ],
   );
 }

@@ -9,7 +9,7 @@ export const mobilePropertySelect = {
   propertyType: true, coverImageUrl: true, mediaUrls: true, city: true,
   locality: true, country: true, price: true, currency: true, areaValue: true,
   areaUnit: true, bedrooms: true, bathrooms: true, latitude: true,
-  longitude: true, amenities: true, status: true
+  longitude: true, amenities: true, videoUrl:true,virtualTourUrl:true,status: true
 } satisfies Prisma.PropertySelect;
 
 export const mobileCatalogSchema = marketplaceFilterSchema.extend({
