@@ -314,7 +314,7 @@ export const propertyMediaSchema = z.discriminatedUnion("action", [
     action: z.literal("set-virtual-tour"),
     virtualTourUrl: z.string().url().optional()
   })
-]);
+]).and(z.object({expectedUpdatedAt:z.string().datetime().optional(),expectedMediaState:z.string().regex(/^[a-f0-9]{64}$/).optional()}));
 
 export const propertyDocumentSchema = z.object({
   documentType: z.enum([
@@ -327,7 +327,7 @@ export const propertyDocumentSchema = z.object({
     "OTHER"
   ]),
   fileName: z.string().min(2).max(180),
-  fileUrl: z.string().url(),
+  fileUrl: z.string().regex(/^\/api\/private-files\/[a-f0-9-]{36}$/),
   fileSize: z.coerce.number().int().positive().optional(),
   mimeType: z.string().max(120).optional(),
   notes: z.string().max(500).optional()
@@ -564,7 +564,7 @@ export const studioAssignmentSchema = z.object({
 export const studioFileSchema = z.object({
   fileName: z.string().min(2).max(180),
   fileType: z.enum(["PHOTO", "VIDEO", "BROCHURE", "CREATIVE", "OTHER"]),
-  fileUrl: z.string().url(),
+  fileUrl: z.string().regex(/^\/api\/private-files\/[a-f0-9-]{36}$/),
   notes: z.string().max(500).optional(),
   version: z.coerce.number().int().min(1).optional()
 });
@@ -663,7 +663,7 @@ export const brokerAutomationRuleSchema = z.object({
 
 export const brokerClientDocumentSchema = z.object({
   documentType: z.enum(["ID_PROOF", "REQUIREMENT", "OFFER", "AGREEMENT", "PAYMENT", "OTHER"]).default("OTHER"),
-  fileUrl: z.string().url(),
+  fileUrl: z.string().regex(/^\/api\/private-files\/[a-f0-9-]{36}$/),
   title: z.string().min(2).max(160)
 });
 

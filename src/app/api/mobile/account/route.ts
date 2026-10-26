@@ -3,17 +3,23 @@ import { db } from "@/lib/db";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { buyerEnquirySelect } from "@/lib/leads/access";
 import { mobilePropertySelect } from "@/lib/properties/mobile-catalog";
-import { handleApiError, ok, parseJson, unauthorized, rateLimited } from "@/lib/api/response";
+import { handleApiError, ok, parseJson, unauthorized, forbidden, rateLimited } from "@/lib/api/response";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 // Read-only account snapshot. Every query is scoped to the authenticated profile.
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) return unauthorized();
     const profile = await getOrCreateProfile(session.user);
+    if (profile.verificationStatus === "SUSPENDED") return forbidden();
+    if (new URL(request.url).searchParams.get("view") === "profile") {
+      return ok({ profile: { fullName: profile.fullName, city: profile.city, phone: profile.phone,
+        role: profile.role, verificationStatus: profile.verificationStatus } },
+      { headers: { "Cache-Control": "private, no-store" } });
+    }
     const [saved, shortlists, enquiries] = await Promise.all([
       db.savedProperty.findMany({ where: { userId: profile.id, property: { status: "PUBLISHED" } },
         select: { property: { select: mobilePropertySelect } }, orderBy: { createdAt: "desc" }, take: 200 }),
@@ -24,7 +30,7 @@ export async function GET() {
       db.lead.findMany({ where: { userId: profile.id }, select: buyerEnquirySelect,
         orderBy: { createdAt: "desc" }, take: 100 })
     ]);
-    return ok({ profile: { fullName: profile.fullName, city: profile.city, phone: profile.phone },
+    return ok({ profile: { fullName: profile.fullName, city: profile.city, phone: profile.phone, role: profile.role, verificationStatus: profile.verificationStatus },
       saved: saved.map((item) => item.property), shortlists, enquiries,
       limits: { saved: 200, shortlists: 100, shortlistItems: 50, enquiries: 100 } }, { headers: { "Cache-Control": "no-store" } });
   } catch { return handleApiError(new Error("Mobile account unavailable"), { route: "GET /api/mobile/account" }); }
@@ -43,6 +49,7 @@ export async function PATCH(request: Request) {
     const parsed = await parseJson(request, editSchema);
     if ("error" in parsed) return parsed.error;
     const profile = await getOrCreateProfile(session.user);
+    if (profile.verificationStatus === "SUSPENDED") return forbidden();
     const updated = await db.profile.update({ where: { id: profile.id },
       data: { city: parsed.data.city, phone: parsed.data.phone,
         whatsappVerified: profile.phone === parsed.data.phone ? profile.whatsappVerified : false },

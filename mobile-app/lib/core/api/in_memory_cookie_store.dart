@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'api_client.dart';
 import 'api_configuration.dart';
 import 'auth_cookie_policy.dart';
@@ -79,6 +80,16 @@ class InMemoryCookieStore {
       name.startsWith('authjs.session-token.') ||
       name == '__Secure-authjs.session-token' ||
       name.startsWith('__Secure-authjs.session-token.');
+
+  /// Protocol-only encrypted-vault payload; never identity or a UI model.
+  List<String> exportSession() {
+    _prune(clock().toUtc());
+    return [
+      for (final cookie in _session.values)
+        if (cookie.expires != null)
+          '${cookie.instruction.name}=${cookie.instruction.value}; Path=/; HttpOnly; SameSite=Lax; ${configuration.baseUri.scheme == 'https' ? 'Secure; ' : ''}Expires=${HttpDate.format(cookie.expires!)}',
+    ];
+  }
 
   void _prune(DateTime now) {
     if (_session.values.any((cookie) => cookie.expired(now))) {

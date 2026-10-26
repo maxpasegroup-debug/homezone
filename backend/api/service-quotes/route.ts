@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { serviceQuoteSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
@@ -25,26 +25,23 @@ export async function POST(request: Request) {
       }
     });
 
-    if (!provider) {
+    if (!provider || provider.suspended || !provider.verified || profile.role !== "SERVICE_PROVIDER") {
       return forbidden("Provider profile required before sending quotes");
     }
 
-    const quote = await db.serviceQuote.create({
-      data: {
-        requestId: parsed.data.requestId,
-        providerId: provider.id,
-        amount: parsed.data.amount,
-        currency: parsed.data.currency,
-        message: parsed.data.message,
-        revision: parsed.data.revision,
-        validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : undefined
-      }
+    const quote = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "ServiceRequest" WHERE id = ${parsed.data.requestId} FOR UPDATE`;
+      const target = await tx.serviceRequest.findUnique({where:{id:parsed.data.requestId}});
+      if (!target || !["requested","quoted"].includes(target.status) || target.requesterId === profile.id ||
+        (target.providerId ? target.providerId !== provider.id : target.category !== provider.category || !provider.city || target.city !== provider.city)) return null;
+      if (parsed.data.validUntil && new Date(parsed.data.validUntil).getTime() <= Date.now()) return null;
+      const created = await tx.serviceQuote.create({data:{requestId:target.id,providerId:provider.id,
+        amount:parsed.data.amount,currency:parsed.data.currency,message:parsed.data.message,revision:1,
+        validUntil:parsed.data.validUntil ? new Date(parsed.data.validUntil) : undefined}});
+      await tx.serviceRequest.update({where:{id:target.id},data:{status:"quoted"}});
+      return created;
     });
-
-    await db.serviceRequest.update({
-      data: { providerId: provider.id, status: "quoted" },
-      where: { id: parsed.data.requestId }
-    });
+    if (!quote) return apiError("Request is unavailable for quoting. Refresh before continuing.",409);
 
     return ok({ quote });
   } catch (error) {

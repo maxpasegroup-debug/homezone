@@ -45,6 +45,7 @@ export async function POST(request: Request) {
     }
 
     const profile = await getOrCreateProfile(session.user);
+    if(profile.role!=="BUILDER" && !isAdminRole(profile.role))return forbidden();
     const plan = await getBuilderPlan(profile.id);
     const projectCount = await db.builderProject.count({
       where: {
@@ -72,8 +73,8 @@ export async function POST(request: Request) {
         locality: parsed.data.locality,
         status: parsed.data.status,
         campaignStatus: parsed.data.campaignStatus,
-        unitsCount: parsed.data.unitsCount,
-        availableUnits: parsed.data.availableUnits,
+        unitsCount: parsed.data.unitsCount ?? 0,
+        availableUnits: parsed.data.availableUnits ?? 0,
         aiReport: {
           summary:
             "Builder report will update after inventory, leads, bookings, and campaign data are available."

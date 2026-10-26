@@ -5,7 +5,7 @@
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/homezone_launcher">
         <activity
             android:name="com.example.homezone_mobile.MainActivity"
             android:exported="true"

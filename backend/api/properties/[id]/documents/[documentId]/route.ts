@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import {
+  apiError,
   forbidden,
   handleApiError,
   notFound,
@@ -84,7 +85,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return ok({ document });
   } catch (error) {
-    return handleApiError(error, {
+    return handleApiError(new Error("Private document operation failed"), {
       route: "PATCH /api/properties/[id]/documents/[documentId]"
     });
   }
@@ -105,6 +106,9 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return access.error;
     }
 
+    if (access.document.fileUrl.startsWith('/api/private-files/')) {
+      return apiError('Managed private-file removal requires the approved retention workflow.', 409);
+    }
     await db.propertyDocument.delete({
       where: {
         id: documentId
@@ -123,7 +127,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     return ok({ deleted: true });
   } catch (error) {
-    return handleApiError(error, {
+    return handleApiError(new Error("Private document operation failed"), {
       route: "DELETE /api/properties/[id]/documents/[documentId]"
     });
   }

@@ -1,7 +1,9 @@
+import { matchesPrivateReference } from "@/lib/documents/private-files";
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import {
+  apiError,
   forbidden,
   handleApiError,
   notFound,
@@ -78,7 +80,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     return ok({ documents });
   } catch (error) {
-    return handleApiError(error, {
+    return handleApiError(new Error("Private document operation failed"), {
       route: "GET /api/properties/[id]/documents"
     });
   }
@@ -115,6 +117,8 @@ export async function POST(request: Request, context: RouteContext) {
       return parsed.error;
     }
 
+    if(!await matchesPrivateReference(parsed.data.fileUrl,"property",id)) return apiError("Use an authenticated document uploaded for this record.",400);
+
     const document = await db.propertyDocument.create({
       data: {
         ...parsed.data,
@@ -136,7 +140,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     return ok({ document });
   } catch (error) {
-    return handleApiError(error, {
+    return handleApiError(new Error("Private document operation failed"), {
       route: "POST /api/properties/[id]/documents"
     });
   }

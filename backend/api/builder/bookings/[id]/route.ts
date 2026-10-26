@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { forbidden, handleApiError, notFound, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, notFound, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { builderBookingActionSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
@@ -21,7 +21,14 @@ export async function PATCH(request: Request, context: RouteContext) {
     const status = parsed.data.action === "RELEASE" ? "RELEASED" : parsed.data.action === "CONFIRM" ? "CONFIRMED" : "SOLD";
     const unitStatus = parsed.data.action === "RELEASE" ? "AVAILABLE" : parsed.data.action === "CONFIRM" ? "RESERVED" : "SOLD";
     const updated = await db.$transaction(async (tx) => {
-      await tx.builderUnit.update({ data: { status: unitStatus }, where: { id: booking.unitId } });
+      await tx.$queryRaw`SELECT id FROM "BuilderUnit" WHERE id = ${booking.unitId} FOR UPDATE`;
+      const current = await tx.builderBooking.findUnique({where:{id}});
+      if (!current || !["RESERVED","CONFIRMED"].includes(current.status) ||
+        (parsed.data.action === "CONFIRM" && current.status !== "RESERVED") ||
+        (parsed.data.action === "SOLD" && current.status !== "CONFIRMED")) return null;
+      const claim = await tx.builderUnit.updateMany({where:{id:booking.unitId,status:"RESERVED"},data:{status:unitStatus}});
+      if (claim.count !== 1) return null;
+      if(parsed.data.action === "RELEASE") await tx.builderProject.update({where:{id:booking.projectId},data:{availableUnits:{increment:1}}});
       return tx.builderBooking.update({
         data: {
           confirmedAt: parsed.data.action === "CONFIRM" ? new Date() : undefined,
@@ -34,6 +41,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         where: { id }
       });
     });
+    if (!updated) return apiError("Booking changed. Refresh before continuing.", 409);
     await addBuilderActivity({
       action: `BOOKING_${status}`,
       builderId: profile.id,

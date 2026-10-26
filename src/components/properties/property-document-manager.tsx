@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FileCheck2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { MediaUploadField } from "@/components/media/media-upload-field";
+import { PrivateDocumentUpload } from "@/components/documents/private-document-upload";
 
 type DocumentItem = {
   id: string;
@@ -36,31 +36,11 @@ export function PropertyDocumentManager({
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("");
 
-  async function attachDocument(result: { url: string; resourceType: string; fileName?: string }) {
-    setStatus("");
-    const response = await fetch(`/api/properties/${propertyId}/documents`, {
-      body: JSON.stringify({
-        documentType,
-        fileName: result.fileName ?? result.url.split("/").pop() ?? "Property document",
-        fileUrl: result.url,
-        notes: notes || undefined
-      }),
-      headers: {
-        "Content-Type": "application/json"
-      },
-      method: "POST"
-    });
-
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      setStatus(data?.error ?? "Could not save document.");
-      return;
-    }
-
-    setItems((current) => [data.document, ...current]);
-    setNotes("");
-    setStatus("Document uploaded securely.");
+  async function refreshDocuments(){
+    try{const response=await fetch(`/api/properties/${propertyId}/documents`,{cache:"no-store"});const data=await response.json();
+      if(response.ok&&Array.isArray(data.documents)){setItems(data.documents);setStatus("Private document stored. Notes can be edited using the existing document controls.");}
+      else setStatus("Upload returned; refresh documents to confirm the current state.");
+    }catch{setStatus("Refresh documents to confirm the current state.");}
   }
 
   async function removeDocument(id: string) {
@@ -116,11 +96,7 @@ export function PropertyDocumentManager({
       </div>
 
       <div className="mt-5">
-        <MediaUploadField
-          folder="homezone/property-documents"
-          label="Upload Document"
-          onUploaded={attachDocument}
-        />
+        <PrivateDocumentUpload scope="property" parent={propertyId} documentType={documentType} notes={notes} onUploaded={refreshDocuments} />
       </div>
 
       <div className="mt-8 grid gap-3">
@@ -128,12 +104,13 @@ export function PropertyDocumentManager({
           <div className="flex flex-col gap-3 rounded-3xl border bg-white p-4 sm:flex-row sm:items-center sm:justify-between" key={item.id}>
             <div>
               <p className="text-sm font-bold">{item.documentType.replaceAll("_", " ")}</p>
-              <a className="mt-1 block text-sm font-semibold text-violet-700" href={item.fileUrl} rel="noreferrer" target="_blank">
+              <a className="mt-1 block text-sm font-semibold text-violet-700" href={/^\/api\/private-files\/[a-f0-9-]{36}$/.test(item.fileUrl)?item.fileUrl:undefined} rel="noreferrer" target="_blank">
                 {item.fileName}
               </a>
+              {!/^\/api\/private-files\/[a-f0-9-]{36}$/.test(item.fileUrl)?<p className="text-sm">Legacy external reference requires privacy review; no download is offered.</p>:null}
               {item.notes ? <p className="mt-1 text-sm text-muted-foreground">{item.notes}</p> : null}
             </div>
-            <Button onClick={() => removeDocument(item.id)} size="sm" variant="outline">
+            <Button disabled={item.fileUrl.startsWith("/api/private-files/")} title="Managed file removal awaits the approved retention workflow" onClick={() => removeDocument(item.id)} size="sm" variant="outline">
               <Trash2 className="h-4 w-4" />
               Remove
             </Button>

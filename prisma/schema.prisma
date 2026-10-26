@@ -454,6 +454,7 @@ model PasswordResetToken {
 }
 
 model Profile {
+  serviceRequestsForAccount AccountServiceRequest[]
   id               String             @id @default(cuid())
   userId           String             @unique
   fullName         String?
@@ -518,6 +519,7 @@ model Profile {
 }
 
 model Property {
+  privateFiles PrivateFile[]
   id            String           @id @default(cuid())
   ownerId       String?
   owner         Profile?         @relation("PropertyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -604,6 +606,7 @@ model SavedProperty {
   createdAt  DateTime @default(now())
 
   @@id([userId, propertyId])
+  @@index([userId, createdAt, propertyId])
 }
 
 model PropertyView {
@@ -630,6 +633,7 @@ model PropertyShortlist {
 
   @@unique([userId, name])
   @@index([userId, updatedAt])
+  @@index([userId, createdAt, id])
 }
 
 model ShortlistProperty {
@@ -642,6 +646,7 @@ model ShortlistProperty {
   @@id([shortlistId, propertyId])
   @@index([propertyId])
   @@index([createdAt])
+  @@index([shortlistId, createdAt, propertyId])
 }
 
 model PropertyDocument {
@@ -665,6 +670,7 @@ model PropertyDocument {
 }
 
 model Lead {
+  privateFiles PrivateFile[]
   id          String    @id @default(cuid())
   propertyId  String?
   reelId      String?
@@ -702,6 +708,7 @@ model Lead {
 
   @@index([assignedTo])
   @@index([userId])
+  @@index([userId, createdAt, id])
   @@index([propertyId])
   @@index([reelId])
   @@index([source])
@@ -959,6 +966,7 @@ model ProfileFollow {
 }
 
 model StudioRequest {
+  privateFiles PrivateFile[]
   id          String    @id @default(cuid())
   requesterId String?
   propertyId  String?
@@ -1689,4 +1697,41 @@ model OtpChallenge {
   @@index([phone])
   @@index([phone, purpose])
   @@index([expiresAt])
+}
+
+// Opt-in private PDF storage. No public object URLs or automatic retention purge.
+model PrivateFile {
+  id String @id
+  scope String
+  propertyId String?
+  leadId String?
+  studioRequestId String?
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  studioRequest StudioRequest? @relation(fields: [studioRequestId], references: [id], onDelete: Restrict)
+  uploadedById String
+  fileName String
+  bytes Int
+  keyId String
+  ciphertext Bytes
+  createdAt DateTime @default(now())
+  @@index([propertyId, createdAt])
+  @@index([leadId, createdAt])
+  @@index([studioRequestId, createdAt])
+}
+
+// Requests for human review only. No automated deletion or provider refund.
+model AccountServiceRequest {
+  id String @id @default(cuid())
+  profileId String
+  profile Profile @relation(fields:[profileId],references:[id],onDelete:Restrict)
+  kind String
+  target String
+  status String @default("OPEN")
+  reviewNote String?
+  reviewedById String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([profileId,kind,target])
+  @@index([status,createdAt])
 }

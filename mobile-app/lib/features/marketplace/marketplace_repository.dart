@@ -238,7 +238,133 @@ final class MarketplaceRepository {
     return listing;
   }
 
-  Future<JsonObject> account() => call('GET', '/api/mobile/account');
+  Future<JsonObject> account() async {
+    final generation = coordinator.generation;
+    final actor = session.identity?.id;
+    void checkOwner() {
+      if (!session.verified ||
+          session.identity?.id != actor ||
+          coordinator.generation != generation) {
+        throw const ApiException(ApiFailure.unauthorized);
+      }
+    }
+
+    final profile = await call(
+      'GET',
+      '/api/mobile/account',
+      query: {'view': 'profile'},
+    );
+    checkOwner();
+    final result = <String, dynamic>{'profile': object(profile['profile'])};
+    final pagination = <String, dynamic>{};
+    for (final collection in ['saved', 'shortlists', 'enquiries']) {
+      final page = await accountCollection(collection);
+      checkOwner();
+      result[collection] = page['items'];
+      pagination[collection] = page['nextCursor'];
+    }
+    result['pagination'] = pagination;
+    return result;
+  }
+
+  Future<JsonObject> accountCollection(
+    String collection, {
+    String? cursor,
+    String? parent,
+  }) async {
+    final data = await call(
+      'GET',
+      '/api/mobile/account/collections',
+      query: {
+        'collection': collection,
+        if (cursor != null) 'cursor': cursor,
+        if (parent != null) 'parent': _id(parent),
+      },
+    );
+    final rows = objects(data['items']);
+    final next = data['nextCursor'];
+    if (!data.containsKey('nextCursor') ||
+        data['collection'] != collection ||
+        data['parent'] != parent ||
+        rows.length > 25 ||
+        (next != null &&
+            (next is! String || next.length > 512 || next == cursor))) {
+      throw const ApiException(ApiFailure.invalidResponse);
+    }
+    for (final row in rows) {
+      if (collection == 'saved') Listing.parse(row);
+      if (collection == 'shortlistItems') Listing.parse(row['property']);
+      if (collection == 'shortlists' &&
+          (row['id'] is! String ||
+              row['name'] is! String ||
+              row['itemsLoaded'] != false)) {
+        throw const ApiException(ApiFailure.invalidResponse);
+      }
+      if (collection == 'enquiries' && row['id'] is! String)
+        throw const ApiException(ApiFailure.invalidResponse);
+    }
+    return {...data, 'items': rows};
+  }
+
+  Future<JsonObject> workspacePage(
+    String module, {
+    String? parent,
+    String? after,
+  }) async {
+    final data = await call(
+      'GET',
+      '/api/mobile/workspace',
+      query: {
+        'module': module,
+        'mode': 'cursor',
+        if (parent != null) 'parent': _id(parent),
+        if (after != null) 'after': after,
+      },
+    );
+    final rows = objects(data['items']);
+    final next = data['nextCursor'];
+    if (data['source'] != 'database' ||
+        data['module'] != module ||
+        data['mode'] != 'cursor' ||
+        rows.length > 20 ||
+        !data.containsKey('nextCursor') ||
+        data['hasMore'] is! bool ||
+        data['hasMore'] != (next != null) ||
+        (next != null &&
+            (next is! String ||
+                next.length > 512 ||
+                !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(next) ||
+                next == after))) {
+      throw const ApiException(ApiFailure.invalidResponse);
+    }
+    return {...data, 'items': rows};
+  }
+
+  Future<bool> savedStatus(String id) async {
+    final data = await call(
+      'GET',
+      '/api/mobile/saved-status',
+      query: {'propertyId': _id(id)},
+    );
+    if (data['propertyId'] != id || data['saved'] is! bool) {
+      throw const ApiException(ApiFailure.invalidResponse);
+    }
+    return data['saved'] as bool;
+  }
+
+  Future<List<Listing>> history() async {
+    final data = await call(
+      'GET',
+      '/api/mobile/workspace',
+      query: {'module': 'history'},
+    );
+    if (data['source'] != 'database' || data['module'] != 'history')
+      throw const FormatException();
+    return objects(
+      data['items'],
+    ).map((row) => Listing.parse(row['property'])).take(10).toList();
+  }
+
   Future<void> save(String id, bool saved) async {
     final data = await call(
       saved ? 'POST' : 'DELETE',

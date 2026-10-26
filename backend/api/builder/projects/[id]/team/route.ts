@@ -20,6 +20,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (teamCount >= plan.limits.teamMembers) return forbidden(`Your ${plan.plan} plan supports ${plan.limits.teamMembers} team members.`);
     const parsed = await parseJson(request, builderTeamMemberSchema);
     if ("error" in parsed) return parsed.error;
+    if(parsed.data.profileId) return forbidden("Account binding requires the approved team invitation workflow.");
     const member = await db.builderTeamMember.create({
       data: {
         active: parsed.data.active ?? true,

@@ -74,9 +74,10 @@ export async function POST(request: Request) {
       });
 
       if (payment && payment.status !== "PAID") {
-        await db.payment.update({
+        await db.payment.updateMany({
           where: {
-            id: payment.id
+            id: payment.id,
+            status: { in: ["CREATED", "PENDING", "FAILED"] }
           },
           data: {
             failureReason: "Razorpay payment.failed webhook",

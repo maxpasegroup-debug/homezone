@@ -3,7 +3,7 @@ import { handleApiError, notFound, ok, parseJson, unauthorized } from "@/lib/api
 import { leadVisitUpdateSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addLeadTimeline, requireLeadAccess } from "@/lib/leads/access";
+import { addLeadTimeline, requireLeadPermission } from "@/lib/leads/access";
 
 type RouteContext = {
   params: Promise<{
@@ -19,7 +19,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const profile = await getOrCreateProfile(session.user);
     const { id, visitId } = await context.params;
-    const access = await requireLeadAccess(id, profile);
+    const access = await requireLeadPermission(id, profile);
     if ("error" in access) return access.error;
 
     const visit = await db.leadSiteVisit.findUnique({ where: { id: visitId } });

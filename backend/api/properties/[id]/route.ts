@@ -28,6 +28,7 @@ async function requireOwnedProperty(id: string, user: {
   image?: string | null;
 }) {
   const profile = await getOrCreateProfile(user);
+  if(profile.verificationStatus==="SUSPENDED")return {error:forbidden()} as const;
   const property = await db.property.findUnique({
     where: {
       id
@@ -106,7 +107,9 @@ export async function PATCH(request: Request, context: RouteContext) {
               : undefined
       },
       where: {
-        id
+        id,
+        ...(!isAdminRole(ownership.profile.role) ? { ownerId: ownership.profile.id,
+          ...(nextStatus === "PUBLISHED" ? { verificationStatus: "VERIFIED" as const } : {}) } : {})
       }
     });
 

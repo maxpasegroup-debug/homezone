@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     if (!session?.user?.id) return unauthorized();
 
     const profile = await getOrCreateProfile(session.user);
+    if(!["BROKER","ADMIN","SUPER_ADMIN"].includes(profile.role))return forbidden();
     const plan = await getBrokerPlan(profile.id);
     const teamCount = await db.brokerTeamMember.count({
       where: {
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
     const parsed = await parseJson(request, brokerTeamMemberSchema);
     if ("error" in parsed) return parsed.error;
 
+    if(parsed.data.profileId) return forbidden("Account binding requires the approved team invitation workflow.");
     const member = await db.brokerTeamMember.create({
       data: {
         active: parsed.data.active ?? true,

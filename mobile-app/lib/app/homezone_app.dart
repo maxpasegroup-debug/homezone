@@ -1,3 +1,4 @@
+import '../features/marketplace/account_listing_screen.dart';
 import 'package:flutter/material.dart';
 import '../features/auth/auth_screens.dart';
 import '../features/auth/onboarding_screen.dart';
@@ -12,6 +13,7 @@ import '../features/marketplace/marketplace_repository.dart';
 import '../features/marketplace/marketplace_screen.dart';
 import '../features/marketplace/account_access_screen.dart';
 import '../features/marketplace/registration_screen.dart';
+import '../features/workspace/workspace_screen.dart';
 
 class HomezoneApp extends StatefulWidget {
   const HomezoneApp({
@@ -62,12 +64,45 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
     '/buyer' =>
       widget.marketplace == null
           ? const BuyerShell()
+          : ListenableBuilder(
+              listenable: widget.marketplace!.session,
+              builder: (context, _) {
+                final role = widget.marketplace!.session.identity?.role;
+                if (role != null && role != 'USER')
+                  return WorkspaceScreen(repository: widget.marketplace!);
+                return MarketplaceScreen(
+                  key: ObjectKey(widget.marketplace),
+                  repository: widget.marketplace!,
+                  themeMode: _themeMode,
+                  onThemeChanged: (value) => setState(() => _themeMode = value),
+                );
+              },
+            ),
+    '/discovery' =>
+      widget.marketplace == null
+          ? const BuyerShell()
           : MarketplaceScreen(
               key: ObjectKey(widget.marketplace),
               repository: widget.marketplace!,
               themeMode: _themeMode,
               onThemeChanged: (value) => setState(() => _themeMode = value),
             ),
+    '/property' => Builder(
+      builder: (context) {
+        final id = ModalRoute.of(context)?.settings.arguments;
+        if (widget.marketplace == null ||
+            id is! String ||
+            !RegExp(r'^[A-Za-z0-9_-]{8,128}$').hasMatch(id))
+          return const Scaffold(
+            body: Center(child: Text('Property unavailable.')),
+          );
+        return AccountListingScreen(repository: widget.marketplace!, id: id);
+      },
+    ),
+    '/workspace' =>
+      widget.marketplace == null
+          ? const SignInScreen()
+          : WorkspaceScreen(repository: widget.marketplace!),
     '/buyer-preview' => const BuyerShell(),
     '/onboarding' => const OnboardingScreen(),
     '/roles' =>
@@ -110,6 +145,9 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
         for (final route in [
           '/buyer',
           '/buyer-preview',
+          '/discovery',
+          '/workspace',
+          '/property',
           '/onboarding',
           '/roles',
           '/sign-in',

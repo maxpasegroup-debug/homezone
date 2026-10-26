@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { studioRevisionSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
@@ -20,33 +20,18 @@ export async function POST(request: Request, context: RouteContext) {
     const parsed = await parseJson(request, studioRevisionSchema);
     if ("error" in parsed) return parsed.error;
 
-    const latestRevision = await db.studioRevision.findFirst({
-      orderBy: {
-        version: "desc"
-      },
-      where: {
-        studioRequestId: id
-      }
+    const result=await db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "StudioRequest" WHERE id = ${id} FOR UPDATE`;
+      const current=await tx.studioRequest.findUnique({where:{id}});
+      if(!current || current.status!=="DELIVERED")return null;
+      const latest=await tx.studioRevision.findFirst({where:{studioRequestId:id},orderBy:{version:"desc"}});
+      const revision=await tx.studioRevision.create({data:{comments:parsed.data.comments,requestedById:profile.id,
+        studioRequestId:id,status:"REQUESTED",version:(latest?.version??0)+1}});
+      const order=await tx.studioRequest.update({where:{id},data:{status:"REVISION_REQUESTED"}});
+      return {revision,order};
     });
-
-    const revision = await db.studioRevision.create({
-      data: {
-        comments: parsed.data.comments,
-        requestedById: profile.id,
-        status: "REQUESTED",
-        studioRequestId: id,
-        version: (latestRevision?.version ?? 0) + 1
-      }
-    });
-
-    const order = await db.studioRequest.update({
-      data: {
-        status: "REVISION_REQUESTED"
-      },
-      where: {
-        id
-      }
-    });
+    if(!result)return apiError("Only a delivered order can be revised. Refresh before continuing.",409);
+    const {order,revision}=result;
 
     await addStudioTimeline({
       actorId: profile.id,

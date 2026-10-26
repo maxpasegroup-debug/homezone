@@ -25,9 +25,9 @@ export async function validateSession(claims: Claims) {
       !Number.isFinite(Date.parse(claims.sessionExpires)) || Date.parse(claims.sessionExpires) <= Date.now()) return false;
   try {
     const session = await db.authSession.findUnique({
-      where: { id: sessionKey(claims.sid) }, include: { user: { select: { sessionVersion: true } } }
+      where: { id: sessionKey(claims.sid) }, include: { user: { select: { sessionVersion: true, profile: { select: { verificationStatus: true } } } } }
     });
-    return Boolean(session && session.userId === claims.id && !session.revokedAt &&
+    return Boolean(session && session.user.profile?.verificationStatus !== "SUSPENDED" && session.userId === claims.id && !session.revokedAt &&
       session.expiresAt.getTime() > Date.now() && session.version === claims.sessionVersion &&
       session.user.sessionVersion === claims.sessionVersion);
   } catch {

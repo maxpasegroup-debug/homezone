@@ -81,9 +81,10 @@ export default async function AdminListingDetailPage({ params }: PageProps) {
                 {property.documents.map((document) => (
                   <div className="rounded-2xl bg-muted p-4" key={document.id}>
                     <p className="text-sm font-bold">{formatAdminStatus(document.documentType)}</p>
-                    <a className="mt-1 block text-sm font-semibold text-violet-700" href={document.fileUrl} rel="noreferrer" target="_blank">
+                    <a className="mt-1 block text-sm font-semibold text-violet-700" href={/^\/api\/private-files\/[a-f0-9-]{36}$/.test(document.fileUrl) ? document.fileUrl : undefined} rel="noreferrer" target="_blank">
                       {document.fileName}
                     </a>
+                    {!/^\/api\/private-files\/[a-f0-9-]{36}$/.test(document.fileUrl)?<p className="text-sm">Legacy external reference requires privacy review.</p>:null}
                     {document.notes ? <p className="mt-2 text-sm text-muted-foreground">{document.notes}</p> : null}
                   </div>
                 ))}

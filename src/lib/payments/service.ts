@@ -28,12 +28,12 @@ export function invoiceMetadata({
   } satisfies Prisma.InputJsonValue;
 }
 
-export async function applyPaidEntitlement(payment: Payment) {
+export async function applyPaidEntitlement(payment: Payment, client: Prisma.TransactionClient = db) {
   const now = new Date();
   const config = getPaymentProduct(payment.product);
 
   if (payment.product === "FEATURED_LISTING" && payment.propertyId) {
-    await db.property.update({
+    await client.property.update({
       where: {
         id: payment.propertyId
       },
@@ -50,11 +50,11 @@ export async function applyPaidEntitlement(payment: Payment) {
       metadata: {
         paymentId: payment.id
       }
-    });
+    }, client);
   }
 
   if (payment.product === "PREMIUM_LISTING" && payment.propertyId) {
-    await db.property.update({
+    await client.property.update({
       where: {
         id: payment.propertyId
       },
@@ -71,11 +71,11 @@ export async function applyPaidEntitlement(payment: Payment) {
       metadata: {
         paymentId: payment.id
       }
-    });
+    }, client);
   }
 
   if (config.subscription && payment.payerId) {
-    const subscription = await db.subscription.create({
+    const subscription = await client.subscription.create({
       data: {
         endsAt: addDays(now, config.durationDays ?? 30),
         product: payment.product,
@@ -85,7 +85,7 @@ export async function applyPaidEntitlement(payment: Payment) {
       }
     });
 
-    await db.payment.update({
+    await client.payment.update({
       where: {
         id: payment.id
       },
@@ -103,13 +103,14 @@ export async function applyPaidEntitlement(payment: Payment) {
         paymentId: payment.id,
         product: payment.product
       }
-    });
+    }, client);
   }
 
   if (config.createsStudioRequest && payment.studioRequestId) {
-    await db.studioRequest.update({
+    await client.studioRequest.updateMany({
       where: {
-        id: payment.studioRequestId
+        id: payment.studioRequestId,
+        status: { in: ["DRAFT", "SUBMITTED", "PAYMENT_PENDING"] }
       },
       data: {
         paymentStatus: "PAID",
@@ -117,7 +118,8 @@ export async function applyPaidEntitlement(payment: Payment) {
       }
     });
 
-    await db.studioTimelineEvent.create({
+    await client.studioRequest.update({where:{id:payment.studioRequestId},data:{paymentStatus:"PAID"}});
+    await client.studioTimelineEvent.create({
       data: {
         actorId: payment.payerId,
         eventType: "PAYMENT_RECEIVED",
@@ -129,7 +131,7 @@ export async function applyPaidEntitlement(payment: Payment) {
         studioRequestId: payment.studioRequestId
       }
     });
-    const studioRequest = await db.studioRequest.findUnique({
+    const studioRequest = await client.studioRequest.findUnique({
       select: {
         requesterId: true
       },
@@ -139,9 +141,9 @@ export async function applyPaidEntitlement(payment: Payment) {
     });
 
     if (studioRequest?.requesterId) {
-      await db.studioNotification.create({
+      await client.studioNotification.create({
         data: {
-          message: "Your payment is verified. HomeZone Studio can now assign the production team.",
+          message: "Your payment was verified. Check the current order status; cancelled or completed orders are not reopened.",
           recipientId: studioRequest.requesterId,
           studioRequestId: payment.studioRequestId,
           title: "Studio payment received",
@@ -159,16 +161,17 @@ export async function applyPaidEntitlement(payment: Payment) {
         paymentId: payment.id,
         product: payment.product
       }
-    });
+    }, client);
   }
 
   if ((payment.product === "SERVICE_BOOKING_DEPOSIT" || payment.product === "SERVICE_FINAL_PAYMENT") && payment.serviceBookingId) {
-    await db.serviceBooking.update({
+    await client.serviceBooking.updateMany({
       data: {
         status: payment.product === "SERVICE_FINAL_PAYMENT" ? "COMPLETED" : "UPCOMING"
       },
       where: {
-        id: payment.serviceBookingId
+        id: payment.serviceBookingId,
+        status: payment.product === "SERVICE_FINAL_PAYMENT" ? "IN_PROGRESS" : "UPCOMING"
       }
     });
 
@@ -181,7 +184,7 @@ export async function applyPaidEntitlement(payment: Payment) {
         paymentId: payment.id,
         product: payment.product
       }
-    });
+    }, client);
   }
 }
 
@@ -196,46 +199,25 @@ export async function markPaymentPaid({
   signature?: string;
   webhookEventId?: string;
 }) {
-  const existing = await db.payment.findUnique({
-    where: {
-      razorpayOrderId: orderId
+  // A payment row is the idempotency lock. Status, entitlements and their audit
+  // records commit together; an entitlement failure leaves the payment retryable.
+  return db.$transaction(async tx => {
+    const reference=await tx.payment.findUnique({where:{razorpayOrderId:orderId},select:{id:true}});
+    if(!reference)return null;
+    await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${reference.id} FOR UPDATE`;
+    const existing=await tx.payment.findUnique({where:{id:reference.id}});
+    if(!existing)return null;
+    if(existing.status==="PAID")return existing;
+    if(["REFUNDED","CANCELLED"].includes(existing.status)) {
+      await auditLog({action:"PAYMENT_CAPTURE_REQUIRES_REVIEW",actorId:existing.payerId,
+        entityId:existing.id,entityType:"payment",metadata:{product:existing.product}},tx);
+      return existing;
     }
+    const payment=await tx.payment.update({where:{id:existing.id},data:{paidAt:new Date(),
+      razorpayPaymentId:paymentId,razorpaySignature:signature,razorpayWebhookEventId:webhookEventId,status:"PAID"}});
+    await applyPaidEntitlement(payment,tx);
+    await auditLog({action:"PAYMENT_VERIFIED",actorId:payment.payerId,entityId:payment.id,entityType:"payment",
+      metadata:{orderId,paymentId,product:payment.product}},tx);
+    return payment;
   });
-
-  if (!existing) {
-    return null;
-  }
-
-  if (existing.status === "PAID") {
-    return existing;
-  }
-
-  const payment = await db.payment.update({
-    where: {
-      id: existing.id
-    },
-    data: {
-      paidAt: new Date(),
-      razorpayPaymentId: paymentId,
-      razorpaySignature: signature,
-      razorpayWebhookEventId: webhookEventId,
-      status: "PAID"
-    }
-  });
-
-  await applyPaidEntitlement(payment);
-
-  await auditLog({
-    action: "PAYMENT_VERIFIED",
-    actorId: payment.payerId,
-    entityId: payment.id,
-    entityType: "payment",
-    metadata: {
-      orderId,
-      paymentId,
-      product: payment.product
-    }
-  });
-
-  return payment;
 }

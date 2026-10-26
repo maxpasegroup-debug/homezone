@@ -1,9 +1,10 @@
+import { matchesPrivateReference } from "@/lib/documents/private-files";
 import { auth } from "@/auth";
-import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { brokerClientDocumentSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addLeadTimeline, requireLeadAccess } from "@/lib/leads/access";
+import { addLeadTimeline, requireLeadPermission } from "@/lib/leads/access";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,11 +15,13 @@ export async function POST(request: Request, context: RouteContext) {
 
     const profile = await getOrCreateProfile(session.user);
     const { id } = await context.params;
-    const access = await requireLeadAccess(id, profile);
+    const access = await requireLeadPermission(id, profile);
     if ("error" in access) return access.error;
 
     const parsed = await parseJson(request, brokerClientDocumentSchema);
     if ("error" in parsed) return parsed.error;
+
+    if(!await matchesPrivateReference(parsed.data.fileUrl,"lead",id)) return apiError("Use an authenticated document uploaded for this record.",400);
 
     const document = await db.brokerClientDocument.create({
       data: {
@@ -39,6 +42,6 @@ export async function POST(request: Request, context: RouteContext) {
 
     return ok({ document });
   } catch (error) {
-    return handleApiError(error, { route: "POST /api/pro/leads/[id]/documents" });
+    return handleApiError(new Error("Private document operation failed"), { route: "POST /api/pro/leads/[id]/documents" });
   }
 }

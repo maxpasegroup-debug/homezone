@@ -59,6 +59,32 @@ class CookieRequestCoordinator {
   void removeLifecycleListener(void Function() listener) =>
       _lifecycleListeners.remove(listener);
   CookieLifecycleBoundary get boundary => _boundary;
+  String get credentialScope =>
+      '${_store.configuration.environment.name}:${_store.configuration.baseUri.origin}';
+
+  List<String> exportCredentialHeaders() => _store.exportSession();
+  bool restoreCredentialHeaders(List<String> headers, int expectedGeneration) {
+    if (_generation != expectedGeneration ||
+        _active != null ||
+        _boundary != CookieLifecycleBoundary.ready ||
+        headers.length > 12)
+      return false;
+    final name =
+        '${_store.configuration.baseUri.scheme == 'https' ? '__Secure-' : ''}authjs.session-token';
+    // Disk contents are untrusted credentials, never proof of authentication.
+    if (headers.any(
+      (h) =>
+          !h.startsWith('$name=') &&
+          !RegExp('^${RegExp.escape(name)}\\.\\d+=').hasMatch(h),
+    ))
+      return false;
+    _store.applyHeaders(
+      headers,
+      environment: _store.configuration.environment,
+      responseUri: _store.configuration.endpoint('/api/auth/session', null),
+    );
+    return _generation == expectedGeneration;
+  }
 
   /// Protocol observation only, never authentication status or raw values.
   bool hasProtocolCookie(String name) => _store

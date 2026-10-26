@@ -96,13 +96,9 @@ export default async function StudioOrderDetailPage({ params }: PageProps) {
                 <div className="rounded-[1.5rem] border bg-white p-5" key={file.id}>
                   <p className="text-xs font-bold text-violet-700">Version {file.version} / {studioLabel(file.fileType)}</p>
                   <h2 className="mt-2 font-bold">{file.fileName}</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{file.notes ?? "Ready for preview and download."}</p>
-                  <Button asChild className="mt-4" size="sm" variant="outline">
-                    <a href={file.fileUrl} rel="noreferrer" target="_blank">
-                      <Download className="h-4 w-4" />
-                      Open File
-                    </a>
-                  </Button>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{file.notes ?? "Check the managed download or privacy-review status below."}</p>
+                  {/^\/api\/private-files\/[a-f0-9-]{36}$/.test(file.fileUrl)?<Button asChild className="mt-4" size="sm" variant="outline"><a href={file.fileUrl} rel="noreferrer" target="_blank"><Download className="h-4 w-4"/>Download private PDF</a></Button>:<p className="mt-4 text-sm">Legacy external delivery awaits privacy review. No public download is offered.</p>}
+
                 </div>
               ))}
               {!order.files.length ? <Empty text="Delivered photos, videos, brochures, and creatives will appear here." /> : null}

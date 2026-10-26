@@ -63,14 +63,15 @@ providers.push(
 
       const user = await db.user.findUnique({
         include: {
-          passwordCredential: true
+          passwordCredential: true,
+          profile: { select: { verificationStatus: true } }
         },
         where: {
           email
         }
       });
 
-      if (!user?.passwordCredential) return null;
+      if (!user?.passwordCredential || user.profile?.verificationStatus === "SUSPENDED") return null;
 
       const valid = await verifyPassword(password, user.passwordCredential.passwordHash);
       if (!valid) return null;

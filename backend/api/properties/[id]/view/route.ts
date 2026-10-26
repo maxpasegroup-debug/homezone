@@ -26,7 +26,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { id } = await context.params;
     const property = await db.property.findUnique({
-      where: { id },
+      where: { id, status: "PUBLISHED" },
       select: {
         city: true,
         id: true,

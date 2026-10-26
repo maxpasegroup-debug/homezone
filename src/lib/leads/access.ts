@@ -31,10 +31,24 @@ export function leadAccessWhere(profileId: string): Prisma.LeadWhereInput {
   };
 }
 
-export async function requireLeadAccess(leadId: string, profile: {
+// Mutation admission needs only ownership/status facts, not conversation arrays.
+export async function requireLeadPermission(leadId: string, profile: {
   id: string;
   role: string;
 }) {
+  const current = await db.profile.findUnique({ where: { id: profile.id }, select: { role: true, verificationStatus: true } });
+  if (!current || current.verificationStatus === "SUSPENDED" || current.role !== profile.role) {
+    return { error: forbidden() } as const;
+  }
+  const lead = await db.lead.findUnique({where:{id:leadId},select:{id:true,propertyId:true,assignedTo:true,firstRespondedAt:true,property:{select:{ownerId:true}}}});
+  if(!lead)return {error:notFound("Lead not found")} as const;
+  if(!canAccessLeadCrm(lead,profile))return {error:forbidden()} as const;
+  return {lead} as const;
+}
+
+export async function requireLeadAccess(leadId: string, profile: { id: string; role: string }) {
+  const admission=await requireLeadPermission(leadId,profile);
+  if("error" in admission&&admission.error)return {error:admission.error} as const;
   const lead = await db.lead.findUnique({
     include: {
       assigned: true,

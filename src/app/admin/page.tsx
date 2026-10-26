@@ -10,6 +10,7 @@ export default async function AdminPage() {
 
   return (
     <main>
+        <a className="container block py-3 font-semibold" href="/admin/account-requests">Account and refund review requests</a>
       <section className="container py-8 sm:py-10">
         <AdminControlCenter data={data} />
       </section>

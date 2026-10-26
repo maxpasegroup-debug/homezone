@@ -1,5 +1,12 @@
 # Continuous implementation handoff
 
+Current implementation supplement (2026-10-26):
+[MASTER_IMPLEMENTATION.md](MASTER_IMPLEMENTATION.md) records the ten-phase pass,
+native credential restoration, role workspaces, shared workflow changes and APK
+compilation. Its current-state notes supersede the historical memory-only
+service-session and buyer-only scope described below. The offline buyer preview
+still has memory-only state. Testing remains separately authorized future work.
+
 This is the historical implementation snapshot. Subsequent local fixes and actual
 validation outcomes are recorded in [STABILIZATION_REPORT.md](STABILIZATION_REPORT.md).
 

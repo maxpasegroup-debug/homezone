@@ -1,9 +1,9 @@
 import { auth } from "@/auth";
-import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { brokerCommissionSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addLeadTimeline, requireLeadAccess } from "@/lib/leads/access";
+import { addLeadTimeline, requireLeadPermission } from "@/lib/leads/access";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,8 +13,9 @@ export async function POST(request: Request, context: RouteContext) {
     if (!session?.user?.id) return unauthorized();
 
     const profile = await getOrCreateProfile(session.user);
+    if(!["BROKER","ADMIN","SUPER_ADMIN"].includes(profile.role))return forbidden();
     const { id } = await context.params;
-    const access = await requireLeadAccess(id, profile);
+    const access = await requireLeadPermission(id, profile);
     if ("error" in access) return access.error;
 
     const parsed = await parseJson(request, brokerCommissionSchema);

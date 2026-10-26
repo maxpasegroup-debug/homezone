@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import type { StudioOrderStatus } from "@prisma/client";
-import { CheckCircle2, FileUp, UserPlus } from "lucide-react";
+import { CheckCircle2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PrivateDocumentUpload } from "@/components/documents/private-document-upload";
 
 const statuses: StudioOrderStatus[] = [
   "PAID",
@@ -17,7 +18,7 @@ const statuses: StudioOrderStatus[] = [
 ];
 
 const roles = ["PHOTOGRAPHER", "VIDEOGRAPHER", "DRONE_OPERATOR", "EDITOR", "DESIGNER"];
-const fileTypes = ["PHOTO", "VIDEO", "BROCHURE", "CREATIVE", "OTHER"];
+
 
 export function StudioAdminActions({ orderId }: { orderId: string }) {
   const [message, setMessage] = useState("");
@@ -26,9 +27,9 @@ export function StudioAdminActions({ orderId }: { orderId: string }) {
   const [scheduledAt, setScheduledAt] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [role, setRole] = useState("PHOTOGRAPHER");
-  const [fileName, setFileName] = useState("");
-  const [fileUrl, setFileUrl] = useState("");
-  const [fileType, setFileType] = useState("PHOTO");
+
+
+
   const [loading, setLoading] = useState("");
 
   async function submit(path: string, payload: Record<string, unknown>, method = "POST") {
@@ -102,32 +103,8 @@ export function StudioAdminActions({ orderId }: { orderId: string }) {
 
       <div className="rounded-[1.5rem] border bg-white p-5">
         <p className="font-bold">Deliver File</p>
-        <select className="mt-3 h-11 w-full rounded-xl border px-3 text-sm font-semibold" onChange={(event) => setFileType(event.target.value)} value={fileType}>
-          {fileTypes.map((item) => (
-            <option key={item}>{item}</option>
-          ))}
-        </select>
-        <input
-          className="mt-3 h-11 w-full rounded-xl border px-3 text-sm"
-          onChange={(event) => setFileName(event.target.value)}
-          placeholder="File name"
-          value={fileName}
-        />
-        <input
-          className="mt-3 h-11 w-full rounded-xl border px-3 text-sm"
-          onChange={(event) => setFileUrl(event.target.value)}
-          placeholder="Cloudinary or delivery URL"
-          value={fileUrl}
-        />
-        <Button className="mt-3 w-full" disabled={loading !== "" || !fileName || !fileUrl} onClick={() => submit(`/api/studio-requests/${orderId}/files`, {
-          fileName,
-          fileType,
-          fileUrl,
-          notes: "Final delivery uploaded by HomeZone Studio."
-        })}>
-          <FileUp className="h-4 w-4" />
-          Upload Delivery
-        </Button>
+        <PrivateDocumentUpload scope="studio" parent={orderId} onUploaded={()=>setMessage("Private PDF stored. Review it before marking the order delivered.")} />
+        <p className="mt-3 text-sm">Uploading a PDF does not change production status. Large video and image deliveries need an approved private media provider.</p>
       </div>
 
       {message ? <p className="rounded-2xl bg-violet-50 p-4 text-sm font-bold text-violet-700 xl:col-span-3">{message}</p> : null}

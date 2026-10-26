@@ -1,5 +1,6 @@
+import { matchesPrivateReference } from "@/lib/documents/private-files";
 import { auth } from "@/auth";
-import { forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { studioFileSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
@@ -22,6 +23,8 @@ export async function POST(request: Request, context: RouteContext) {
 
     const parsed = await parseJson(request, studioFileSchema);
     if ("error" in parsed) return parsed.error;
+
+    if(!await matchesPrivateReference(parsed.data.fileUrl,"studio",id)) return apiError("Use an authenticated document uploaded for this record.",400);
 
     const file = await db.studioDeliveryFile.create({
       data: {
@@ -68,6 +71,6 @@ export async function POST(request: Request, context: RouteContext) {
 
     return ok({ file, order });
   } catch (error) {
-    return handleApiError(error, { route: "POST /api/studio-requests/[id]/files" });
+    return handleApiError(new Error("Private document operation failed"), { route: "POST /api/studio-requests/[id]/files" });
   }
 }

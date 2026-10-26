@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import {
+  apiError,
   forbidden,
   handleApiError,
   ok,
@@ -57,9 +58,10 @@ export async function POST(request: Request) {
     });
 
     if (!valid) {
-      await db.payment.update({
+      await db.payment.updateMany({
         where: {
-          id: payment.id
+          id: payment.id,
+          status: { in: ["CREATED", "PENDING", "FAILED"] }
         },
         data: {
           failureReason: "Invalid Razorpay signature",
@@ -84,6 +86,7 @@ export async function POST(request: Request) {
       signature: parsed.data.razorpay_signature
     });
 
+    if (!paid || paid.status !== "PAID") return apiError("Payment requires account review. No new benefit was activated.", 409);
     return ok({ payment: paid });
   } catch (error) {
     return handleApiError(error, {

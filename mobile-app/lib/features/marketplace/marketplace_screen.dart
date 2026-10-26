@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'marketplace_repository.dart';
+import 'account_listing_screen.dart';
 import 'listing_location.dart';
 import 'listing_media.dart';
+import '../workspace/workspace_screen.dart';
 
 /// Service-backed screens never consume DemoProperty or preview collections.
 class MarketplaceScreen extends StatefulWidget {
@@ -24,12 +26,16 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   final filters = <String, String>{};
   final recent = <Listing>[];
   final compare = <String, Listing>{};
+  final favoriteStatus = <String, bool>{};
   List<Listing> listings = [];
   JsonObject? account;
   String? accountIdentity;
+  int? accountGeneration;
   int tab = 0, page = 1, revision = 0;
   bool loading = false, more = false, mutating = false;
   bool savePending = false;
+  int accountEpoch = 0;
+  final collectionPending = <String>{};
   String? error;
   bool get verified => widget.repository.session.verified;
   Set<String> get saved => account == null
@@ -53,16 +59,22 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
   void sessionChanged() {
     if (!mounted) return;
-    if (verified && accountIdentity == widget.repository.session.identity?.id) {
+    if (verified &&
+        accountIdentity == widget.repository.session.identity?.id &&
+        accountGeneration == widget.repository.coordinator.generation) {
       setState(() {});
       return;
     }
     // Drop all account-derived state synchronously on invalidation.
     revision++;
+    accountEpoch++;
+    collectionPending.clear();
     setState(() {
       account = null;
       accountIdentity = null;
+      accountGeneration = null;
       compare.clear();
+      favoriteStatus.clear();
       recent.clear();
       error = null;
       loading = false;
@@ -97,6 +109,23 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               : result.items;
           more = result.hasMore && listings.length < 120;
         });
+        if (tab == 0 && verified) {
+          try {
+            final history = await widget.repository.history();
+            if (mounted &&
+                request == revision &&
+                generation == widget.repository.coordinator.generation) {
+              setState(() {
+                recent
+                  ..clear()
+                  ..addAll(history);
+              });
+            }
+          } catch (_) {
+            if (mounted && request == revision)
+              message('Recently viewed could not be refreshed.');
+          }
+        }
       } else if (verified) {
         await refreshAccount();
       }
@@ -110,6 +139,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   Future<void> refreshAccount() async {
+    final epoch = ++accountEpoch;
+    collectionPending.clear();
     final generation = widget.repository.coordinator.generation;
     final result = await widget.repository.account();
     // Parse before assigning: malformed data must not surface as build exceptions.
@@ -126,12 +157,101 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     object(result['profile']);
     if (mounted &&
         verified &&
+        epoch == accountEpoch &&
         generation == widget.repository.coordinator.generation) {
       setState(() {
         account = result;
         accountIdentity = widget.repository.session.identity?.id;
+        accountGeneration = generation;
+        favoriteStatus.clear();
       });
     }
+  }
+
+  Future<void> loadCollection(String collection, {String? parent}) async {
+    if (!verified || account == null || mutating || loading) return;
+    final key = parent ?? collection;
+    if (collectionPending.contains(key)) return;
+    final generation = widget.repository.coordinator.generation;
+    final epoch = accountEpoch;
+    JsonObject? shortlist;
+    if (parent != null) {
+      for (final row in objects(account!['shortlists'])) {
+        if (row['id'] == parent) shortlist = row;
+      }
+      if (shortlist == null) return;
+    }
+    final cursor = parent == null
+        ? object(account!['pagination'])[collection]
+        : shortlist!['nextCursor'];
+    if (cursor == null && (parent == null || shortlist!['itemsLoaded'] == true))
+      return;
+    setState(() => collectionPending.add(key));
+    try {
+      final page = await widget.repository.accountCollection(
+        collection,
+        parent: parent,
+        cursor: cursor as String?,
+      );
+      if (!mounted ||
+          !verified ||
+          epoch != accountEpoch ||
+          generation != widget.repository.coordinator.generation)
+        return;
+      setState(() {
+        final destination = parent == null ? account! : shortlist!;
+        final field = parent == null ? collection : 'items';
+        final merged = <String, JsonObject>{};
+        for (final row in [
+          ...objects(destination[field]),
+          ...objects(page['items']),
+        ]) {
+          final id = collection == 'shortlistItems'
+              ? object(row['property'])['id']
+              : row['id'];
+          if (id is! String) throw const FormatException();
+          merged[id] = row;
+        }
+        destination[field] = merged.values.toList();
+        if (parent == null) {
+          object(account!['pagination'])[collection] = page['nextCursor'];
+        } else {
+          destination['itemsLoaded'] = true;
+          destination['nextCursor'] = page['nextCursor'];
+        }
+      });
+    } catch (failure) {
+      if (mounted &&
+          epoch == accountEpoch &&
+          generation == widget.repository.coordinator.generation)
+        message(marketplaceError(failure));
+    } finally {
+      if (mounted && epoch == accountEpoch)
+        setState(() => collectionPending.remove(key));
+    }
+  }
+
+  Widget collectionMore(String collection, {JsonObject? shortlist}) {
+    final parent = shortlist?['id'] as String?;
+    final cursor = parent == null
+        ? object(account!['pagination'])[collection]
+        : shortlist!['nextCursor'];
+    if (cursor == null &&
+        (shortlist == null || shortlist['itemsLoaded'] == true))
+      return const SizedBox.shrink();
+    final pending = collectionPending.contains(parent ?? collection);
+    return TextButton(
+      onPressed: pending || loading || mutating
+          ? null
+          : () => loadCollection(collection, parent: parent),
+      child: Text(
+        pending
+            ? 'Loading…'
+            : parent != null && shortlist!['itemsLoaded'] != true
+            ? 'Load shortlist properties'
+            : 'Load more ${parent == null ? collection : 'properties'}',
+      ),
+    );
   }
 
   void message(String value) {
@@ -176,19 +296,31 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   Future<void> toggleSave(Listing listing) async {
     if (savePending || mutating || !mounted) return;
     savePending = true;
+    final generation = widget.repository.coordinator.generation;
     try {
-      if (account == null && verified) {
-        try {
-          await refreshAccount();
-        } catch (failure) {
-          message(marketplaceError(failure));
-          return;
-        }
+      if (!verified) {
+        message('Sign in before changing account data.');
+        return;
       }
-      if (!mounted) return;
-      await mutate(
-        () => widget.repository.save(listing.id, !saved.contains(listing.id)),
-      );
+      final previous = await widget.repository.savedStatus(listing.id);
+      if (!mounted ||
+          !verified ||
+          generation != widget.repository.coordinator.generation)
+        return;
+      var acknowledged = false;
+      await mutate(() async {
+        await widget.repository.save(listing.id, !previous);
+        acknowledged = true;
+      });
+      if (acknowledged &&
+          mounted &&
+          generation == widget.repository.coordinator.generation) {
+        setState(() => favoriteStatus[listing.id] = !previous);
+      }
+    } catch (failure) {
+      if (mounted && generation == widget.repository.coordinator.generation) {
+        message(marketplaceError(failure));
+      }
     } finally {
       savePending = false;
     }
@@ -202,12 +334,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) => LivePropertyScreen(
-          id: listing.id,
-          repository: widget.repository,
-          saved: () => saved.contains(listing.id),
-          onSave: () => toggleSave(listing),
-        ),
+        builder: (_) =>
+            AccountListingScreen(id: listing.id, repository: widget.repository),
       ),
     );
     if (mounted) {
@@ -215,6 +343,13 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       if (verified && account != null) {
         try {
           await refreshAccount();
+          final generation = widget.repository.coordinator.generation;
+          final next = await widget.repository.savedStatus(listing.id);
+          if (mounted &&
+              verified &&
+              generation == widget.repository.coordinator.generation) {
+            setState(() => favoriteStatus[listing.id] = next);
+          }
         } catch (_) {
           message('Refresh your account to see the latest server state.');
         }
@@ -250,6 +385,13 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     setState(() => mutating = true);
     final acknowledged = await widget.repository.session.signOut();
     if (!mounted) return;
+    if (widget.repository.session.verified) {
+      setState(() => mutating = false);
+      message(
+        'An account operation is still active. Please try sign-out again when it finishes.',
+      );
+      return;
+    }
     setState(() {
       mutating = false;
       account = null;
@@ -260,7 +402,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         scrollable: true,
         title: const Text('Signed out locally'),
         content: Text(
-          acknowledged
+          !widget.repository.session.credentialRemovalConfirmed
+              ? 'The in-memory session was cleared, but device credential removal could not be confirmed. Server sign-out ${acknowledged ? "was acknowledged" : "could not be confirmed"}. Retry sign-out using the website account controls before sharing this device.'
+              : acknowledged
               ? 'The server acknowledged sign-out. Local account data and credentials have been cleared.'
               : 'Local account data and credentials have been cleared. Server revocation could not be confirmed; a submitted request may still be processed. Use the website account controls if needed.',
         ),
@@ -316,11 +460,21 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             TextButton.icon(
               onPressed: mutating ? null : () => toggleSave(listing),
               icon: Icon(
-                saved.contains(listing.id)
+                (favoriteStatus[listing.id] ?? saved.contains(listing.id))
                     ? Icons.favorite
                     : Icons.favorite_border,
               ),
-              label: Text(saved.contains(listing.id) ? 'Saved' : 'Save'),
+              label: Text(
+                favoriteStatus[listing.id] == true ||
+                        (!favoriteStatus.containsKey(listing.id) &&
+                            saved.contains(listing.id))
+                    ? 'Saved'
+                    : favoriteStatus[listing.id] == false ||
+                          (account != null &&
+                              object(account!['pagination'])['saved'] == null)
+                    ? 'Save'
+                    : 'Toggle saved property',
+              ),
             ),
             TextButton.icon(
               onPressed: () => setState(() {
@@ -472,6 +626,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     if (account != null) ...[
       if (objects(account!['saved']).isEmpty) empty('No saved properties.'),
       ...objects(account!['saved']).map((row) => card(Listing.parse(row))),
+      collectionMore('saved'),
       FilledButton(
         onPressed: mutating
             ? null
@@ -544,7 +699,8 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                 ),
               ],
             ),
-            if (objects(shortlist['items']).isEmpty)
+            if (shortlist['itemsLoaded'] == true &&
+                objects(shortlist['items']).isEmpty)
               empty('This shortlist is empty.'),
             for (final item in objects(shortlist['items']))
               ListTile(
@@ -564,29 +720,33 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                         ),
                 ),
               ),
-            for (final property in objects(
-              account!['saved'],
-            ).map(Listing.parse))
-              if (!objects(
-                shortlist['items'],
-              ).any((item) => object(item['property'])['id'] == property.id))
-                ListTile(
-                  title: Text('Add ${property.title}'),
-                  leading: const Icon(Icons.add),
-                  onTap: mutating
-                      ? null
-                      : () => mutate(
-                          () => widget.repository.membership(
-                            shortlist['id'] as String,
-                            property.id,
-                            true,
+            collectionMore('shortlistItems', shortlist: shortlist),
+            if (shortlist['itemsLoaded'] == true &&
+                shortlist['nextCursor'] == null)
+              for (final property in objects(
+                account!['saved'],
+              ).map(Listing.parse))
+                if (!objects(
+                  shortlist['items'],
+                ).any((item) => object(item['property'])['id'] == property.id))
+                  ListTile(
+                    title: Text('Add ${property.title}'),
+                    leading: const Icon(Icons.add),
+                    onTap: mutating
+                        ? null
+                        : () => mutate(
+                            () => widget.repository.membership(
+                              shortlist['id'] as String,
+                              property.id,
+                              true,
+                            ),
                           ),
-                        ),
-                ),
+                  ),
           ],
         ),
+      collectionMore('shortlists'),
       const Text(
-        'This account snapshot shows up to 200 saves and 100 shortlists/enquiries. Unavailable listings are omitted.',
+        'Load more to browse the rest of your account. Open a shortlist to load its properties. Unavailable listings are omitted. Refresh to see new changes.',
       ),
     ],
   ];
@@ -623,6 +783,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                 : null,
           ),
         ),
+    if (account != null) collectionMore('enquiries'),
   ];
   List<Widget> profile() => [
     Text('My Profile', style: Theme.of(context).textTheme.headlineMedium),
@@ -654,6 +815,25 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         child: const Text('Edit city and phone'),
       ),
     ],
+    ListTile(
+      title: const Text('My role workspace & notifications'),
+      leading: const Icon(Icons.work_outline),
+      onTap: () async {
+        await Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WorkspaceScreen(repository: widget.repository),
+          ),
+        );
+        if (mounted && verified) {
+          try {
+            await refreshAccount();
+          } catch (_) {
+            message('Refresh your account to load server changes.');
+          }
+        }
+      },
+    ),
     ListTile(
       title: const Text('Saved & Shortlists'),
       leading: const Icon(Icons.favorite_border),
@@ -690,9 +870,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           scrollable: true,
           title: const Text('Account information'),
           content: const Text(
-            'This build keeps session credentials in memory only. Restarting requires sign-in again. Appearance follows your device settings. '
-            'External maps can open listed coordinates on supported Android devices; device location, calls and payments are not enabled. '
-            'Account creation and deletion are not enabled in this mobile build: an approved deletion/retention workflow, privacy policy and support contact must be supplied before release. '
+            'Session credentials use device-protected storage when available; reopening still requires server verification. Appearance follows your device settings. '
+            'External maps can open listed coordinates on supported Android devices; device location and calls are not enabled. Website payment controls may require a separate browser sign-in. '
+            'Email-verified account registration is available when configured. Account deletion and refund review requests can be recorded from My Workspace. Actual deletion, retention and refund execution require approved policies and provider operations. '
             'Signing out clears this app’s local state and attempts server revocation. A network failure leaves revocation uncertain.',
           ),
           actions: [
@@ -899,22 +1079,49 @@ class LivePropertyScreen extends StatefulWidget {
     required this.repository,
     required this.saved,
     required this.onSave,
+    this.onOpenListing,
+    this.favoriteReady,
+    this.onFavoriteRefresh,
   });
   final String id;
   final MarketplaceRepository repository;
   final bool Function() saved;
   final Future<void> Function() onSave;
+  final Future<void> Function(Listing)? onOpenListing;
+  final bool Function()? favoriteReady;
+  final VoidCallback? onFavoriteRefresh;
   @override
   State<LivePropertyScreen> createState() => _LivePropertyScreenState();
 }
 
 class _LivePropertyScreenState extends State<LivePropertyScreen> {
   late Future<Listing> result;
+  Future<ListingPage>? related;
   bool saving = false;
   @override
   void initState() {
     super.initState();
-    result = widget.repository.detail(widget.id);
+    result = readProperty();
+  }
+
+  Future<Listing> readProperty() async {
+    final property = await widget.repository.detail(widget.id);
+    if (mounted) {
+      related = widget.repository.listings({
+        if (property.data['city'] is String)
+          'city': property.data['city'] as String,
+        if (property.data['category'] is String)
+          'category': property.data['category'] as String,
+      }, 1);
+      // Consume errors immediately, even if navigation removes this FutureBuilder.
+      related!.then<void>((_) {}, onError: (Object _) {});
+      if (widget.repository.session.verified) {
+        widget.repository
+            .call('POST', '/api/properties/${property.id}/view')
+            .then<void>((_) {}, onError: (Object _) {});
+      }
+    }
+    return property;
   }
 
   @override
@@ -930,9 +1137,7 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
               children: [
                 Text(marketplaceError(snapshot.error!)),
                 TextButton(
-                  onPressed: () => setState(
-                    () => result = widget.repository.detail(widget.id),
-                  ),
+                  onPressed: () => setState(() => result = readProperty()),
                   child: const Text('Retry'),
                 ),
               ],
@@ -988,7 +1193,7 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
                 Text('• $amenity'),
             ],
             TextButton.icon(
-              onPressed: saving
+              onPressed: saving || !(widget.favoriteReady?.call() ?? true)
                   ? null
                   : () async {
                       setState(() => saving = true);
@@ -998,8 +1203,19 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
               icon: Icon(
                 widget.saved() ? Icons.favorite : Icons.favorite_border,
               ),
-              label: Text(widget.saved() ? 'Saved' : 'Save property'),
+              label: Text(
+                !(widget.favoriteReady?.call() ?? true)
+                    ? 'Saved status unavailable'
+                    : widget.saved()
+                    ? 'Saved'
+                    : 'Save property',
+              ),
             ),
+            if (!(widget.favoriteReady?.call() ?? true))
+              TextButton(
+                onPressed: widget.onFavoriteRefresh,
+                child: const Text('Retry saved status'),
+              ),
             OutlinedButton(
               onPressed: () => Navigator.push<void>(
                 context,
@@ -1077,6 +1293,45 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
             ),
             if (!widget.repository.session.verified)
               const Text('Sign in to submit an enquiry.'),
+            if (related != null && widget.onOpenListing != null)
+              FutureBuilder<ListingPage>(
+                future: related,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError)
+                    return const Text('Related listings are unavailable.');
+                  if (!snapshot.hasData)
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: LinearProgressIndicator(),
+                    );
+                  final rows = snapshot.data!.items
+                      .where((item) => item.id != property.id)
+                      .take(4)
+                      .toList();
+                  if (rows.isEmpty)
+                    return const Text(
+                      'No other published listings match this area and category.',
+                    );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'More in this area',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      for (final item in rows)
+                        Card(
+                          child: ListTile(
+                            title: Text(item.title),
+                            subtitle: Text('${item.price}\n${item.location}'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => widget.onOpenListing!(item),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
           ],
         );
       },

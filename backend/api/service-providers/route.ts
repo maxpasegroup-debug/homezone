@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
-import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { serviceProviderSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
@@ -41,7 +41,11 @@ export async function POST(request: Request) {
     }
 
     const profile = await getOrCreateProfile(session.user);
-    const provider = await db.serviceProvider.create({
+    if(profile.role!=="SERVICE_PROVIDER")return forbidden();
+    const provider = await db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Profile" WHERE id = ${profile.id} FOR UPDATE`;
+      if(await tx.serviceProvider.findFirst({where:{profileId:profile.id},select:{id:true}}))return null;
+      return tx.serviceProvider.create({
       data: {
         profileId: profile.id,
         businessName: parsed.data.businessName,
@@ -60,6 +64,8 @@ export async function POST(request: Request) {
       }
     });
 
+    });
+    if(!provider)return apiError("Provider profile already exists. Refresh before continuing.",409);
     return ok({ provider });
   } catch (error) {
     return handleApiError(error, {

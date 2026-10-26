@@ -7,10 +7,9 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"]
+    // Raw ORM diagnostics may serialize private inputs. Routes report safe,
+    // structured failures; never emit SQL arguments or document metadata here.
+    log: []
   });
 
 if (process.env.NODE_ENV !== "production") {

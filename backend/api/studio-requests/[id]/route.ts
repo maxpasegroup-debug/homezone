@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { studioApprovalSchema, studioStatusSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
@@ -43,7 +43,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       const parsed = await parseJson(request, studioApprovalSchema);
       if ("error" in parsed) return parsed.error;
 
-      const order = await db.studioRequest.update({
+      const changed = await db.studioRequest.updateMany({
         data: {
           approvedAt: new Date(),
           completedAt: new Date(),
@@ -51,8 +51,10 @@ export async function PATCH(request: Request, context: RouteContext) {
           customerRating: parsed.data.customerRating,
           status: "COMPLETED"
         },
-        where: { id }
+        where: { id, status: "DELIVERED" }
       });
+      if(changed.count!==1)return apiError("Only a delivered order can be approved. Refresh before continuing.",409);
+      const order = await db.studioRequest.findUnique({where:{id}});
       await addStudioTimeline({
         actorId: profile.id,
         eventType: "ORDER_COMPLETED",
@@ -63,16 +65,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     if (action === "cancel") {
-      if (["IN_PRODUCTION", "QUALITY_CHECK", "DELIVERED", "COMPLETED"].includes(access.order.status)) {
+      if (!["DRAFT", "SUBMITTED", "PAYMENT_PENDING", "PAID", "ASSIGNED"].includes(access.order.status)) {
         return forbidden("Order cannot be cancelled after production starts");
       }
-      const order = await db.studioRequest.update({
+      if(access.order.payments.some(payment=>payment.status==="PAID"))return apiError("Paid order cancellation requires the approved refund workflow.",409);
+      const changed = await db.studioRequest.updateMany({
         data: {
           cancelledAt: new Date(),
           status: "CANCELLED"
         },
-        where: { id }
+        where: { id, status: access.order.status }
       });
+      if(changed.count!==1)return apiError("Order changed. Refresh before continuing.",409);
+      const order=await db.studioRequest.findUnique({where:{id}});
       await addStudioTimeline({
         actorId: profile.id,
         eventType: "ORDER_CANCELLED",

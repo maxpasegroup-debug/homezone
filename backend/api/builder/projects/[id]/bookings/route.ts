@@ -18,8 +18,21 @@ export async function POST(request: Request, context: RouteContext) {
     const parsed = await parseJson(request, builderBookingSchema);
     if ("error" in parsed) return parsed.error;
     const result = await db.$transaction(async (tx) => {
-      const unit = await tx.builderUnit.findUnique({ where: { id: parsed.data.unitId } });
-      if (!unit || unit.projectId !== id || unit.status !== "AVAILABLE") return null;
+      // Acquire the unit row before creating a booking. Competing admissions
+      // recheck AVAILABLE after waiting for this transaction to finish.
+      const claim = await tx.builderUnit.updateMany({
+        where: { id: parsed.data.unitId, projectId: id, status: "AVAILABLE" },
+        data: { status: "RESERVED" }
+      });
+      if (claim.count !== 1) return null;
+      if (parsed.data.buyerId || parsed.data.leadId) {
+        const lead = parsed.data.leadId ? await tx.lead.findFirst({
+          where: { id: parsed.data.leadId, assignedTo: profile.id }
+        }) : null;
+        if (!lead || (parsed.data.buyerId && lead.userId !== parsed.data.buyerId)) {
+          throw new Error("Reservation relationship rejected");
+        }
+      }
       const booking = await tx.builderBooking.create({
         data: {
           bookingAmount: parsed.data.bookingAmount,
@@ -32,7 +45,7 @@ export async function POST(request: Request, context: RouteContext) {
           unitId: parsed.data.unitId
         }
       });
-      await tx.builderUnit.update({ data: { status: "RESERVED" }, where: { id: unit.id } });
+      await tx.builderProject.updateMany({where:{id,availableUnits:{gt:0}},data:{availableUnits:{decrement:1}}});
       return booking;
     });
     if (!result) return forbidden("Unit is not available for reservation");

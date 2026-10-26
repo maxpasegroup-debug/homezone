@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
-import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { studioRequestSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
@@ -45,12 +45,15 @@ export async function POST(request: Request) {
     const profile = await getOrCreateProfile(session.user);
     const service = getStudioService(parsed.data.serviceType);
     const status = parsed.data.status ?? "SUBMITTED";
+    if (!["DRAFT", "SUBMITTED"].includes(status)) return apiError("New orders must be drafts or submitted requests.", 400);
+    if (!service) return apiError("Select an available Studio service.", 400);
+    if (parsed.data.propertyId && !await db.property.findFirst({where:{id:parsed.data.propertyId,ownerId:profile.id},select:{id:true}})) return apiError("Property unavailable.", 403);
     const studioRequest = await db.studioRequest.create({
       data: {
         budget: parsed.data.budget,
         city: parsed.data.city,
         notes: parsed.data.notes,
-        orderValue: parsed.data.orderValue ?? service?.priceAmount ?? 0,
+        orderValue: service.priceAmount,
         paymentStatus: status === "DRAFT" ? "CREATED" : "PENDING",
         propertyId: parsed.data.propertyId,
         requesterId: profile.id,

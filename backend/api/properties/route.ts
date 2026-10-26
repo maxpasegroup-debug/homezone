@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
+import { forbidden, handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { propertyCreateSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { generateOpenAIText } from "@/lib/ai/homezone-ai";
@@ -41,6 +41,7 @@ export async function POST(request: Request) {
     }
 
     const profile = await getOrCreateProfile(session.user);
+    if(profile.verificationStatus==="SUSPENDED")return forbidden();
     const data = parsed.data;
     const aiSummary =
       (await generateOpenAIText({
@@ -48,9 +49,14 @@ export async function POST(request: Request) {
           "You are HomeZone AI. Write a short buyer-friendly real estate listing summary. Keep it practical and premium. Under 55 words.",
         user: JSON.stringify(data)
       })) ??
-      "This listing has been created and is waiting for HomeZone admin review.";
+      (data.status === "DRAFT" ? "This draft listing has not been submitted for HomeZone admin review." :
+        "This listing has been created and is waiting for HomeZone admin review.");
 
-    const property = await db.property.create({
+    const property=await db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Profile" WHERE id=${profile.id} FOR UPDATE`;
+      const current=await tx.profile.findUnique({where:{id:profile.id},select:{role:true,verificationStatus:true}});
+      if(!current||current.verificationStatus==='SUSPENDED'||current.role!==profile.role)throw new Error('Listing account changed. Refresh before continuing.');
+    const created = await tx.property.create({
       data: {
         ownerId: profile.id,
         title: data.title,
@@ -84,8 +90,8 @@ export async function POST(request: Request) {
       }
     });
 
-    if (profile.role === "USER") {
-      await db.profile.update({
+    if (current.role === "USER") {
+      await tx.profile.update({
         data: {
           role: "OWNER"
         },
@@ -95,6 +101,8 @@ export async function POST(request: Request) {
       });
     }
 
+      return created;
+    });
     await auditLog({
       action: "property_created",
       actorId: profile.id,

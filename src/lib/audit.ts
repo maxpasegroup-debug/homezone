@@ -16,9 +16,9 @@ export async function auditLog({
   entityId,
   entityType,
   metadata = {}
-}: AuditInput) {
+}: AuditInput, client: Pick<Prisma.TransactionClient, "auditLog"> = db) {
   try {
-    await db.auditLog.create({
+    await client.auditLog.create({
       data: {
         action,
         actorId,

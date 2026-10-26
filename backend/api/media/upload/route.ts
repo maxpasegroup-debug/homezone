@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { apiError, handleApiError, ok, rateLimited, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, ok, rateLimited, unauthorized } from "@/lib/api/response";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { env } from "@/lib/env";
 import { getCloudinaryConfig, signCloudinaryParams } from "@/lib/media/cloudinary";
@@ -45,6 +45,8 @@ export async function POST(request: Request) {
       return rateLimited(limit.resetAt);
     }
 
+    const profile = await getOrCreateProfile(session.user);
+    if(profile.verificationStatus==="SUSPENDED")return forbidden();
     const form = await request.formData();
     const file = form.get("file");
     const folder = String(form.get("folder") ?? "homezone/property-media");
@@ -52,6 +54,8 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) {
       return apiError("File is required", 400);
     }
+
+    if (folder === "homezone/property-documents" || ["application/pdf","application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(file.type)) return apiError("Use authenticated private document storage, not public media upload.",400);
 
     if (!allowedFolders.has(folder)) {
       return apiError("Upload folder is not allowed", 400);
@@ -89,8 +93,6 @@ export async function POST(request: Request) {
     if (!response.ok) {
       return apiError("Media upload failed", 502);
     }
-
-    const profile = await getOrCreateProfile(session.user);
 
     await auditLog({
       action: "media_uploaded",

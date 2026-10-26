@@ -20,6 +20,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const parsed = await parseJson(request, brokerTeamMemberUpdateSchema);
     if ("error" in parsed) return parsed.error;
 
+    if(parsed.data.profileId!==undefined && parsed.data.profileId!==member.profileId) return forbidden("Account binding requires the approved team invitation workflow.");
     const updated = await db.brokerTeamMember.update({
       data: parsed.data,
       where: {
