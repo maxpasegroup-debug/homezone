@@ -1796,3 +1796,155 @@ changes or migrations. Initial/final branch main, commit
 2a31a9102afc9a26a57561eeb941b2ca83badcd5; 15 modified tracked files, one
 untracked source file, zero staged. Existing work/APK preserved. Backend identity,
 connectivity, staging and production remain NOT VERIFIED. Stop pending evidence.
+## Staging origin guard review (2026-10-28)
+
+Current source review supersedes earlier production-only change recommendations
+for the owner-reported STAGING service. Owner reports root / and AUTH_URL,
+NEXTAUTH_URL, NEXT_PUBLIC_SITE_URL all https://speeko.online; actual dashboard
+variables were not inspected. Initial Git is now clean, main at
+7f67477c06d13a1f25b44e2d84d9fdd8874df249, not the older handoff baseline.
+
+Exact guard: src/lib/auth/redirect.ts:1 retains the old production hostname;
+stagingOrigin at lines 3-23 reads AUTH_STAGING_ORIGIN, validates public canonical
+HTTPS and separation from production. authOrigin lines 26-44 selects AUTH_URL
+before NEXTAUTH_URL, enforces agreement and accepts only production, explicitly
+approved staging or development loopback. NEXT_PUBLIC_SITE_URL is not an approval
+selector. Thus the three reported values alone reject speeko.online; an existing
+AUTH_STAGING_ORIGIN=https://speeko.online would admit it. Presence/value of that
+additional setting is UNKNOWN, not asserted absent.
+
+Smallest safe next change is owner-approved STAGING configuration, NOT source:
+set/confirm AUTH_STAGING_ORIGIN=https://speeko.online on the genuinely isolated
+staging service, preserving productionOrigin and all validation. No guard source
+edit is needed for that supported configuration. Do not use staging marker on a
+production/shared-data service. Activation enables recipient restrictions:
+STAGING_EMAIL_RECIPIENTS must contain approved controlled mailboxes for registration
+and recovery; missing/malformed policy blocks email. No values set here.
+
+Trace: backend/auth.ts:13,161 imports authRedirect for Auth.js redirects; src/app/
+api/auth/[...nextauth]/route.ts delegates to backend Auth.js handlers. middleware.ts
+:58 compares supplied mutation Origin with authOrigin and :85/:97 builds page
+redirects. Registration origin admission (email-registration.ts:106), email dispatch
+(resend.ts:9), password recovery and mobile capabilities also use authOrigin.
+Mobile account/workspace routes authenticate with auth() and repeat suspended
+account checks; not every GET directly evaluates authOrigin. Flutter uses CSRF,
+password callback and independent session verification; this review does not
+claim all API traffic is origin-guarded or that native CSRF/session checks can be
+removed. Restoration remains origin/environment scoped and independently verified.
+
+Other references: layout.tsx:9 metadataBase=https://homezone.ai affects metadata,
+not staging auth admission. backend/auth.ts demo identities and dashboard queries
+use @homezone.ai; resend.ts:54 has a fallback sender under that domain. Those are
+not additional API allowlists. Provision an approved verified sender, keep demo
+providers disabled; do not mechanically replace email domains. Old maxpase.com
+OAuth guide is obsolete guidance requiring later canonical-domain reconciliation.
+
+Backend prerequisites: explicit consistent canonical selectors; isolated
+DATABASE_URL and compatible schema/session registry, AUTH_SECRET, OTP_PEPPER,
+PASSWORD_SIGNIN_HMAC_KEY; approved trusted HTTPS ingress preserving separate
+Set-Cookie headers; approved email provider/sender/recipient policy. G7 remains
+blocked pending real distributed evidence. No cookies/passwords/secrets read.
+Flutter later needs HOMEZONE_ENABLE_API=true, HOMEZONE_API_ENV=staging,
+HOMEZONE_API_BASE_URL=https://speeko.online (conditional on verified target),
+exact approved HOMEZONE_IMAGE_HOSTS and optional HOMEZONE_MEDIA_HOSTS. Existing
+native secure storage and session revalidation stay unchanged. Metadata cleanup
+is separate and not a prerequisite to guard admission.
+
+No application/configuration/environment edit, remote access, tests/builds,
+launch, deployment or migration. Only this handoff appended under the task's
+explicit documentation exception. Final Git: main/same commit, one modified
+file (this document), zero untracked/staged. Existing code/APK retained. Local
+inspection only; an exploratory rg glob was invalid on Windows, not an app check.
+Live connection, staging identity/isolation and production remain NOT VERIFIED.
+## Flutter staging configuration instructions - NOT APPLIED (2026-10-28)
+
+Owner reports staging root /, successful deployment, consistent canonical URLs,
+AUTH_STAGING_ORIGIN and STAGING_EMAIL_RECIPIENTS provisioned. These are reported,
+not dashboard/network verification. Earlier SPEEKO LABS target concern remains
+unresolved by supplied evidence. No connection approved or attempted in this step.
+
+Exact public configuration syntax for future config/staging.local.json:
+
+    {
+      "HOMEZONE_ENABLE_API": true,
+      "HOMEZONE_API_ENV": "staging",
+      "HOMEZONE_API_BASE_URL": "https://speeko.online",
+      "HOMEZONE_IMAGE_HOSTS": "",
+      "HOMEZONE_MEDIA_HOSTS": ""
+    }
+
+JSON boolean true, not string true. Origin has no /api suffix/path/trailing slash.
+Empty hosts deliberately disable remote photography/public-video handoff rather
+than guessing provider access. Once approved, replace image list with exact
+lowercase hostnames separated by commas, no spaces/wildcards/URLs. Media hosts
+are a separate optional list (max 32); omit or leave empty if not needed. No
+credentials/keys allowed. Four required settings plus optional media setting,
+4 KiB max; existing local files must not be overwritten. This sample is
+instructions only, not a generated/enabled configuration.
+
+Existing safe local preparation command from mobile-app, NOT EXECUTED:
+
+    node scripts/prepare-service-config.mjs --environment staging --origin https://speeko.online
+
+Omission of both host options produces the above empty-host configuration.
+After host approval optionally append --image-hosts "res.cloudinary.com" and
+--media-hosts "<APPROVED_EXACT_PUBLIC_MEDIA_HOSTS>". The Cloudinary hostname is
+an existing website allowance, not evidence this staging inventory uses it.
+images.unsplash.com is also website-allowed, not automatically required for live
+inventory. Do not copy placeholders literally or approve unrelated media hosts.
+
+Equivalent future Dart define values: --dart-define=HOMEZONE_ENABLE_API=true,
+--dart-define=HOMEZONE_API_ENV=staging,
+--dart-define=HOMEZONE_API_BASE_URL=https://speeko.online,
+--dart-define=HOMEZONE_IMAGE_HOSTS=<approved list or empty>,
+--dart-define=HOMEZONE_MEDIA_HOSTS=<approved list or empty>.
+The established Android wrapper consumes --mode service --config
+config/staging.local.json and encodes defines; no build command run/authorized
+here. Changing config cannot alter the existing offline-only APK.
+
+Source-confirmed native authentication contract (NOT live proven):
+1. GET /api/auth/csrf returns csrfToken plus scoped CSRF cookies.
+2. POST /api/auth/callback/password sends form-encoded csrfToken/email/password/
+   callbackUrl, explicit managed cookies and Auth.js JSON-redirect request header.
+3. GET /api/auth/session independently verifies identity/role/expiry before
+   controller publication. Cookie coordinator, not a browser cookie jar, owns
+   ticketed generation-scoped cookie handling; redirects are not auto-followed.
+4. Protected API calls reuse owned explicit cookies and reject stale generations.
+5. Native protected credential storage is origin/environment scoped; restoration
+   requires another independently verified session response. App resume revalidates;
+   sign-out uses existing Auth.js CSRF/signout flow plus local clearing. There is
+   no assumption that browser login automatically authenticates Flutter.
+
+Existing API contracts: Auth.js catch-all delegates to backend/auth.ts; password
+provider id=password is implemented. Public GET /api/mobile/properties uses
+validated filters, page 1..1000/pageSize 1..24 and returns properties/page/hasMore/
+source=database. GET /api/mobile/properties/[id] returns published property and
+source=database or not-found. Account/workspace routes enforce auth and account
+state; fictional inventory is not a service fallback. Actual deployed contracts,
+HTTPS/proxy cookie behavior and database/schema remain unverified.
+
+Origin guard supports the reported staging configuration without source edits:
+redirect.ts stagingOrigin validates https://speeko.online when explicitly set;
+authOrigin requires canonical AUTH_URL/NEXTAUTH_URL agreement and staging match.
+Production allowlist remains unchanged. Presence of the variables is not proof
+of the correct service, recipient restriction effectiveness or session usability.
+
+Cloudinary uploads require server CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY,
+CLOUDINARY_API_SECRET and configured upload limits. Never place them in Flutter.
+Existing image HTTPS allowlisting and private-document/scanner protections remain.
+No claim that photography/scanning/delivery providers are operational.
+
+Single next action: owner supplies/attests the nonsecret staging deployment
+identity and HTTPS/API target evidence resolving SPEEKO LABS, plus approves the
+exact public image hosts (or explicitly chooses fallback-only). Then separately
+authorize local config creation; this task does not enable it. Server secret,
+DB isolation/schema, controlled test-account, email/provider, trusted ingress and
+G7 distributed verification prerequisites remain; no real sign-in is authorized.
+
+Only this handoff appended. Inspected main/API config/client transport/password
+protocol/session controller/repository, backend auth/catalog/guard, config scripts,
+Cloudinary adapter/website hosts and local-config ignore rule. Local reads only;
+no tests/analysis/builds/runtime/provider/network requests or config creation.
+Initial/final Git main / 7f67477c06d13a1f25b44e2d84d9fdd8874df249: one modified
+file (this existing handoff), no untracked/staged. All existing work/APK retained.
+Live connection and staging/production remain NOT VERIFIED.
