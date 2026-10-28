@@ -1,4 +1,4 @@
-﻿-- Additive only. Review capacity, keys, backup and retention before deployment.
+-- Additive only. Review capacity, keys, backup and retention before deployment.
 CREATE TABLE "PrivateFile" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "scope" TEXT NOT NULL,
