@@ -2,10 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
+import { z } from "zod";
 import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { registrationChallenge, registrationRetry } from "@/lib/auth/registration-feedback";
+import { passwordSignUpSchema } from "@/lib/api/validation";
+
+const registrationSchema = passwordSignUpSchema.extend({
+  email: z.string().trim().toLowerCase().max(254).email(),
+  name: z.string().trim().min(2).max(120)
+});
 
 type AuthFlow = "forgot" | "reset" | "signin" | "signup" | "verify";
 
@@ -18,6 +25,7 @@ type AuthFormProps = {
 
 function passwordHelp(password: string) {
   if (!password) return "";
+  if (password.length > 128) return "Use no more than 128 characters.";
   if (password.length < 8) return "Use at least 8 characters.";
   if (!/[A-Z]/.test(password)) return "Add one uppercase letter.";
   if (!/[a-z]/.test(password)) return "Add one lowercase letter.";
@@ -50,7 +58,12 @@ export function AuthForm({
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const help = passwordHelp(password);
+  const help = flow === "signup" || flow === "reset" ? passwordHelp(password) : "";
+  const registration = registrationSchema.safeParse({ email, name, password });
+  const registrationHelp = flow === "signup" && !registration.success
+    ? registration.error.issues.find((issue) =>
+        issue.path[0] === "name" ? name.length > 0 : issue.path[0] === "email" && email.length > 0)?.message
+    : undefined;
   function rateLimit(response: Response) {
     const deadline = registrationRetry(response.headers.get("Retry-After"));
     if (deadline === null) {
@@ -113,14 +126,14 @@ export function AuthForm({
 
   async function handleSignUp() {
     if (retryUnknown || Date.now() < retryAt) return;
+    if (!registration.success) {
+      setStatus(registration.error.issues[0]?.message ?? "Check your registration details.");
+      return;
+    }
     setLoading(true);
     setStatus("");
     const response = await fetch("/api/auth/password/signup", {
-      body: JSON.stringify({
-        email,
-        name,
-        password
-      }),
+      body: JSON.stringify(registration.data),
       headers: {
         "Content-Type": "application/json"
       },
@@ -246,7 +259,9 @@ export function AuthForm({
       ? Boolean(email)
       : flow === "reset"
         ? Boolean(resetToken && password && !help)
-        : Boolean(email && password && !help);
+        : flow === "signup"
+          ? registration.success
+          : Boolean(email.trim() && password);
 
   return (
     <Card className="mx-auto max-w-xl p-6 shadow-soft sm:p-8">
@@ -385,7 +400,7 @@ export function AuthForm({
           disabled={!canSubmit || loading || ((flow === "signup" || flow === "verify") &&
             (retryUnknown || now < retryAt || (flow === "verify" && !emailVerified && now >= expiresAt)))}
           onClick={async () => {
-            if (loading) return;
+            if (loading || !canSubmit) return;
             try { await primaryAction(); }
             catch { setStatus("Unable to complete the request. Please retry."); }
             finally { setLoading(false); }
@@ -396,6 +411,9 @@ export function AuthForm({
         </Button>
       </div>
 
+      {registrationHelp ? (
+        <p className="mt-3 text-sm font-semibold text-amber-700">{registrationHelp}</p>
+      ) : null}
       {status ? (
         <p className="mt-5 rounded-2xl bg-violet-50 p-4 text-sm font-semibold text-violet-700">
           {status}
