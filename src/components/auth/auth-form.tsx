@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { z } from "zod";
 import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { registrationChallenge, registrationRetry } from "@/lib/auth/registration-feedback";
+import { registrationRetry } from "@/lib/auth/registration-feedback";
 import { passwordSignUpSchema } from "@/lib/api/validation";
 
 const registrationSchema = passwordSignUpSchema.extend({
@@ -14,7 +14,7 @@ const registrationSchema = passwordSignUpSchema.extend({
   name: z.string().trim().min(2).max(120)
 });
 
-type AuthFlow = "forgot" | "reset" | "signin" | "signup" | "verify";
+type AuthFlow = "forgot" | "reset" | "signin" | "signup";
 
 type AuthFormProps = {
   authError?: string;
@@ -46,14 +46,10 @@ export function AuthForm({
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState(authError ?? "");
   const [loading, setLoading] = useState(false);
-  const [challengeId, setChallengeId] = useState("");
-  const [code, setCode] = useState("");
-  const [resendAt, setResendAt] = useState(0);
-  const [expiresAt, setExpiresAt] = useState(0);
+  const submitting = useRef(false);
   const [retryAt, setRetryAt] = useState(0);
   const [retryUnknown, setRetryUnknown] = useState(false);
   const [now, setNow] = useState(0);
-  const [emailVerified, setEmailVerified] = useState(false);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -71,20 +67,9 @@ export function AuthForm({
       setStatus("Too many attempts. The wait time could not be confirmed. Please try later.");
     } else {
       setRetryAt((previous) => Math.max(previous, deadline));
-      setResendAt((previous) => Math.max(previous, deadline));
       setStatus("Too many attempts. Wait for the server retry timer before trying again.");
     }
   }
-  function acceptChallenge(data: unknown) {
-    const challenge = registrationChallenge(data);
-    if (!challenge) return false;
-    setChallengeId(challenge.challengeId);
-    setExpiresAt(challenge.expiresAt);
-    setResendAt(challenge.resendAt);
-    setCode("");
-    return true;
-  }
-
   async function signInWithPassword(targetEmail = email, targetPassword = password) {
     const result = await signIn("password", {
       callbackUrl,
@@ -95,7 +80,7 @@ export function AuthForm({
 
     if (!result || result.error || !result.ok) {
       setStatus("Invalid email or password.");
-      return;
+      return false;
     }
 
     const sessionResponse = await fetch("/api/auth/session", { cache: "no-store" });
@@ -103,7 +88,7 @@ export function AuthForm({
     if (!sessionResponse.ok || typeof session?.user?.id !== "string" ||
         !session.user.id || !Number.isFinite(Date.parse(session.expires)) || Date.parse(session.expires) <= Date.now()) {
       setStatus("Unable to verify your session. Please sign in again.");
-      return;
+      return false;
     }
     setPassword("");
 
@@ -115,6 +100,7 @@ export function AuthForm({
     } catch {
       window.location.href = "/";
     }
+    return true;
   }
 
   async function handleSignIn() {
@@ -132,8 +118,9 @@ export function AuthForm({
     }
     setLoading(true);
     setStatus("");
-    const response = await fetch("/api/auth/password/signup", {
-      body: JSON.stringify(registration.data),
+    const submitted = registration.data;
+    const response = await fetch("/api/auth/password/web-signup", {
+      body: JSON.stringify(submitted),
       headers: {
         "Content-Type": "application/json"
       },
@@ -148,49 +135,22 @@ export function AuthForm({
       return;
     }
 
-    if (!acceptChallenge(data)) {
-      setStatus("Registration could not be confirmed. Please retry.");
-      setLoading(false);
+    if (response.status !== 200 || data?.message !== "Continue with secure sign-in.") {
+      setStatus("Registration could not be confirmed. Use sign-in or password recovery before retrying.");
+      setFlow("signin");
+      setPassword("");
       return;
     }
-    setEmailVerified(false);
-    setStatus("Check your email for a six-digit code, valid for 10 minutes. Existing accounts can use sign-in or recovery.");
-    setFlow("verify");
-    setLoading(false);
-  }
-
-  async function handleVerify() {
-    if (retryUnknown || Date.now() < retryAt || (!emailVerified && Date.now() >= expiresAt)) return;
-    setLoading(true);
-    if (!emailVerified) {
-      const response = await fetch("/api/auth/password/signup/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ challengeId, code }) });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || data?.verified !== true) {
-        if (response.status === 429) rateLimit(response);
-        else setStatus("Code incorrect, expired or exhausted. Request a new code after the cooldown, or restart registration.");
-        setLoading(false);
-        return;
-      }
-      setEmailVerified(true);
-      setCode("");
-    }
-    await signInWithPassword();
-    setLoading(false);
-  }
-  async function handleResend() {
-    if (loading || retryUnknown || Date.now() < retryAt || Date.now() < resendAt || Date.now() >= expiresAt) return;
-    setLoading(true);
+    // A generic acknowledgment is not proof of creation or authentication.
+    // Capture submitted credentials; edits during the request cannot change them.
     try {
-      const response = await fetch("/api/auth/password/signup/resend", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ challengeId }) });
-      const data = await response.json().catch(() => null);
-      if (response.status === 429) { rateLimit(response); return; }
-      if (!response.ok || !acceptChallenge(data)) {
-        setStatus("Code delivery could not be confirmed. Restart registration; an old challenge is not restored.");
-        return;
-      }
-      setStatus("A new code was accepted for delivery. Use the newest code; the previous challenge is invalid.");
-    } catch { setStatus("Unable to connect. Please try again."); }
-    finally { setLoading(false); }
+      if (await signInWithPassword(submitted.email, submitted.password)) return;
+    } catch {
+      // No automatic registration retry after an uncertain authentication result.
+    }
+    setPassword("");
+    setFlow("signin");
+    setStatus("Signup was submitted, but sign-in could not be confirmed. Use Sign in or Forgot password. Existing accounts are unchanged.");
   }
 
   async function handleForgotPassword() {
@@ -238,7 +198,7 @@ export function AuthForm({
   }
 
   const primaryAction =
-    flow === "verify" ? handleVerify : flow === "signup"
+    flow === "signup"
       ? handleSignUp
       : flow === "forgot"
         ? handleForgotPassword
@@ -246,16 +206,16 @@ export function AuthForm({
           ? handleResetPassword
           : handleSignIn;
   const primaryLabel =
-    flow === "verify" ? (emailVerified ? "Retry secure sign-in" : "Verify and continue") : flow === "signup"
+    flow === "signup"
       ? "Create Account"
       : flow === "forgot"
         ? "Send Reset Link"
         : flow === "reset"
           ? "Reset Password"
           : "Sign In";
-  const passwordVisible = flow !== "forgot" && flow !== "verify";
+  const passwordVisible = flow !== "forgot";
   const canSubmit =
-    flow === "verify" ? (emailVerified || /^\d{6}$/.test(code)) : flow === "forgot"
+    flow === "forgot"
       ? Boolean(email)
       : flow === "reset"
         ? Boolean(resetToken && password && !help)
@@ -277,7 +237,7 @@ export function AuthForm({
           }`}
           onClick={() => {
             setFlow("signin");
-            setPassword(""); setCode(""); setChallengeId(""); setEmailVerified(false);
+            setPassword("");
             setStatus("");
           }}
         >
@@ -290,7 +250,7 @@ export function AuthForm({
           }`}
           onClick={() => {
             setFlow("signup");
-            setPassword(""); setCode(""); setChallengeId(""); setEmailVerified(false);
+            setPassword("");
             setStatus("");
           }}
         >
@@ -299,7 +259,7 @@ export function AuthForm({
       </div>
 
       <h1 className="mt-6 text-4xl font-bold tracking-tight">
-        {flow === "verify" ? "Verify your email" : flow === "signup"
+        {flow === "signup"
           ? "Create your HomeZone account"
           : flow === "forgot"
             ? "Reset your password"
@@ -308,7 +268,7 @@ export function AuthForm({
               : "Sign in to HomeZone"}
       </h1>
       <p className="mt-3 leading-7 text-muted-foreground">
-        {flow === "verify" ? "Enter the code from your HOMEZONE email. Profile completion can wait until later." : flow === "signup"
+        {flow === "signup"
           ? "Save properties, contact owners, publish listings, and access your dashboard."
           : flow === "forgot"
             ? "Enter your email and HomeZone will send a secure password reset link."
@@ -318,11 +278,6 @@ export function AuthForm({
       </p>
 
       <div className="mt-7 space-y-4">
-        {flow === "verify" && !emailVerified ? <>
-          <label className="block space-y-2"><span>Verification code</span><input aria-label="Verification code" className="w-full rounded-2xl border p-4" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value)} disabled={loading} /></label>
-          <p>{now >= expiresAt ? "Code expired. Restart registration." : "Use the newest code before it expires. The server enforces expiry and attempts."}</p>
-          <button type="button" disabled={loading || retryUnknown || now < retryAt || now < resendAt || now >= expiresAt} onClick={handleResend}>Resend code {now < resendAt ? `in ${Math.ceil((resendAt - now) / 1000)}s` : ""}</button>
-        </> : null}
         {flow === "signup" ? (
           <label className="block space-y-2">
             <span className="text-sm font-semibold">Name</span>
@@ -330,6 +285,7 @@ export function AuthForm({
               <UserRound className="h-5 w-5 text-violet-700" />
               <input
                 className="w-full bg-transparent font-semibold outline-none"
+                disabled={loading}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Your name"
                 value={name}
@@ -338,13 +294,14 @@ export function AuthForm({
           </label>
         ) : null}
 
-        {flow !== "reset" && flow !== "verify" ? (
+        {flow !== "reset" ? (
           <label className="block space-y-2">
             <span className="text-sm font-semibold">Email address</span>
             <div className="flex h-14 items-center gap-3 rounded-2xl border border-border bg-white px-4">
               <Mail className="h-5 w-5 text-violet-700" />
               <input
                 autoComplete="email"
+                disabled={loading}
                 className="w-full bg-transparent font-semibold outline-none"
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
@@ -362,6 +319,7 @@ export function AuthForm({
               <LockKeyhole className="h-5 w-5 text-violet-700" />
               <input
                 autoComplete={flow === "signup" || flow === "reset" ? "new-password" : "current-password"}
+                disabled={loading}
                 className="w-full bg-transparent font-semibold outline-none"
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Enter password"
@@ -397,13 +355,13 @@ export function AuthForm({
 
         <Button
           className="w-full"
-          disabled={!canSubmit || loading || ((flow === "signup" || flow === "verify") &&
-            (retryUnknown || now < retryAt || (flow === "verify" && !emailVerified && now >= expiresAt)))}
+          disabled={!canSubmit || loading || (flow === "signup" && (retryUnknown || now < retryAt))}
           onClick={async () => {
-            if (loading || !canSubmit) return;
+            if (submitting.current || loading || !canSubmit) return;
+            submitting.current = true;
             try { await primaryAction(); }
             catch { setStatus("Unable to complete the request. Please retry."); }
-            finally { setLoading(false); }
+            finally { submitting.current = false; setLoading(false); }
           }}
           size="lg"
         >
@@ -419,7 +377,7 @@ export function AuthForm({
           {status}
         </p>
       ) : null}
-      {(flow === "signup" || flow === "verify") && now < retryAt ?
+      {flow === "signup" && now < retryAt ?
         <p role="status">Try again in {Math.ceil((retryAt - now) / 1000)}s</p> : null}
     </Card>
   );
