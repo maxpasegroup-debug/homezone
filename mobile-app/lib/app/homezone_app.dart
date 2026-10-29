@@ -104,7 +104,7 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
           ? const SignInScreen()
           : WorkspaceScreen(repository: widget.marketplace!),
     '/buyer-preview' => const BuyerShell(),
-    '/onboarding' => const OnboardingScreen(),
+    '/onboarding' => OnboardingScreen(serviceMode: widget.marketplace != null),
     '/roles' =>
       widget.marketplace == null
           ? const RoleScreen()
@@ -127,7 +127,7 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
           : AccountAccessScreen(repository: widget.marketplace!, reset: true),
     '/check-email' => const CheckEmailScreen(),
     '/success' => const SuccessScreen(),
-    _ => const SplashScreen(),
+    _ => SplashScreen(serviceMode: widget.marketplace != null),
   };
   @override
   Widget build(BuildContext context) => SessionScope(

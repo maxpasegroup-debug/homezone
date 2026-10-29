@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../theme/design_tokens.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.serviceMode = false});
+  final bool serviceMode;
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
@@ -211,8 +212,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               Navigator.pushNamed(context, '/sign-in'),
                           child: const Text('Already have an account? Sign In'),
                         ),
+                        if (widget.serviceMode)
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: footerText,
+                            ),
+                            onPressed: () =>
+                                Navigator.pushNamed(context, '/discovery'),
+                            child: const Text('Browse published properties'),
+                          ),
                         Text(
-                          'Local UI preview only',
+                          widget.serviceMode
+                              ? 'Service-backed access'
+                              : 'Local UI preview only',
                           style: TextStyle(color: footerText, fontSize: 11),
                         ),
                       ],

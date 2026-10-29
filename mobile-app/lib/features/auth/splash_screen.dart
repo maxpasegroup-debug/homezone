@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../theme/design_tokens.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.serviceMode = false});
+  final bool serviceMode;
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
@@ -67,7 +68,9 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
                 const SizedBox(height: Space.xl),
                 Semantics(
-                  label: 'Loading local UI preview',
+                  label: widget.serviceMode
+                      ? 'Opening HOMEZONE service access'
+                      : 'Loading local UI preview',
                   child: const SizedBox(
                     width: 22,
                     height: 22,
