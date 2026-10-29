@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "HOMEZONE mobile — staging",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/mobile-app",
+      "program": "${workspaceFolder}/mobile-app/lib/main.dart",
+      "flutterMode": "debug",
+      "toolArgs": [
+        "--dart-define-from-file=config/staging.local.json"
+      ]
+    },
+    {
+      "name": "HOMEZONE mobile — offline preview",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/mobile-app",
+      "program": "${workspaceFolder}/mobile-app/lib/main.dart",
+      "flutterMode": "debug",
+      "toolArgs": [
+        "--dart-define=HOMEZONE_ENABLE_API=false"
+      ]
+    }
+  ]
+}
