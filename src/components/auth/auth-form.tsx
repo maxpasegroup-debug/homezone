@@ -360,7 +360,14 @@ export function AuthForm({
             if (submitting.current || loading || !canSubmit) return;
             submitting.current = true;
             try { await primaryAction(); }
-            catch { setStatus("Unable to complete the request. Please retry."); }
+            catch {
+              if (flow === "signup") {
+                setFlow("signin");
+                setStatus("Registration confirmation was not received. Your account may have been created. Try signing in with the same credentials or use Forgot password before attempting registration again.");
+              } else {
+                setStatus("Unable to complete the request. Please retry.");
+              }
+            }
             finally { submitting.current = false; setLoading(false); }
           }}
           size="lg"
