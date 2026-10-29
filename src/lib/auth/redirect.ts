@@ -1,4 +1,7 @@
-const productionOrigin = "https://homezone-production.up.railway.app";
+const productionOrigins = new Set([
+  "https://speeko.online",
+  "https://homezone-production.up.railway.app"
+]);
 
 function stagingOrigin() {
   const configured = process.env.AUTH_STAGING_ORIGIN;
@@ -15,7 +18,7 @@ function stagingOrigin() {
     hostname.split(".").every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) &&
     !/^\d+(?:\.\d+){3}$/.test(hostname) &&
     !["localhost", "local", "internal", "invalid", "test"].some((suffix) => hostname.endsWith(`.${suffix}`));
-  if (url.protocol !== "https:" || url.origin === productionOrigin || !publicHostname || url.username || url.password ||
+  if (url.protocol !== "https:" || productionOrigins.has(url.origin) || !publicHostname || url.username || url.password ||
       url.pathname !== "/" || url.search || url.hash || configured.replace(/\/$/, "") !== url.origin) {
     throw new Error(error);
   }
@@ -38,7 +41,7 @@ export function authOrigin() {
   const local = process.env.NODE_ENV !== "production" &&
     url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
   if (url.username || url.password || url.search || url.hash ||
-      (url.origin !== productionOrigin && url.origin !== approvedStagingOrigin && !local)) {
+      (!productionOrigins.has(url.origin) && url.origin !== approvedStagingOrigin && !local)) {
     throw new Error("AUTH_URL/NEXTAUTH_URL must use the trusted public HTTPS origin, explicitly approved staging origin or a development loopback HTTP origin");
   }
   return url.origin;
