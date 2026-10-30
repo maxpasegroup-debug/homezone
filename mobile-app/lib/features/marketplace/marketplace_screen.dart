@@ -1054,6 +1054,12 @@ class _ListingImageState extends State<ListingImage> {
     return FutureBuilder<Uint8List>(
       future: bytes,
       builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox(
+            height: widget.height,
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
         if (snapshot.hasError) return fallback();
         if (!snapshot.hasData) {
           return SizedBox(
@@ -1107,9 +1113,21 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
     result = readProperty();
   }
 
+  @override
+  void didUpdateWidget(LivePropertyScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.id != widget.id ||
+        !identical(oldWidget.repository, widget.repository)) {
+      related = null;
+      result = readProperty();
+    }
+  }
+
   Future<Listing> readProperty() async {
-    final property = await widget.repository.detail(widget.id);
-    if (mounted) {
+    final id = widget.id;
+    final repository = widget.repository;
+    final property = await repository.detail(id);
+    if (mounted && widget.id == id && identical(widget.repository, repository)) {
       related = widget.repository.listings({
         if (property.data['city'] is String)
           'city': property.data['city'] as String,
@@ -1133,6 +1151,9 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
     body: FutureBuilder<Listing>(
       future: result,
       builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
         if (snapshot.hasError) {
           return Center(
             child: Column(
@@ -1174,6 +1195,7 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
               children: [
                 for (final key in [
                   'intent',
+                  'category',
                   'propertyType',
                   'bedrooms',
                   'bathrooms',

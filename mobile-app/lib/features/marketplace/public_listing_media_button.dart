@@ -18,7 +18,8 @@ class _MediaButtonState extends State<PublicListingMediaButton> {
   bool opening = false;
   static const configured = String.fromEnvironment('HOMEZONE_MEDIA_HOSTS');
   List<String> get hosts =>
-      configured.split(',').where((v) => v.isNotEmpty).toList();
+      configured.split(',').map((v) => v.trim().toLowerCase())
+          .where((v) => v.isNotEmpty).toList();
   bool get available {
     final uri = Uri.tryParse(widget.url ?? '');
     return uri != null &&
