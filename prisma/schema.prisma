@@ -379,6 +379,7 @@ model User {
   sessions      Session[]
   profile       Profile?
   passwordCredential PasswordCredential?
+  mobilePinCredential MobilePinCredential?
   passwordResetTokens PasswordResetToken[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -438,6 +439,26 @@ model PasswordCredential {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// Canonical login identity, deliberately separate from editable Profile.phone.
+model MobilePinCredential {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  normalizedMobile String   @unique
+  pinHash          String   @db.Text
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// Isolated from legacy registration/password cleanup and quota namespaces.
+model MobilePinLoginBudget {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
 }
 
 model PasswordResetToken {

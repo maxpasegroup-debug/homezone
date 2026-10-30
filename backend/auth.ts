@@ -9,6 +9,7 @@ import { env, isDemoLoginEnabled, isEmailLoginEnabled, isGoogleLoginEnabled, isM
 import { isDemoMobileOtp, normalizePhone } from "@/lib/auth/otp";
 import { verifyPassword } from "@/lib/auth/password";
 import { allowPasswordSignin } from "@/lib/auth/password-signin-limit";
+import { authorizeMobilePin } from "@/lib/auth/mobile-pin";
 import { normalizeRole } from "@/lib/auth/roles";
 import { authRedirect } from "@/lib/auth/redirect";
 import { issueSession, revokeSession, sessionMaxAge, validateSession } from "@/lib/auth/session-registry";
@@ -86,6 +87,19 @@ providers.push(
     }
   })
 );
+
+// Opt-in only. Existing website/admin providers and session callbacks are unchanged.
+if (process.env.AUTH_MOBILE_PIN_ENABLED === "true") {
+  providers.push(Credentials({
+    id: "mobile-pin",
+    name: "Mobile number and PIN",
+    credentials: {
+      phone: { label: "Mobile number", type: "tel" },
+      pin: { label: "6-digit PIN", type: "password" },
+    },
+    authorize: authorizeMobilePin,
+  }));
+}
 
 if (isDemoLoginEnabled()) {
   providers.push(

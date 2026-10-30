@@ -148,3 +148,14 @@ documents first, then read/search current source and inspect read-only Git state
 No application/schema/config changes, migrations, tests, builds, live requests,
 OTP/account creation, database connections/writes, production/Railway changes,
 commits, pushes or deployments. Stop here pending approval.
+
+## Milestone 1 source status — 2026-10-30
+
+Subsequent owner authorization implemented only backend credential/provider
+foundation: separate MobilePinCredential/MobilePinLoginBudget, India normalization,
+versioned peppered scrypt, configurable shared attempt windows and default-off
+Auth.js mobile-pin provider. See MOBILE_PIN_BACKEND_FOUNDATION.md for exact files,
+settings, conservative defaults and limitations. Migration is source-only and was
+not run; Prisma client generation, compilation and runtime verification remain
+unperformed. Registration/enrollment API and all Flutter work are still pending.
+Existing web/admin authentication remains unchanged by explicit milestone scope.
