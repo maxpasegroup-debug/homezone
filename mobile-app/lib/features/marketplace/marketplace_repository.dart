@@ -350,6 +350,7 @@ final class MarketplaceRepository {
     final next = data['nextCursor'];
     if (data['source'] != 'database' ||
         data['module'] != module ||
+        data['role'] != session.identity?.role ||
         data['mode'] != 'cursor' ||
         rows.length > 20 ||
         !data.containsKey('nextCursor') ||

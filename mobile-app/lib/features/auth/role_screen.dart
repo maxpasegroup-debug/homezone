@@ -3,7 +3,8 @@ import '../../shared/ui/auth_components.dart';
 import '../../theme/design_tokens.dart';
 
 class RoleScreen extends StatefulWidget {
-  const RoleScreen({super.key});
+  const RoleScreen({super.key, this.onSelected});
+  final ValueChanged<String>? onSelected;
   @override
   State<RoleScreen> createState() => _RoleScreenState();
 }
@@ -27,7 +28,7 @@ class _RoleScreenState extends State<RoleScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Choose Your Role',
+          widget.onSelected == null ? 'Choose Your Role' : 'Who are you?',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineMedium,
         ),
@@ -86,22 +87,34 @@ class _RoleScreenState extends State<RoleScreen> {
           label: 'Continue',
           onPressed: selected == null
               ? null
-              : () => Navigator.pushNamed(
-                  context,
-                  '/sign-up',
-                  arguments: selected,
-                ),
+              : () => widget.onSelected != null
+                    ? widget.onSelected!(
+                        [
+                          'USER',
+                          'OWNER',
+                          'BROKER',
+                          'BUILDER',
+                          'SERVICE_PROVIDER',
+                        ][roles.indexWhere((role) => role.$1 == selected)],
+                      )
+                    : Navigator.pushNamed(
+                        context,
+                        '/sign-up',
+                        arguments: selected,
+                      ),
         ),
         const SizedBox(height: Space.md),
-        Center(
-          child: TextButton(
-            onPressed: () => Navigator.pushNamed(context, '/sign-in'),
-            child: const Text('Already have an account? Sign In'),
+        if (widget.onSelected == null)
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.pushNamed(context, '/sign-in'),
+              child: const Text('Already have an account? Sign In'),
+            ),
           ),
-        ),
-        const PreviewNotice(
-          message: 'Role selection is local only and is not stored.',
-        ),
+        if (widget.onSelected == null)
+          const PreviewNotice(
+            message: 'Role selection is local only and is not stored.',
+          ),
       ],
     ),
   );

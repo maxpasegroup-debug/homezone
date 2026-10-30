@@ -117,7 +117,10 @@ final class SignInController extends ChangeNotifier {
     }
     try {
       final generation = _protocol.prepareRegistrationOwned(_owner);
-      return !_disposed && !_pending && !_signingOut && !verified &&
+      return !_disposed &&
+          !_pending &&
+          !_signingOut &&
+          !verified &&
           _protocol.coordinator.generation == generation &&
           _protocol.coordinator.boundary == CookieLifecycleBoundary.ready;
     } catch (_) {
@@ -125,7 +128,11 @@ final class SignInController extends ChangeNotifier {
     }
   }
 
-  SignInOperation beginSignIn(String email, String password) {
+  SignInOperation beginSignIn(
+    String email,
+    String password, {
+    bool mobilePin = false,
+  }) {
     if (_disposed || _pending || _signingOut || !_ownsProtocol) {
       return SignInOperation._(
         Future.value(
@@ -139,6 +146,7 @@ final class SignInController extends ChangeNotifier {
       attempt = _protocol.admitSignIn(
         email: email,
         password: password,
+        mobilePin: mobilePin,
         owner: _owner,
       );
     } catch (_) {
@@ -218,7 +226,9 @@ final class SignInController extends ChangeNotifier {
       } on ApiException catch (error) {
         final message = switch (error.failure) {
           ApiFailure.unauthorized =>
-            'Unable to sign in. Check your email and password.',
+            mobilePin
+                ? 'Unable to sign in. Check your mobile number and PIN.'
+                : 'Unable to sign in. Check your email and password.',
           ApiFailure.timeout => 'The request timed out. Please try again.',
           ApiFailure.network =>
             'Unable to connect. Check your connection and try again.',
@@ -312,7 +322,7 @@ final class SignInController extends ChangeNotifier {
         verified ||
         _signingOut)
       return;
-    if (_vault!.scope != _protocol.coordinator.credentialScope) return;
+    if (_vault.scope != _protocol.coordinator.credentialScope) return;
     _pending = true;
     final generation = _protocol.coordinator.generation;
     try {

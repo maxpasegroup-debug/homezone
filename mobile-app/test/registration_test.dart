@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:homezone_mobile/app/homezone_app.dart';
+import 'package:homezone_mobile/app/session_scope.dart';
 import 'package:homezone_mobile/core/api/api_client.dart';
 import 'package:homezone_mobile/core/api/api_transport.dart';
 import 'package:homezone_mobile/core/api/api_configuration.dart';
@@ -82,7 +83,7 @@ class RegistrationTransport extends FixtureTransport {
         'savedProperties': [],
         'shortlists': [],
         'enquiries': [],
-        'profile': {},
+        'profile': {'role': 'USER', 'verificationStatus': 'PENDING'},
       });
     }
     return super.send(request, timeout, onHeaders: onHeaders);
@@ -116,10 +117,18 @@ class RegistrationFixture {
   late final CookieRequestCoordinator coordinator;
   late final SignInController controller;
   late final MarketplaceRepository repository;
-  Widget app() => HomezoneApp(
-    initialRoute: '/sign-up',
-    signInController: controller,
-    marketplace: repository,
+  final observer = SessionRouteObserver();
+  // Retained legacy component coverage only. Active service /sign-up is PIN-only
+  // and must not be redirected back to email OTP just to satisfy old fixtures.
+  Widget app() => SessionScope(
+    controller: controller,
+    routeObserver: observer,
+    child: MaterialApp(
+      navigatorObservers: [observer],
+      home: RegistrationScreen(repository: repository),
+      routes: {'/buyer': (_) => HomezoneApp(initialRoute: '/buyer',
+        signInController: controller, marketplace: repository)},
+    ),
   );
 }
 

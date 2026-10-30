@@ -112,6 +112,22 @@ void main() {
       expect(transport.requests.last.headers['cookie'], contains(fakeCookie));
     },
   );
+  test('PIN callback reuses CSRF cookies and independent session verification', () async {
+    final harness = protocol((request) => request.uri.path == '/api/auth/callback/mobile-pin'
+        ? Future.value(ApiResponse(200, '{"url":"/dashboard"}', headers: sessionHeaders))
+        : standard(request));
+    final result = await harness.admitSignIn(email: '+919000000001', password: '001234', mobilePin: true).result;
+    expect(result.authenticatedSnapshot, isTrue);
+    expect(transport.requests.map((r) => r.uri.path), [
+      '/api/auth/csrf', '/api/auth/callback/mobile-pin', '/api/auth/session',
+    ]);
+    final fields = Uri.splitQueryString(transport.requests[1].body!);
+    expect(fields['phone'], '+919000000001');
+    expect(fields['pin'], '001234');
+    expect(fields.containsKey('email'), isFalse);
+    expect(fields.containsKey('password'), isFalse);
+    expect(transport.requests[1].headers['cookie'], contains('__Host-authjs.csrf-token='));
+  });
   for (final body in ['null', '{}', 'not-json']) {
     test('callback acceptance plus invalid session $body fails', () async {
       final harness = protocol(

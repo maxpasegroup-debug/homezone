@@ -159,6 +159,22 @@ void main() {
   setUp(() => f = Fixture());
   tearDown(() => f.controller.dispose());
 
+  test('workspace validates server role and cursor before exposing records', () async {
+    await f.signIn();
+    Map<String, dynamic> page = {
+      'source': 'database', 'module': 'notifications', 'mode': 'cursor',
+      'role': 'USER', 'items': [], 'hasMore': false, 'nextCursor': null,
+    };
+    f.transport.reply = (_) => json(page);
+    expect((await f.repository.workspacePage('notifications'))['items'], isEmpty);
+    for (final role in ['OWNER', 'ADMIN', null]) {
+      page = {...page, 'role': role};
+      await expectLater(f.repository.workspacePage('notifications'), throwsA(isA<ApiException>()));
+    }
+    page = {...page, 'role': 'USER', 'hasMore': true, 'nextCursor': 'same-cursor'};
+    await expectLater(f.repository.workspacePage('notifications', after: 'same-cursor'), throwsA(isA<ApiException>()));
+  });
+
   test(
     'catalog uses explicit backend pagination and never accepts fictional fallback',
     () async {
@@ -485,8 +501,21 @@ void main() {
           });
         }
         if (request.uri.path.endsWith('/save')) {
+          if (request.method == 'GET') return json({'saved': saved});
           saved = request.method == 'POST';
           return json({'saved': saved});
+        }
+        if (request.uri.path == '/api/mobile/saved-status') {
+          return json({'propertyId': sample['id'], 'saved': saved});
+        }
+        if (request.uri.path == '/api/mobile/account/collections') {
+          final collection = request.uri.queryParameters['collection'];
+          return json({
+            'collection': collection,
+            'parent': null,
+            'items': collection == 'saved' && saved ? [sample] : [],
+            'nextCursor': null,
+          });
         }
         return json({
           'profile': {'fullName': 'Synthetic Buyer'},
@@ -500,9 +529,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Synthetic home'), findsOneWidget);
-      await tester.ensureVisible(find.text('Save'));
+      await tester.ensureVisible(find.text('Toggle saved property'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Toggle saved property'));
       await tester.pumpAndSettle();
       expect(saved, true);
       await tester.tap(find.byType(NavigationDestination).at(2));

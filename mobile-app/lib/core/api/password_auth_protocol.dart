@@ -45,14 +45,17 @@ final class PasswordAuthProtocol {
   /// Only the controller owner may reopen an invalidated anonymous workflow.
   /// This grants no identity and preserves coordinated cookie requests.
   int prepareRegistrationOwned(Object owner) {
-    if (!_ownsClient || _disposed || _busy ||
+    if (!_ownsClient ||
+        _disposed ||
+        _busy ||
         !identical(owner, _controllerOwner)) {
       throw const ApiException(ApiFailure.invalidRequest);
     }
     final generation = coordinator.boundary == CookieLifecycleBoundary.ready
         ? coordinator.generation
         : coordinator.beginAccountSwitch();
-    if (_disposed || coordinator.generation != generation ||
+    if (_disposed ||
+        coordinator.generation != generation ||
         coordinator.boundary != CookieLifecycleBoundary.ready) {
       throw const CookieLifecycleInvalidated();
     }
@@ -62,6 +65,7 @@ final class PasswordAuthProtocol {
   PasswordSignInAttempt admitSignIn({
     required String email,
     required String password,
+    bool mobilePin = false,
     Object? owner,
   }) {
     if (!_ownsClient ||
@@ -81,7 +85,7 @@ final class PasswordAuthProtocol {
       }
       return PasswordSignInAttempt._(
         workflow,
-        _runSignIn(email, password, workflow),
+        _runSignIn(email, password, workflow, mobilePin: mobilePin),
       );
     } catch (_) {
       // No admitted operation: do not clear a generation minted by a listener.
@@ -238,8 +242,9 @@ final class PasswordAuthProtocol {
   Future<AuthSessionResult> _runSignIn(
     String email,
     String password,
-    int workflow,
-  ) async {
+    int workflow, {
+    bool mobilePin = false,
+  }) async {
     try {
       final csrf = await coordinator.coordinate('/api/auth/csrf', (
         ticket,
@@ -261,19 +266,22 @@ final class PasswordAuthProtocol {
         }
         return json['csrfToken'] as String;
       }, expectedGeneration: workflow);
-      await coordinator.coordinate('/api/auth/callback/password', (
-        ticket,
-      ) async {
+      final callback = mobilePin
+          ? '/api/auth/callback/mobile-pin'
+          : '/api/auth/callback/password';
+      await coordinator.coordinate(callback, (ticket) async {
         _validateCsrf(csrf, ticket);
         final response = await _exchange(
           ticket,
           'POST',
-          '/api/auth/callback/password',
+          callback,
           redirect: true,
           body: <String, String>{
             'csrfToken': csrf,
-            'email': email.trim().toLowerCase(),
-            'password': password,
+            if (mobilePin) 'phone': email.trim(),
+            if (mobilePin) 'pin': password,
+            if (!mobilePin) 'email': email.trim().toLowerCase(),
+            if (!mobilePin) 'password': password,
             'callbackUrl': '/',
           },
         );

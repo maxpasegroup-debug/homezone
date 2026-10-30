@@ -12,8 +12,7 @@ import '../features/auth/profile_dashboard_gate.dart';
 import 'session_scope.dart';
 import '../features/marketplace/marketplace_repository.dart';
 import '../features/marketplace/marketplace_screen.dart';
-import '../features/marketplace/account_access_screen.dart';
-import '../features/marketplace/registration_screen.dart';
+import '../features/auth/role_first_auth_screen.dart';
 import '../features/workspace/workspace_screen.dart';
 
 class HomezoneApp extends StatefulWidget {
@@ -71,20 +70,24 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
                 final repository = widget.marketplace!;
                 final identity = repository.session.identity;
                 if (identity == null) {
-                  return SignInScreen(controller: widget.signInController,
-                    serviceMode: true);
+                  return RoleFirstAuthScreen(repository: repository);
                 }
                 final dashboard = identity.role != 'USER'
                     ? WorkspaceScreen(repository: repository)
                     : MarketplaceScreen(
-                  key: ObjectKey(widget.marketplace),
-                  repository: repository,
-                  themeMode: _themeMode,
-                  onThemeChanged: (value) => setState(() => _themeMode = value),
-                );
+                        key: ObjectKey(widget.marketplace),
+                        repository: repository,
+                        themeMode: _themeMode,
+                        onThemeChanged: (value) =>
+                            setState(() => _themeMode = value),
+                      );
                 return ProfileDashboardGate(
-                  key: ValueKey('${repository.coordinator.generation}:${identity.id}:${identity.role}'),
-                  repository: repository, child: dashboard);
+                  key: ValueKey(
+                    '${repository.coordinator.generation}:${identity.id}:${identity.role}',
+                  ),
+                  repository: repository,
+                  child: dashboard,
+                );
               },
             ),
     '/discovery' =>
@@ -109,35 +112,40 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
       },
     ),
     '/workspace' =>
-      widget.marketplace == null
-          ? const SignInScreen()
-          : screen('/buyer'),
+      widget.marketplace == null ? const SignInScreen() : screen('/buyer'),
     '/buyer-preview' => const BuyerShell(),
     '/onboarding' => OnboardingScreen(serviceMode: widget.marketplace != null),
     '/roles' =>
       widget.marketplace == null
           ? const RoleScreen()
           : widget.marketplace!.session.verified
-              ? screen('/buyer')
-              : RegistrationScreen(repository: widget.marketplace!),
-    '/sign-in' => SignInScreen(
-      controller: widget.signInController,
-      serviceMode: widget.marketplace != null,
-    ),
+          ? screen('/buyer')
+          : RoleFirstAuthScreen(repository: widget.marketplace!),
+    '/sign-in' =>
+      widget.marketplace != null
+          ? RoleFirstAuthScreen(repository: widget.marketplace!)
+          : SignInScreen(
+              controller: widget.signInController,
+              serviceMode: widget.marketplace != null,
+            ),
     '/sign-up' =>
       widget.marketplace == null
           ? const SignUpScreen()
           : widget.marketplace!.session.verified
-              ? screen('/buyer')
-              : RegistrationScreen(repository: widget.marketplace!),
+          ? screen('/buyer')
+          : RoleFirstAuthScreen(repository: widget.marketplace!),
     '/forgot-password' =>
       widget.marketplace == null
           ? const ForgotPasswordScreen()
-          : AccountAccessScreen(repository: widget.marketplace!),
+          : const Scaffold(
+              body: Center(child: Text('PIN recovery is not available.')),
+            ),
     '/reset-password' =>
       widget.marketplace == null
           ? const ResetPasswordScreen()
-          : AccountAccessScreen(repository: widget.marketplace!, reset: true),
+          : const Scaffold(
+              body: Center(child: Text('PIN recovery is not available.')),
+            ),
     '/check-email' => const CheckEmailScreen(),
     '/success' => const SuccessScreen(),
     _ => SplashScreen(serviceMode: widget.marketplace != null),

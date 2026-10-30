@@ -28,6 +28,7 @@ class AuthRequestOptions {
         (returnRedirect &&
             ![
               '/api/auth/callback/password',
+              '/api/auth/callback/mobile-pin',
               '/api/auth/signout',
               '/api/auth/session',
             ].contains(destination.path))) {

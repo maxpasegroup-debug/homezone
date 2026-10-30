@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -15,7 +15,7 @@ const mocks = {
   "@/lib/db": "export const db = globalThis.__homezoneLeadFixture.db;",
   "@/lib/audit": "export const auditLog = async () => {};",
   "@/lib/platform/notifications": "export const createNotification = async () => {};",
-  "@/lib/logging/logger": "export const captureException = () => {};",
+  "@/lib/logging/logger": "export const captureException = () => {}; export const logger = {warn:()=>{},error:()=>{},info:()=>{}};",
   "@/lib/api/rate-limit": "export const checkRateLimit = () => ({allowed:true}); export const rateLimitKey = () => 'fixture';"
 };
 
@@ -65,6 +65,9 @@ const leadDb = {
 };
 state.db = new Proxy({
   lead: leadDb,
+  profile: { findUnique: async ({where}) => state.profile?.id === where.id ? {...state.profile, verificationStatus: "VERIFIED"} : null },
+  privateFile: { findFirst: async ({where}) => where.id === "00000000-0000-4000-8000-000000000001" && where.leadId === "lead-own-0001" ? {id: where.id} : null },
+  $queryRaw: async () => [],
   property: { findUnique: async () => fixture().property, update: async ({ data }) => { state.writes.push(["property.update", data]); return {}; } },
   $transaction: async (callback) => callback(state.db)
 }, {
@@ -85,6 +88,10 @@ const hooks = registerHooks({
     if (specifier in mocks) return { url: `data:text/javascript,${encodeURIComponent(mocks[specifier])}`, shortCircuit: true };
     if (specifier === "next/server") return nextResolve("next/server.js", context);
     if (specifier.startsWith("@/")) return { url: new URL(`../src/${specifier.slice(2)}.ts`, import.meta.url).href, shortCircuit: true };
+    if (specifier.startsWith(".") && context.parentURL?.endsWith(".ts")) {
+      const candidate = new URL(`${specifier}.ts`, context.parentURL);
+      if (existsSync(candidate)) return { url: candidate.href, shortCircuit: true };
+    }
     return nextResolve(specifier, context);
   },
   load(url, context, nextLoad) {
@@ -216,6 +223,9 @@ test("actual lead handlers enforce the buyer/CRM boundary", async (t) => {
       reset(id, role);
       assert.equal((await call("pro/leads/[id]/documents", "POST", {
         title: "Client agreement", documentType: "AGREEMENT", fileUrl: "https://fixture.invalid/document"
+      })).status, 400);
+      assert.equal((await call("pro/leads/[id]/documents", "POST", {
+        title: "Client agreement", documentType: "AGREEMENT", fileUrl: "/api/private-files/00000000-0000-4000-8000-000000000001"
       })).status, 200);
       assert.equal((await call("pro/leads/[id]/assignments", "POST", {})).status, 200);
       assert.equal((await call("pro/leads/[id]/commission", "POST", { dealValue: 100000, commissionPercent: 2 })).status, 200);

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'api_configuration.dart';
 import 'api_transport.dart';
 import 'auth_request_options.dart';
@@ -129,6 +130,7 @@ class ApiClient {
       encoding,
     );
     ApiResponseMetadata? received;
+    final catalogTimer = Stopwatch()..start();
     var acceptingHeaders = true;
     try {
       final response = await transport
@@ -148,6 +150,15 @@ class ApiClient {
           .timeout(requestTimeout);
       if (response.requestUri != null && response.requestUri != uri) {
         throw const ApiTransportSecurityException();
+      }
+      // Public staging diagnostics only: never headers, bodies, identities or
+      // arbitrary paths/query strings. No authentication traffic is logged.
+      if (kDebugMode &&
+          configuration.environment == ApiEnvironment.staging &&
+          method == 'GET' && path == '/api/mobile/properties') {
+        debugPrint('HOMEZONE staging catalogue ${uri.origin} '
+            'GET /api/mobile/properties status=${response.status} '
+            'elapsedMs=${catalogTimer.elapsedMilliseconds}');
       }
       received = ApiResponseMetadata(
         response.status,

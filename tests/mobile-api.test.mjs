@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import ts from "typescript";
 
-const state = { user: "buyer", calls: [], fail: false, allowed: true };
+const state = { user: "buyer", role: "USER", calls: [], fail: false, allowed: true };
 globalThis.__mobileAudit = state;
 const property = { id: "property-0001", title: "Synthetic listing", status: "PUBLISHED" };
-state.db = Object.fromEntries(["property", "savedProperty", "propertyShortlist", "lead", "profile"].map((model) => [model,
+state.db = Object.fromEntries(["property", "savedProperty", "propertyShortlist", "lead", "profile", "builderProject", "notification", "serviceProvider"].map((model) => [model,
   Object.fromEntries(["findMany", "findFirst", "update"].map((method) => [method, async (args) => {
     state.calls.push({ model, method, args });
     if (state.fail) throw new Error("SYNTHETIC_SENSITIVE_DATABASE_ERROR");
@@ -20,9 +20,9 @@ state.db = Object.fromEntries(["property", "savedProperty", "propertyShortlist",
 const mocks = {
   "@/auth": "export const auth = async () => globalThis.__mobileAudit.user ? { user: {id: globalThis.__mobileAudit.user} } : null;",
   "@/lib/db": "export const db = globalThis.__mobileAudit.db;",
-  "@/lib/auth/profile": "export const getOrCreateProfile = async () => ({id: 'profile-' + globalThis.__mobileAudit.user, phone: '+910000000000', whatsappVerified:true});",
+  "@/lib/auth/profile": "export const getOrCreateProfile = async () => ({id: 'profile-' + globalThis.__mobileAudit.user, role:globalThis.__mobileAudit.role, verificationStatus:'PENDING', phone: '+910000000000', whatsappVerified:true});",
   "@/lib/logging/logger": "export const captureException = (error) => { globalThis.__mobileAudit.error = error.message; };",
-  "@/lib/leads/access": "export const buyerEnquirySelect = {id:true, property:{select:{id:true,title:true}}};",
+  "@/lib/leads/access": "export const buyerEnquirySelect = {id:true, property:{select:{id:true,title:true}}}; export const leadAccessWhere=id=>({OR:[{assignedTo:id},{property:{ownerId:id}}]});",
   "@/lib/api/rate-limit": "export const checkRateLimit = () => ({allowed:globalThis.__mobileAudit.allowed, resetAt:new Date()}); export const rateLimitKey = () => 'synthetic';"
 };
 const hooks = registerHooks({
@@ -43,6 +43,7 @@ const hooks = registerHooks({
 const catalog = await import("../src/app/api/mobile/properties/route.ts");
 const detail = await import("../src/app/api/mobile/properties/[id]/route.ts");
 const account = await import("../src/app/api/mobile/account/route.ts");
+const workspace = await import("../src/app/api/mobile/workspace/route.ts");
 const contracts = await import("../src/lib/properties/mobile-catalog.ts");
 hooks.deregister();
 const request = (query = "") => new Request(`https://fixture.invalid/api/mobile/properties${query}`);
@@ -50,6 +51,28 @@ const patch = (body) => new Request("https://fixture.invalid/api/mobile/account"
   method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body)
 });
 test("mobile routes execute real contracts with mocked external boundaries", async (t) => {
+  await t.test("workspaces enforce actual profile roles and scope records to the actor", async () => {
+    const get = (module, extra = '') => workspace.GET(new Request(`https://fixture.invalid/api/mobile/workspace?mode=cursor&module=${module}${extra}`));
+    try {
+      state.user = null; state.calls = [];
+      assert.equal((await get('notifications')).status, 401); assert.equal(state.calls.length, 0);
+      state.user = 'buyer';
+      for (const [role, module, field] of [['OWNER','properties','ownerId'],['BROKER','crm','assignedTo'],['BUILDER','projects','builderId'],['USER','notifications','recipientId']]) {
+        state.role = role; state.calls = [];
+        const response = await get(module); assert.equal(response.status, 200);
+        const data = await response.json(); assert.equal(data.role, role); assert.equal(data.source, 'database');
+        assert.equal(data.mode, 'cursor');
+        if (module === 'properties') {assert.equal(data.hasMore, true); assert.equal(typeof data.nextCursor, 'string');}
+        else assert.equal(data.nextCursor, null);
+        assert.equal(state.calls[0].args.where[field], 'profile-buyer');
+      }
+      state.role = 'SERVICE_PROVIDER'; assert.equal((await get('providerProfile')).status, 200);
+      state.role = 'USER';
+      for (const module of ['crm','projects','ownerEnquiries','team']) assert.equal((await get(module)).status, 403);
+      state.role = 'BUILDER'; assert.equal((await get('units', '&parent=missing-project')).status, 403);
+      for (const role of ['ADMIN','SUPER_ADMIN']) {state.role = role; assert.equal((await get('notifications')).status, 403);}
+    } finally {state.user = 'buyer'; state.role = 'USER'; state.calls = [];}
+  });
   await t.test("catalog bounds pages and rejects unsupported or ambiguous budgets", async () => {
     for (const query of ["?page=0", "?pageSize=25", "?page=1001", "?furnishing=furnished", "?maxPrice=10", "?purpose=BUY&maxPrice=10", "?bedrooms=invalid", "?page=1&page=2", "?purpose=BUY&currency=INR&minPrice=20&maxPrice=10"]) {
       state.calls = [];
@@ -84,7 +107,7 @@ test("mobile routes execute real contracts with mocked external boundaries", asy
   });
   await t.test("all account collections are scoped to the authenticated profile", async () => {
     state.calls = [];
-    const response = await account.GET(); assert.equal(response.status, 200);
+    const response = await account.GET(new Request("https://fixture.invalid/api/mobile/account")); assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
     for (const call of state.calls) assert.equal(call.args.where.userId, "profile-buyer");
     assert.ok(state.calls.every((call) => call.args.take <= 200));

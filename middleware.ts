@@ -38,6 +38,8 @@ function startsWithAny(pathname: string, prefixes: string[]) {
 }
 
 function isApiMutation(request: NextRequest) {
+  // Public registration enforces origin and database admission in its handler.
+  if (request.nextUrl.pathname === "/api/mobile/auth/register") return false;
   if (!request.nextUrl.pathname.startsWith("/api/")) {
     return false;
   }
