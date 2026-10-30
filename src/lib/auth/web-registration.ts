@@ -9,11 +9,16 @@ import { AdmissionDenied, boundedJson, budgets } from "@/lib/auth/registration-a
 import { logger } from "@/lib/logging/logger";
 
 const HOUR = 3_600_000;
-const prefix = "web-registration:v1:";
 const signup = passwordSignUpSchema.extend({
   email: z.string().trim().toLowerCase().max(254).email(),
   name: z.string().trim().min(2).max(120)
 }).strict();
+const nativeSignup = signup.extend({
+  role: z.enum(["USER", "OWNER", "BROKER", "BUILDER", "SERVICE_PROVIDER"]),
+  // Request acknowledgment only. No approved policy-version/consent store exists.
+  termsAccepted: z.literal(true)
+}).strict();
+const browserSignup = signup.transform(value => ({ ...value, role: "USER" as const }));
 const acknowledgment = { message: "Continue with secure sign-in." };
 function reply(body: object, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -31,10 +36,22 @@ function duplicateEmail(error: unknown) {
 }
 
 export async function webRegistration(request: Request) {
+  return registerPasswordAccount(request, false);
+}
+
+export async function nativeEmailRegistration(request: Request) {
+  return registerPasswordAccount(request, true);
+}
+
+async function registerPasswordAccount(request: Request, native: boolean) {
+  const prefix = native ? "native-email-registration:v1:" : "web-registration:v1:";
   let stage = "origin";
   let requestBlockedUntil = 0;
   try {
-    if (request.headers.get("origin") !== authOrigin() ||
+    const origin = request.headers.get("origin");
+    const canonicalOrigin = authOrigin();
+    if ((!native && origin !== canonicalOrigin) ||
+        (native && origin !== null && origin !== canonicalOrigin) ||
         request.headers.get("sec-fetch-site") === "cross-site") {
       return reply({ error: "Request not permitted." }, 403);
     }
@@ -44,15 +61,18 @@ export async function webRegistration(request: Request) {
     ]));
     requestBlockedUntil = Math.max(0, ...requestClaims.filter((claim) => claim.count >= claim.max).map((claim) => claim.resetAt.getTime()));
     stage = "validation";
-    const parsed = signup.safeParse(await boundedJson(request));
-    if (!parsed.success) return reply({ error: "Check name, email and password requirements." }, 400);
-    const { email, name, password } = parsed.data;
+    const parsed = (native ? nativeSignup : browserSignup).safeParse(await boundedJson(request));
+    if (!parsed.success) return reply({ error: native
+      ? "Check name, email, password, selected role and terms acknowledgment."
+      : "Check name, email and password requirements." }, 400);
+    const { email, name, password, role } = parsed.data;
     stage = "attempt-admission";
     // Reuse the already required shared sign-in HMAC secret with purpose separation.
     // No email/OTP provider dependency and no raw email in quota keys.
     const secret = process.env.PASSWORD_SIGNIN_HMAC_KEY;
     if (!secret || secret.length < 32 || secret.length > 256) throw new Error("Unavailable");
-    const key = prefix + createHmac("sha256", secret).update(`account:${email}`).digest("hex");
+    const key = prefix + createHmac("sha256", secret)
+      .update(native ? `native-email-registration:v1:account:${email}` : `account:${email}`).digest("hex");
     await db.$transaction(async (tx) => {
       await budgets(tx, [
         { key: `${prefix}attempts`, max: 100, duration: HOUR },
@@ -77,16 +97,16 @@ export async function webRegistration(request: Request) {
           where: { email: { equals: email, mode: "insensitive" } }, select: { id: true }
         });
         if (existing) return;
-        await tx.user.create({ data: {
+        await tx.user.create({ select: { id: true }, data: {
           email, name, emailVerified: null,
           passwordCredential: { create: { passwordHash } },
-          profile: { create: { fullName: name, role: "USER" } }
+          profile: { create: { fullName: name, role } }
         } });
       });
     } catch (error) {
       if (!duplicateEmail(error)) throw error;
     }
-    return reply(acknowledgment);
+    return reply(native ? { ...acknowledgment, consentRecorded: false } : acknowledgment);
   } catch (error) {
     if (error instanceof AdmissionDenied) {
       const seconds = Math.max(1, Math.ceil((Math.max(error.until.getTime(), requestBlockedUntil) - Date.now()) / 1000));
@@ -96,7 +116,7 @@ export async function webRegistration(request: Request) {
     }
     if (error instanceof SyntaxError) return reply({ error: "Invalid registration request." }, 400);
     // Fixed labels only: never serialize the exception, request or account data.
-    logger.error("Web registration unavailable", { stage });
+    logger.error(native ? "Native email registration unavailable" : "Web registration unavailable", { stage });
     return reply({ error: "Registration is temporarily unavailable." }, 503);
   }
 }

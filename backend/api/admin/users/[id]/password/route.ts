@@ -27,8 +27,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     if ("error" in parsed) return parsed.error;
 
     const profile = await db.profile.findUnique({
-      include: {
-        user: true
+      select: {
+        id: true,
+        userId: true,
+        user: { select: { email: true } }
       },
       where: {
         id

@@ -87,6 +87,11 @@ test('PIN registration contract and real hash with synthetic storage only', { ti
       for (const bad of ['12345', '1234567', '123456\n', '１２３４５６', 123456]) assert.equal(isMobilePin(bad), false);
       assert.equal(isMobilePin('001234'), true);
       assert.equal(normalizeMobileNumber('+449000000001'), null);
+      for (const suffix of ['\n', '\r', '\r\n', '\u2028', '\u2029', '\t', '\0']) {
+        assert.equal(isMobilePin('001234' + suffix), false);
+        assert.equal(normalizeMobileNumber('9000000001' + suffix), null);
+        assert.equal(normalizeMobileNumber('+919000000001' + suffix), null);
+      }
     });
     await t.test('creates null-email unverified USER credential and verifies actual salted hash', async () => {
       reset(); const response = await mobilePinRegistration(request(fields));
@@ -120,6 +125,20 @@ test('PIN registration contract and real hash with synthetic storage only', { ti
       for (const body of [{ ...fields, role: 'ADMIN' }, { ...fields, confirmPin: '999999' }, { ...fields, pin: '1', confirmPin: '1' }, { ...fields, extra: 'x'.repeat(5000) }]) assert.equal((await mobilePinRegistration(request(body))).status, 400);
       assert.equal((await mobilePinRegistration(request(fields, { origin: 'https://wrong.invalid' }))).status, 403);
       assert.equal(state.users.length, 0);
+    });
+    await t.test('PIN and mobile line-break payloads reject before hashing or account creation', async () => {
+      for (const suffix of ['\n', '\r', '\r\n', '\u2028', '\u2029']) {
+        for (const body of [
+          { ...fields, pin: fields.pin + suffix, confirmPin: fields.pin + suffix },
+          { ...fields, confirmPin: fields.pin + suffix },
+          { ...fields, mobileNumber: fields.mobileNumber + suffix },
+        ]) {
+          reset();
+          assert.equal((await mobilePinRegistration(request(body))).status, 400);
+          assert.equal(state.users.length, 0);
+          assert.equal([...state.budgets.keys()].some(key => key.includes('identity:')), false);
+        }
+      }
     });
     await t.test('number quota is independent of editable headers and accounts', async () => {
       reset(); for (let i = 0; i < 3; i++) assert.equal((await mobilePinRegistration(request(fields))).status, 200);

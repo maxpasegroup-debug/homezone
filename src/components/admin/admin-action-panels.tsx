@@ -63,11 +63,15 @@ export function AdminModerationPanel({ propertyId }: { propertyId: string }) {
 export function AdminUserPanel({
   profileId,
   role,
-  verificationStatus
+  verificationStatus,
+  hasMobilePin,
+  hasWebsitePassword
 }: {
   profileId: string;
   role: string;
   verificationStatus: string;
+  hasMobilePin: boolean;
+  hasWebsitePassword: boolean;
 }) {
   const router = useRouter();
   const [nextRole, setNextRole] = useState(role);
@@ -78,6 +82,9 @@ export function AdminUserPanel({
   const [resetPassword, setResetPassword] = useState("");
   const [resetReason, setResetReason] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+  // Preserve existing website password actions, including non-PIN accounts.
+  // This UI capability is not a new server authorization or PIN recovery flow.
+  const canResetWebsitePassword = hasMobilePin === false || hasWebsitePassword === true;
 
   async function save() {
     setLoading(true);
@@ -96,6 +103,7 @@ export function AdminUserPanel({
   }
 
   async function resetUserPassword() {
+    if (!canResetWebsitePassword || resetLoading) return;
     if (resetPassword.length < 8 || resetReason.trim().length < 3) {
       setMessage("Enter a strong password and a reset reason.");
       return;
@@ -112,7 +120,7 @@ export function AdminUserPanel({
     });
     const data = await response.json().catch(() => null);
     setResetLoading(false);
-    setMessage(response.ok ? "Password reset successfully." : data?.error ?? "Password reset failed.");
+    setMessage(response.ok ? "Website password reset successfully. Mobile PIN unchanged." : data?.error ?? "Website password reset failed.");
     if (response.ok) {
       setResetPassword("");
       setResetReason("");
@@ -134,13 +142,16 @@ export function AdminUserPanel({
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCog className="h-4 w-4" />}
         Save
       </Button>
-      <div className="mt-3 rounded-2xl border border-border bg-white p-3">
-        <p className="text-xs font-bold text-muted-foreground">Admin password reset</p>
+      {hasMobilePin ? (
+        <p className="text-xs text-muted-foreground">This account uses a mobile PIN. Admin password actions do not change its PIN. PIN recovery is not available.</p>
+      ) : null}
+      {canResetWebsitePassword ? <div className="mt-3 rounded-2xl border border-border bg-white p-3">
+        <p className="text-xs font-bold text-muted-foreground">Website password reset</p>
         <div className="mt-2 grid gap-2">
           <input
             className="h-10 w-full rounded-xl border bg-white px-3 text-xs font-semibold"
             onChange={(event) => setResetPassword(event.target.value)}
-            placeholder="New password"
+            placeholder="New website password"
             type="password"
             value={resetPassword}
           />
@@ -152,10 +163,10 @@ export function AdminUserPanel({
           />
           <Button disabled={resetLoading} onClick={resetUserPassword} size="sm" variant="outline">
             {resetLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-            Reset Password
+            Reset Website Password
           </Button>
         </div>
-      </div>
+      </div> : null}
       {message ? <p className="text-xs font-bold text-muted-foreground">{message}</p> : null}
     </div>
   );

@@ -122,10 +122,11 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
           ? screen('/buyer')
           : RoleFirstAuthScreen(repository: widget.marketplace!),
     '/sign-in' =>
-      widget.marketplace != null
-          ? RoleFirstAuthScreen(repository: widget.marketplace!)
+      widget.marketplace?.session.verified == true
+          ? screen('/buyer')
           : SignInScreen(
               controller: widget.signInController,
+              repository: widget.marketplace,
               serviceMode: widget.marketplace != null,
             ),
     '/sign-up' =>
@@ -134,18 +135,8 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
           : widget.marketplace!.session.verified
           ? screen('/buyer')
           : RoleFirstAuthScreen(repository: widget.marketplace!),
-    '/forgot-password' =>
-      widget.marketplace == null
-          ? const ForgotPasswordScreen()
-          : const Scaffold(
-              body: Center(child: Text('PIN recovery is not available.')),
-            ),
-    '/reset-password' =>
-      widget.marketplace == null
-          ? const ResetPasswordScreen()
-          : const Scaffold(
-              body: Center(child: Text('PIN recovery is not available.')),
-            ),
+    '/forgot-password' => ForgotPasswordScreen(serviceMode: widget.marketplace != null),
+    '/reset-password' => ResetPasswordScreen(serviceMode: widget.marketplace != null),
     '/check-email' => const CheckEmailScreen(),
     '/success' => const SuccessScreen(),
     _ => SplashScreen(serviceMode: widget.marketplace != null),

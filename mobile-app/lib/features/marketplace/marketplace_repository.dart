@@ -263,6 +263,27 @@ final class MarketplaceRepository {
     return listing;
   }
 
+  /// A session snapshot alone does not confirm the current dashboard profile.
+  Future<JsonObject> confirmedProfile() async {
+    final identity = session.identity;
+    final generation = coordinator.generation;
+    if (identity == null) throw const ApiException(ApiFailure.unauthorized);
+    final response = await call('GET', '/api/mobile/account',
+      query: {'view': 'profile'});
+    if (generation != coordinator.generation ||
+        session.identity?.id != identity.id || session.identity?.role != identity.role) {
+      throw const CookieLifecycleInvalidated();
+    }
+    final profile = object(response['profile']);
+    const roles = {'USER', 'OWNER', 'BROKER', 'BUILDER',
+      'SERVICE_PROVIDER', 'ADMIN', 'SUPER_ADMIN'};
+    if (!roles.contains(identity.role) || profile['role'] != identity.role ||
+        !{'PENDING', 'VERIFIED', 'REJECTED'}.contains(profile['verificationStatus'])) {
+      throw const ApiException(ApiFailure.forbidden);
+    }
+    return profile;
+  }
+
   Future<JsonObject> account() async {
     final generation = coordinator.generation;
     final actor = session.identity?.id;

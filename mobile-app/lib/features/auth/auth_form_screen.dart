@@ -4,6 +4,8 @@ import '../../theme/design_tokens.dart';
 import 'validators.dart';
 import 'sign_in_controller.dart';
 import '../../app/session_scope.dart';
+import '../../core/api/api_client.dart';
+import '../marketplace/marketplace_repository.dart';
 
 enum AuthFormMode { signIn, signUp, forgotPassword, resetPassword }
 
@@ -13,10 +15,14 @@ class AuthFormScreen extends StatefulWidget {
     required this.mode,
     this.signInController,
     this.serviceMode = false,
+    this.selectedRole,
+    this.repository,
   });
   final AuthFormMode mode;
   final SignInController? signInController;
   final bool serviceMode;
+  final String? selectedRole;
+  final MarketplaceRepository? repository;
   @override
   State<AuthFormScreen> createState() => _AuthFormScreenState();
 }
@@ -35,11 +41,35 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
   @override
   void didPushNext() {
     _operation?.cancel();
+    _cancelProfileConfirmation?.call();
+    _signInEpoch++;
+    _registrationEpoch++;
   }
 
   @override
   void didPop() {
     _operation?.cancel();
+    _cancelProfileConfirmation?.call();
+    _signInEpoch++;
+    _registrationEpoch++;
+  }
+
+  @override
+  void didPopNext() {
+    if (mounted && loading && widget.mode == AuthFormMode.signIn) {
+      setState(() {
+        loading = false;
+        password.clear();
+        outcome = 'Sign-in was interrupted. Please try again.';
+      });
+    }
+    if (mounted && loading && widget.mode == AuthFormMode.signUp) {
+      setState(() {
+        loading = false;
+        _submitted = true;
+        outcome = 'A registration request may have completed. Try signing in before registering again.';
+      });
+    }
   }
 
   final form = GlobalKey<FormState>();
@@ -50,10 +80,19 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
   bool loading = false;
   String? outcome;
   SignInOperation? _operation;
+  VoidCallback? _cancelProfileConfirmation;
+  bool _termsAccepted = false, _submitted = false;
+  int _registrationEpoch = 0;
+  int _signInEpoch = 0;
+  String? get selectedRole {
+    final value = widget.selectedRole ?? ModalRoute.of(context)?.settings.arguments;
+    return value is String ? value : null;
+  }
   @override
   void dispose() {
     _routeObserver?.unsubscribe(this);
     _operation?.cancel();
+    _cancelProfileConfirmation?.call();
     name.dispose();
     email.dispose();
     password.dispose();
@@ -62,33 +101,23 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
   }
 
   Future<void> submit() async {
-    if (loading || !form.currentState!.validate()) return;
+    if (loading || _submitted || !form.currentState!.validate()) return;
+    if (widget.serviceMode && widget.mode == AuthFormMode.signUp) {
+      await register();
+      return;
+    }
+    // Recovery still needs the existing secure token/link integration.
+    if (widget.serviceMode && widget.mode != AuthFormMode.signIn) {
+      setState(() => outcome = 'Password recovery is not available in the app yet. No reset request was sent.');
+      return;
+    }
     FocusScope.of(context).unfocus();
     setState(() {
       loading = true;
       outcome = null;
     });
     if (widget.mode == AuthFormMode.signIn) {
-      final controller = widget.signInController;
-      if (controller == null) {
-        setState(() {
-          loading = false;
-          outcome = 'Sign-in is not configured. You are not signed in.';
-        });
-        return;
-      }
-      final operation = controller.beginSignIn(email.text, password.text);
-      _operation = operation;
-      final result = await operation.result;
-      if (!mounted) return;
-      password.clear();
-      setState(() {
-        loading = false;
-        outcome = result.message;
-      });
-      if (result.verified && controller.verified) {
-        Navigator.pushNamedAndRemoveUntil(context, '/buyer', (route) => false);
-      }
+      await signIn();
       return;
     }
     await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -114,11 +143,152 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
     }
   }
 
+  Future<void> signIn() async {
+    final controller = widget.signInController;
+    final repository = widget.repository;
+    final expectedRole = selectedRole;
+    const publicRoles = {'USER', 'OWNER', 'BROKER', 'BUILDER', 'SERVICE_PROVIDER'};
+    if (controller == null || (widget.serviceMode &&
+        (repository == null || !identical(repository.session, controller)))) {
+      setState(() {
+        loading = false;
+        outcome = 'Sign-in is not configured. You are not signed in.';
+      });
+      return;
+    }
+    if (widget.serviceMode && expectedRole != null && !publicRoles.contains(expectedRole)) {
+      setState(() { loading = false; outcome = 'Go back and choose a supported account type.'; });
+      return;
+    }
+    final epoch = ++_signInEpoch;
+    bool current() => mounted && epoch == _signInEpoch;
+    VerifiedIdentity? authenticated;
+    int? generation;
+    bool sameAccount() => authenticated != null && controller.verified &&
+        controller.identity?.id == authenticated!.id &&
+        controller.identity?.role == authenticated!.role &&
+        (repository == null || repository.coordinator.generation == generation);
+    Future<bool> rejectSession() async {
+      if (!sameAccount()) return false;
+      final acknowledged = await controller.signOut();
+      // A busy controller may decline logout. Drop only this captured account's
+      // authority, never a newer account, and never claim revocation succeeded.
+      if (!acknowledged && sameAccount()) controller.clearLocalSession();
+      return acknowledged && controller.credentialRemovalConfirmed;
+    }
+    try {
+      final operation = controller.beginSignIn(email.text.trim().toLowerCase(), password.text);
+      _operation = operation;
+      final result = await operation.result;
+      if (!current()) return;
+      if (!result.verified || !controller.verified) {
+        setState(() => outcome = result.message ?? 'Sign-in could not be confirmed.');
+        return;
+      }
+      authenticated = controller.identity;
+      generation = repository?.coordinator.generation;
+      _cancelProfileConfirmation = () {
+        if (sameAccount()) controller.clearLocalSession();
+      };
+      final role = widget.serviceMode
+          ? (await repository!.confirmedProfile())['role']
+          : authenticated!.role;
+      if (!current()) return;
+      if (!sameAccount()) {
+        setState(() => outcome = 'Your session changed. Please sign in again.');
+        return;
+      }
+      if (expectedRole != null && role != expectedRole) {
+        final revoked = await rejectSession();
+        if (!current()) return;
+        setState(() => outcome =
+            'This account does not match the selected role. Go back and choose the correct role. No account role was changed.${revoked ? '' : ' Server sign-out or device credential removal could not be confirmed.'}');
+        return;
+      }
+      _cancelProfileConfirmation = null;
+      Navigator.pushNamedAndRemoveUntil(context, '/buyer', (_) => false);
+    } catch (error) {
+      final revoked = await rejectSession();
+      if (!current()) return;
+      setState(() => outcome =
+          '${marketplaceError(error)} Your profile and role could not be confirmed. Please sign in again.${authenticated != null && !revoked ? ' Server sign-out or device credential removal could not be confirmed.' : ''}');
+    } finally {
+      if (current()) {
+        password.clear();
+        _operation = null;
+        _cancelProfileConfirmation = null;
+        setState(() => loading = false);
+      }
+    }
+  }
+
+  Future<void> register() async {
+    final repository = widget.repository;
+    final role = selectedRole;
+    const roles = {'USER', 'OWNER', 'BROKER', 'BUILDER', 'SERVICE_PROVIDER'};
+    if (repository == null || !roles.contains(role) || !_termsAccepted) {
+      setState(() => outcome = 'Choose a role and acknowledge Terms & Privacy before creating an account.');
+      return;
+    }
+    if (!repository.session.prepareRegistration()) {
+      setState(() => outcome = 'Account access is busy. Return to sign-in and try again.');
+      return;
+    }
+    final payload = <String, Object?>{
+      'name': name.text.trim(),
+      'email': email.text.trim().toLowerCase(),
+      'password': password.text,
+      'role': role,
+      'termsAccepted': _termsAccepted,
+    };
+    final epoch = ++_registrationEpoch;
+    final generation = repository.coordinator.generation;
+    bool current() => mounted && epoch == _registrationEpoch &&
+        generation == repository.coordinator.generation;
+    FocusScope.of(context).unfocus();
+    setState(() { loading = true; outcome = null; });
+    try {
+      final response = await repository.call('POST', '/api/mobile/auth/email-register',
+        protected: false, body: payload);
+      if (!current()) return;
+      if (response['message'] != 'Continue with secure sign-in.' ||
+          response['consentRecorded'] != false) {
+        throw const ApiException(ApiFailure.invalidResponse);
+      }
+      password.clear();
+      setState(() {
+        _submitted = true;
+        outcome = 'Registration submitted. Continue to sign in with your email and password. Existing accounts are unchanged. No versioned legal consent was recorded.';
+      });
+    } catch (error) {
+      if (!current()) return;
+      final uncertain = error is! ApiException ||
+          !{ApiFailure.validation, ApiFailure.forbidden, ApiFailure.unauthorized,
+            ApiFailure.rateLimited, ApiFailure.notFound}.contains(error.failure);
+      setState(() {
+        _submitted = uncertain;
+        outcome = '${marketplaceError(error, mutation: true)}${uncertain ? ' The account may exist. Try signing in before registering again.' : ''}';
+      });
+    } finally {
+      if (mounted && epoch == _registrationEpoch) {
+        setState(() {
+          loading = false;
+          if (generation != repository.coordinator.generation) {
+            _submitted = true;
+            outcome = 'Your account session changed. Return to sign-in before making another registration request.';
+          }
+        });
+      }
+    }
+  }
+
   void socialPreview(String provider) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          '$provider sign-in is a UI preview only. No authentication occurred.',
+          widget.serviceMode
+              ? '$provider sign-in is not available in this app yet. No authentication occurred.'
+              : '$provider sign-in is a UI preview only. No authentication occurred.',
         ),
       ),
     );
@@ -139,8 +309,8 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
     final subtitle = switch (mode) {
       AuthFormMode.signIn => 'Sign in to your account',
       AuthFormMode.signUp => 'Join Homezone and get started',
-      AuthFormMode.forgotPassword =>
-        'Enter your email to preview reset instructions',
+      AuthFormMode.forgotPassword => widget.serviceMode
+        ? 'Enter your email address' : 'Enter your email to preview reset instructions',
       AuthFormMode.resetPassword => 'Enter your new password',
     };
     final action = switch (mode) {
@@ -149,7 +319,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
       AuthFormMode.forgotPassword => 'Send Reset Link',
       AuthFormMode.resetPassword => 'Update Password',
     };
-    final selectedRole = ModalRoute.of(context)?.settings.arguments;
+    final role = selectedRole;
     return AuthLayout(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -169,11 +339,11 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          if (signup && selectedRole is String)
+          if (role != null && (signup || mode == AuthFormMode.signIn))
             Padding(
               padding: const EdgeInsets.only(top: Space.sm),
               child: Text(
-                'Selected role: $selectedRole',
+                'Selected role: ${role == 'USER' ? 'Property Buyer' : role.replaceAll('_', ' ')}',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -191,7 +361,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                       icon: AppIcons.person,
                       validator: AuthValidators.name,
                       autofillHints: const [AutofillHints.name],
-                      enabled: !loading,
+                      enabled: !loading && !_submitted,
                     ),
                     const SizedBox(height: Space.md),
                   ],
@@ -204,7 +374,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
                       next: !forgot,
-                      enabled: !loading,
+                      enabled: !loading && !_submitted,
                     ),
                     const SizedBox(height: Space.md),
                   ],
@@ -216,7 +386,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                           ? AuthValidators.newPassword
                           : AuthValidators.requiredPassword,
                       newPassword: signup || reset,
-                      enabled: !loading,
+                      enabled: !loading && !_submitted,
                     ),
                     if (signup || reset)
                       Padding(
@@ -246,7 +416,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                       initialValue: false,
                       validator: (value) => value == true
                           ? null
-                          : 'Please agree to the preview terms and privacy consent.',
+                          : 'Please agree to Terms & Privacy Policy.',
                       builder: (field) => Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -254,7 +424,10 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                             contentPadding: EdgeInsets.zero,
                             controlAffinity: ListTileControlAffinity.leading,
                             value: field.value ?? false,
-                            onChanged: loading ? null : field.didChange,
+                            onChanged: loading || _submitted ? null : (value) {
+                              _termsAccepted = value == true;
+                              field.didChange(value);
+                            },
                             title: const Text(
                               'I agree to Terms & Privacy Policy',
                               style: TextStyle(fontSize: 13),
@@ -269,8 +442,10 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                                       title: const Text(
                                         'Terms & Privacy Policy',
                                       ),
-                                      content: const Text(
-                                        'UI preview only. Approved legal documents must be supplied before registration is enabled. No consent is stored.',
+                                      content: Text(
+                                        widget.serviceMode
+                                            ? 'Approved Terms and Privacy documents have not been supplied in this build. The checkbox acknowledgment is validated during registration, but no versioned legal-consent record is stored.'
+                                            : 'UI preview only. Approved legal documents must be supplied before registration is enabled. No consent is stored.',
                                       ),
                                       actions: [
                                         TextButton(
@@ -281,8 +456,8 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                                       ],
                                     ),
                                   ),
-                            child: const Text(
-                              'View preview consent information',
+                            child: Text(
+                              widget.serviceMode ? 'Terms & Privacy Policy' : 'View preview consent information',
                             ),
                           ),
                           if (field.hasError)
@@ -313,7 +488,7 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                   PrimaryButton(
                     label: action,
                     loading: loading,
-                    onPressed: submit,
+                    onPressed: _submitted ? null : submit,
                   ),
                 ],
               ),
@@ -351,16 +526,12 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
                   ? null
                   : () => mode == AuthFormMode.signIn
                         ? Navigator.pushNamed(context, '/roles')
-                        : Navigator.pushNamedAndRemoveUntil(
-                            context,
-                            '/sign-in',
-                            (route) => false,
-                          ),
+                        : Navigator.pushNamed(context, '/sign-in', arguments: selectedRole),
               child: Text(
                 mode == AuthFormMode.signIn
                     ? "Don't have an account? Sign Up"
                     : signup
-                    ? 'Already have an account? Sign In'
+                    ? _submitted ? 'Continue to Sign In' : 'Already have an account? Sign In'
                     : 'Back to Sign In',
               ),
             ),
@@ -370,7 +541,11 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
             message:
                 outcome ??
                 (widget.serviceMode
-                    ? 'Sign-in uses the explicitly configured HOMEZONE service. Session credentials stay in memory only.'
+                    ? signup
+                        ? 'Registration uses the configured HOMEZONE service. Approved policy documents and versioned consent storage are not supplied in this build.'
+                        : (forgot || reset)
+                            ? 'Password recovery is not connected in this app yet. No reset request has been sent.'
+                            : 'Sign-in uses the configured HOMEZONE service. Your session must be confirmed by the server.'
                     : reset
                     ? 'Local UI preview. No reset link is verified and no password will change.'
                     : 'Local UI preview. No account, sign-in or email service is connected.'),

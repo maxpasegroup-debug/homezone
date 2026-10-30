@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/api/cookie_request_coordinator.dart';
 import '../marketplace/marketplace_repository.dart';
 
 /// Profile confirmation is required for dashboard presentation, not authority.
@@ -15,23 +16,37 @@ class ProfileDashboardGate extends StatefulWidget {
 
 class _ProfileDashboardGateState extends State<ProfileDashboardGate> {
   late Future<void> _confirmation = _confirm();
+  bool _signingOut = false;
 
   Future<void> _confirm() async {
+    await widget.repository.confirmedProfile();
+  }
+
+  Future<void> _signInAgain() async {
+    if (_signingOut) return;
     final repository = widget.repository;
-    final identity = repository.session.identity;
-    final generation = repository.coordinator.generation;
-    if (identity == null) throw const FormatException();
-    const roles = {'USER', 'OWNER', 'BROKER', 'BUILDER',
-      'SERVICE_PROVIDER', 'ADMIN', 'SUPER_ADMIN'};
-    final response = await repository.call('GET', '/api/mobile/account',
-      query: {'view': 'profile'});
-    final profile = object(response['profile']);
-    if (repository.coordinator.generation != generation ||
-        repository.session.identity?.id != identity.id ||
-        repository.session.identity?.role != identity.role ||
-        !roles.contains(identity.role) || profile['role'] != identity.role ||
-        !{'PENDING', 'VERIFIED', 'REJECTED'}.contains(profile['verificationStatus'])) {
-      throw const FormatException();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _signingOut = true);
+    try {
+      final acknowledged = await repository.session.signOut();
+      if (!navigator.mounted || !messenger.mounted) return;
+      if (repository.session.verified || repository.coordinator.boundary !=
+          CookieLifecycleBoundary.locallyInvalidated) {
+        messenger.showSnackBar(const SnackBar(content:
+          Text('An account operation is still active. Please try again.')));
+        return;
+      }
+      navigator.pushNamedAndRemoveUntil('/sign-in', (_) => false);
+      if (!acknowledged || !repository.session.credentialRemovalConfirmed) {
+        messenger.showSnackBar(SnackBar(content: Text(
+          !repository.session.credentialRemovalConfirmed
+              ? 'In-memory access was cleared. Device credential removal could not be confirmed; use website account controls before sharing this device.'
+              : 'Local credentials were cleared. Server sign-out could not be confirmed.',
+        )));
+      }
+    } finally {
+      if (mounted) setState(() => _signingOut = false);
     }
   }
 
@@ -53,11 +68,10 @@ class _ProfileDashboardGateState extends State<ProfileDashboardGate> {
           children: [
             const Text('Your current profile could not be confirmed. It may be unavailable, incomplete, or changed. No role was assigned locally.'),
             const SizedBox(height: 16),
-            FilledButton(onPressed: () {
+            FilledButton(onPressed: _signingOut ? null : () {
               setState(() => _confirmation = _confirm());
             }, child: const Text('Retry profile')),
-            TextButton(onPressed: () => Navigator.pushNamedAndRemoveUntil(
-              context, '/sign-in', (_) => false),
+            TextButton(onPressed: _signingOut ? null : _signInAgain,
               child: const Text('Sign in again')),
           ],
         )));

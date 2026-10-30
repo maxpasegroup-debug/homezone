@@ -99,7 +99,13 @@ export default async function AdminListingDetailPage({ params }: PageProps) {
                 <UserRound className="h-4 w-4" />
                 Owner Verification
               </p>
-              <h2 className="mt-2 text-2xl font-bold">{property.owner?.fullName ?? property.owner?.user.email ?? "Unknown owner"}</h2>
+              <h2 className="mt-2 text-2xl font-bold">{property.owner?.fullName ?? property.owner?.user.email ?? property.owner?.user.mobilePinCredential?.normalizedMobile ?? "Unknown owner"}</h2>
+              {property.owner?.user.mobilePinCredential ? (
+                <p className="mt-1 text-sm text-muted-foreground">Login mobile: {property.owner.user.mobilePinCredential.normalizedMobile}</p>
+              ) : null}
+              {property.owner?.phone ? (
+                <p className="mt-1 text-sm text-muted-foreground">Contact phone: {property.owner.phone}</p>
+              ) : null}
               {property.owner ? (
                 <div className="mt-4">
                   <VerificationBadge entity="broker" status={property.owner.verificationStatus} />
@@ -108,6 +114,8 @@ export default async function AdminListingDetailPage({ params }: PageProps) {
                       profileId={property.owner.id}
                       role={property.owner.role}
                       verificationStatus={property.owner.verificationStatus}
+                      hasMobilePin={Boolean(property.owner.user.mobilePinCredential)}
+                      hasWebsitePassword={Boolean(property.owner.user.passwordCredential)}
                     />
                   </div>
                 </div>

@@ -74,7 +74,7 @@ class _MobilePinAuthState extends State<MobilePinAuthScreen> with RouteAware {
 
   String? _mobile(String? value) {
     final raw = value ?? '';
-    if (raw.length > 32 || !RegExp(r'^[+0-9 ()\-]+$').hasMatch(raw)) {
+    if (raw.length > 32 || RegExp(r'[^+0-9 ()\-]').hasMatch(raw)) {
       return 'Enter a valid Indian mobile number.';
     }
     final compact = raw.replaceAll(RegExp(r'[ ()\-]'), '');
@@ -83,7 +83,8 @@ class _MobilePinAuthState extends State<MobilePinAuthScreen> with RouteAware {
         : compact.length == 12 && compact.startsWith('91')
         ? compact.substring(2)
         : compact;
-    return RegExp(r'^[6-9][0-9]{9}$').hasMatch(national)
+    return national.length == 10 &&
+            RegExp(r'^[6-9][0-9]{9}$').hasMatch(national)
         ? null
         : 'Enter a valid Indian mobile number (+91).';
   }

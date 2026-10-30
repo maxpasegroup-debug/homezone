@@ -11,7 +11,7 @@ import { reportMobilePinFailure } from "@/lib/auth/mobile-pin-diagnostics";
 const hour = 3_600_000;
 const prefix = "mobile-pin:registration:v1:";
 const inputSchema = z.object({ mobileNumber: z.string().max(32),
-  pin: z.string().refine(isMobilePin), confirmPin: z.string().refine(isMobilePin),
+  pin: z.string().length(6).refine(isMobilePin), confirmPin: z.string().length(6).refine(isMobilePin),
   role: z.enum(["USER", "OWNER", "BROKER", "BUILDER", "SERVICE_PROVIDER"]),
 }).strict().refine(value => value.pin === value.confirmPin);
 const acknowledgment = { message: "Registration submitted. Sign in with your mobile number and PIN." };

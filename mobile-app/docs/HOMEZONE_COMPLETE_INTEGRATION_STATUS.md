@@ -1,5 +1,205 @@
 # HOMEZONE integration implementation status
 
+## Current staging email-authentication availability — 2026-10-30 11:14 UTC
+
+Read-only checks from the development computer, **not Flutter workflow verification**:
+
+| Observation | Result | Meaning |
+| --- | --- | --- |
+| GET /api/auth/providers, 11:14:06.819Z | HTTP 200; password provider; callbacks use staging origin | Existing email/password provider is advertised. No actual credential/session verification performed. Missing mobile-pin does not block the latest email/password journey. |
+| GET /api/mobile/auth/email-register, 11:14:07.244Z | HTTP 404 | Native registration URL is not available through this read probe. Local POST-only route would ordinarily yield method-not-allowed for GET. |
+| OPTIONS /api/mobile/auth/email-register, 11:14:34.600Z | HTTP 404 | No registration method advertisement available. Together with GET, supports a deployment/routing mismatch; exact artifact/service/root cause still UNKNOWN. No registration POST sent. |
+| GET /api/auth/session without credentials, 11:14:07.521Z | HTTP 200, unauthenticated | Correctly establishes no authenticated user for this check; does not prove sign-in or revocation. |
+
+Target for every request: https://homezone-staging.up.railway.app. No redirects
+followed, credentials/body/response cookies/private records printed, or production
+requests. Earlier 11:12:03.984Z public catalogue check returned200, source database,
+empty properties; this remains only public-read evidence.
+
+Local HEAD remains 09a39de3888772c2ca712355a16f89d2c379a392. Native email route is
+currently untracked, with related service/middleware/Flutter edits uncommitted;
+HEAD alone does not represent those changes. No deployed SHA is available, and
+Railway CLI is not on PATH. Do not label an exact old deployment as confirmed.
+
+Immediate blocker: reconcile the active staging artifact/domain mapping against the
+reviewed native email changes. Then authorize local checks and a specific staging
+release after inspecting all pending migrations and configuration. railway.json's
+preDeployCommand runs npm run db:migrate, so a deployment is not a source-only action.
+Account creation and sign-in/session writes remain separately gated. No source fix
+or PIN activation is justified merely by this provider list.
+
+This follow-up changed only status/blocker documentation. No builds/tests/device,
+registration/sign-in POST, account/DB operations, settings, migration, deployment,
+restart, commit or push performed. Authentication is BLOCKED for new-user staging
+acceptance; existing-account password authentication remains runtime UNVERIFIED.
+
+## Email/password sign-in and session integration — 2026-10-30
+
+**SOURCE IMPLEMENTED; compilation and runtime NOT VERIFIED for this slice.**
+Older PIN-only UI and earlier sign-in handoff descriptions below are historical.
+
+- Already present: native email registration and Auth.js `password` share normalized
+  email and salted scrypt. Existing CSRF/callback/independent session protocol,
+  cookie ownership, OS-secured scoped vault, restore/expiry/revalidation and registry
+  revocation are reused. No second auth mechanism, no OTP or manual cookies.
+- Added shared-repository wiring to Sign In and shared `confirmedProfile()` used by
+  sign-in and dashboard gate. GET `/api/mobile/account?view=profile` must agree with
+  the independently verified session role/account generation before navigation.
+  The selected public role, when present, must match; no account role changes.
+- Busy state now spans credentials -> session -> profile -> role -> navigation or
+  rejection/logout. Invalid credentials/network errors retain existing sanitized
+  controller messages. Route/attempt guards discard stale completions and clear only
+  captured local authority when profile confirmation is interrupted. Never retries
+  registration or treats a generic signup acknowledgment as authentication.
+- Role mismatch/profile failure attempts existing logout and reports uncertainty.
+  Restored-session profile gate uses the same check; its Sign in again action now
+  logs out first instead of redirecting an active session back to the failed gate.
+  Unconfirmed server revocation or device deletion remains visible to the user.
+- Existing website/admin authentication, PIN infrastructure, profile authorization,
+  registration fields/contract, preview and dashboard layouts remain unchanged.
+
+Changed source: `mobile-app/lib/app/homezone_app.dart`,
+`mobile-app/lib/features/auth/auth_screens.dart`,
+`mobile-app/lib/features/auth/auth_form_screen.dart`,
+`mobile-app/lib/features/auth/profile_dashboard_gate.dart`,
+`mobile-app/lib/features/marketplace/marketplace_repository.dart`.
+Updated docs: Phase1 plan, complete authentication UI audit, this status and blockers.
+
+Remaining: approved legal content/versioned consent; native recovery/social flows;
+deployed configuration/schema/artifact evidence; authorized compilation and actual
+signup/login/profile/role/restart/logout verification. Secure-storage write failure
+still leaves memory-only access; restore errors clear local access, unchanged policy.
+No new config, migration, backend or provider change. Phase0 remains PENDING.
+No tests/builds/typechecks, live requests, accounts, database/device operations,
+environment changes, migrations, deploys/restarts, commits or pushes performed.
+
+## Native email registration with role support — 2026-10-30
+
+SOURCE IMPLEMENTED; compilation/runtime NOT VERIFIED. This supersedes older signup
+unavailable/native-contract statements below, not their historical evidence.
+
+- Added POST /api/mobile/auth/email-register, native mode in existing registration
+  service, exact public middleware exemption. No duplicate auth/client/provider.
+- Strict name/email/password/public-role/termsAccepted:true validation; normalized
+  email, database quotas before salted scrypt, atomic User/password/Profile creation
+  with selected role and null emailVerified. No OTP/mobile-number/approval requirement.
+- Duplicate case-insensitive email lookup/unique-race handling never overwrites or
+  links existing users. Response generic200 {message:"Continue with secure sign-in.",
+  consentRecorded:false}; not proof of account creation or authentication.
+- Flutter same repository/coordinator sends real contract, prevents repeat submission,
+  sanitizes errors, guards navigation/session generations and handles uncertain outcomes
+  by offering sign-in, never auto-retrying signup. No auto-login or fabricated account.
+- Browser signup retains exact-Origin guard, strict body/default USER, original quota
+  namespace/response. PIN and website/admin auth behavior preserved.
+
+Legal gap: server validates checkbox acknowledgment, but no approved legal content,
+versioned-consent store or policy versions exist. No legal consent recorded/claimed;
+UI and response make that explicit. This is still a release prerequisite. No new schema
+or migration; uses existing PasswordCredential/Profile/RegistrationBudget and normalized
+User email uniqueness. Requires existing PASSWORD_SIGNIN_HMAC_KEY and core DB/Auth.js
+configuration. No secret values inspected or infrastructure activation.
+
+No tests/builds/typechecks/requests/accounts/DB access/device operations, migrations,
+settings/credentials, deploy/restart, commits or pushes. Prior user work preserved.
+
+## Latest authentication UI decision and first slice — 2026-10-30
+
+Create Account now follows founder's latest Full name + Email + Password + Terms
+UI requirement, superseding older PIN-only entry statements below. Existing brand
+components, five roles, PIN infrastructure and prior admin changes preserved.
+
+SOURCE IMPLEMENTED, RUNTIME UNVERIFIED: welcome Sign In opens the existing email
+password form/controller; role Continue opens existing email Create Account; selected
+role passed to signup/sign-in, optional mismatch signs out, dashboard profile gate
+retained. Signup fields remain intact on back from pushed sign-in. Existing password
+toggle/validation and public role mapping retained, no new provider/client.
+
+INCOMPLETE: native email registration with role/consent and recovery delivery/token
+links. Service forms now explicitly send nothing and never show preview success.
+Existing web-signup is browser-Origin-only and creates USER; not silently repurposed.
+Google mobile flow unavailable; Apple provider absent; existing UI buttons preserved
+with truthful feedback. Approved Terms/Privacy content/consent contract not found.
+
+See HOMEZONE_COMPLETE_AUTHENTICATION_UI_AUDIT.md for each screen's inventory,
+remaining work and review boundary. No backend, schema, marketplace or infrastructure
+changes, no tests/builds/requests/devices/accounts/database operations or deployments.
+No compilation/runtime claim. Phase0 remains PENDING, source work separate.
+
+## Phase 1 — mobile PIN registration slice, 2026-10-30
+
+SOURCE IMPLEMENTED; diff inspected, not compiled or runtime verified. Existing route,
+hashing, quotas, transaction and Flutter registration flow were reused rather than rebuilt.
+
+- src/lib/auth/mobile-number.ts now rejects final line breaks/control characters in
+  numbers and explicitly enforces exactly6-character PIN strings. JS regex $ alone
+  was insufficient to enforce the strict end boundary. Leading zeros preserved.
+- src/lib/auth/mobile-pin-registration.ts explicitly requires6-character PIN and
+  confirmation before hashing; public-role validation/strict bounded body retained.
+- mobile-app/lib/features/auth/mobile_pin_auth_screen.dart aligns number validation;
+  existing request fields, loading/duplicate guard, acknowledgment and sign-in link retained.
+- tests/mobile-pin-registration.test.mjs adds malformed-number/PIN boundary cases;
+  these tests were written but NOT RUN. Earlier successful-test reports do not
+  validate this current change.
+
+Source confirms admission before KDF, salted versioned hash, normalized unique credential,
+atomic User/Profile/credential create with selected public role and emailVerified:null,
+and generic duplicate no-op without overwrite/account linking. No response contains PIN
+hash, and registration acknowledgment never establishes authenticated session.
+
+No new variables or schema/migration required. Existing DATABASE_URL, AUTH_SECRET,
+canonical URL/staging settings, AUTH_MOBILE_PIN_ENABLED, MOBILE_PIN_PEPPER_V1,
+MOBILE_PIN_RATE_LIMIT_KEY and existing optional quota settings remain owner/environment
+prerequisites. Phase0 PENDING does not block this source work. No live verification,
+accounts, DB access/writes, settings/credentials, activation, deploy/restart, builds/tests,
+device operations, commits or pushes. Admin slice changes and user work preserved.
+
+## Phase 1 — admin authentication compatibility, 2026-10-30
+
+SOURCE IMPLEMENTED, diff inspected only; runtime and compilation UNVERIFIED.
+
+- getAdminUsers and getAdminListingDetail project canonical mobile plus website
+  password credential presence (id only). No PIN/password hashes selected. Both
+  guarded admin pages pass capability booleans to AdminUserPanel, not credential data.
+- Shared panel hides website-password reset for PIN-only accounts, preserves it
+  for website/dual-credential and existing non-PIN accounts, and states that it
+  never changes mobile PIN and that PIN recovery is unavailable.
+- Listing-owner view now identifies nameless/email-less PIN users. Admin user
+  help labels Login mobile as login identity and Contact phone as separate profile data.
+- Existing password endpoint only narrows its read projection; server permission,
+  password-upsert/hash and revocation policy unchanged. No MobilePinCredential
+  hash is retrieved, changed or returned by these admin operations.
+- Updated Phase1 implementation plan. No migration, authentication architecture,
+  role/permission, secret or infrastructure change. Phase0 remains PENDING.
+
+Policy limitation: hiding an action is not server enforcement. Existing authorized
+password endpoint can still enroll a website credential; restricting PIN-only
+enrollment remains a separate owner decision. No new PIN reset action added.
+No tests, builds, type checks, device operations, requests, database access, settings,
+deployments, commits or pushes. Existing changes preserved; stop for source review.
+
+## Phase 1 source implementation — admin identity slice, 2026-10-30
+
+Phase 0 remains PENDING and did not block this source work. Completed the first
+two-file review boundary in HOMEZONE_PHASE_1_AUTHENTICATION_IMPLEMENTATION_PLAN.md:
+
+- src/lib/admin/operations.ts:getAdminUsers now normalizes valid Indian-number
+  searches and matches MobilePinCredential.normalizedMobile through the existing
+  user relation. Name/email/contact-phone/city search and role/status filters remain.
+  Search text is trimmed and bounded to 254 characters. The user projection adds
+  only id and canonical login mobile alongside email; no credential hash selected.
+- src/app/admin/users/page.tsx now displays a read-only Login mobile separately
+  from Contact phone and uses the login number as fallback for nameless/email-less
+  PIN users. Existing requireAdminProfile guard remains; no public API added.
+
+Status: SOURCE IMPLEMENTED, inspected diff only; not compiled or runtime verified.
+No tests, builds, type checks, database access, requests or device operations run.
+No migrations, settings, secret generation/rotation, activation, deployments,
+commits or pushes. Existing user work preserved. No schema change required.
+
+Stopped at the plan's first-slice review boundary. Shared admin password-action
+capability UI, its separate server-policy decision and stale mobile help copy
+remain subsequent work; authentication runtime and pending Phase 0 gates unchanged.
+
 ## Current mission result — 2026-10-30, later verification
 
 **PARTIALLY COMPLETE. Live backend rollout/account writes are BLOCKED on explicit

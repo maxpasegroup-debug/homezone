@@ -11,6 +11,9 @@ class RoleScreen extends StatefulWidget {
 
 class _RoleScreenState extends State<RoleScreen> {
   String? selected;
+  static const roleValues = ['USER', 'OWNER', 'BROKER', 'BUILDER', 'SERVICE_PROVIDER'];
+  String? get selectedRole => selected == null
+      ? null : roleValues[roles.indexWhere((role) => role.$1 == selected)];
   static const roles = [
     ('Property Buyer', 'Find your dream home', Icons.person_search_outlined),
     ('Property Owner', 'List and manage properties', Icons.home_outlined),
@@ -88,15 +91,7 @@ class _RoleScreenState extends State<RoleScreen> {
           onPressed: selected == null
               ? null
               : () => widget.onSelected != null
-                    ? widget.onSelected!(
-                        [
-                          'USER',
-                          'OWNER',
-                          'BROKER',
-                          'BUILDER',
-                          'SERVICE_PROVIDER',
-                        ][roles.indexWhere((role) => role.$1 == selected)],
-                      )
+                    ? widget.onSelected!(selectedRole!)
                     : Navigator.pushNamed(
                         context,
                         '/sign-up',
@@ -104,10 +99,10 @@ class _RoleScreenState extends State<RoleScreen> {
                       ),
         ),
         const SizedBox(height: Space.md),
-        if (widget.onSelected == null)
-          Center(
+        Center(
             child: TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/sign-in'),
+              onPressed: () => Navigator.pushNamed(context, '/sign-in',
+                arguments: selectedRole),
               child: const Text('Already have an account? Sign In'),
             ),
           ),

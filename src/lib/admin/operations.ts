@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { normalizeMobileNumber } from "@/lib/auth/mobile-number";
 
 const recentWindow = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -132,7 +133,11 @@ export async function getAdminListingDetail(id: string) {
     include: {
       documents: true,
       leads: { orderBy: { createdAt: "desc" }, take: 10 },
-      owner: { include: { user: { select: { email: true } } } },
+      owner: { include: { user: { select: {
+        email: true,
+        mobilePinCredential: { select: { normalizedMobile: true } },
+        passwordCredential: { select: { id: true } }
+      } } } },
       _count: { select: { leads: true, savedBy: true, shortlistItems: true, viewedBy: true } }
     },
     where: { id }
@@ -148,17 +153,20 @@ export async function getAdminUsers({
   role?: string;
   status?: string;
 }) {
+  const search = q?.trim().slice(0, 254);
+  const loginMobile = normalizeMobileNumber(search);
   const where: Prisma.ProfileWhereInput = {
     AND: [
       role && role !== "ALL" ? { role: role as never } : {},
       status && status !== "ALL" ? { verificationStatus: status as never } : {},
-      q
+      search
         ? {
             OR: [
-              { fullName: { contains: q, mode: "insensitive" } },
-              { phone: { contains: q, mode: "insensitive" } },
-              { city: { contains: q, mode: "insensitive" } },
-              { user: { email: { contains: q, mode: "insensitive" } } }
+              { fullName: { contains: search, mode: "insensitive" } },
+              { phone: { contains: search, mode: "insensitive" } },
+              { city: { contains: search, mode: "insensitive" } },
+              { user: { email: { contains: search, mode: "insensitive" } } },
+              ...(loginMobile ? [{ user: { mobilePinCredential: { is: { normalizedMobile: loginMobile } } } }] : [])
             ]
           }
         : {}
@@ -167,7 +175,11 @@ export async function getAdminUsers({
 
   return db.profile.findMany({
     include: {
-      user: { select: { email: true } },
+      user: { select: {
+        id: true, email: true,
+        mobilePinCredential: { select: { normalizedMobile: true } },
+        passwordCredential: { select: { id: true } }
+      } },
       _count: { select: { properties: true, assignedLeads: true, userLeads: true } }
     },
     orderBy: { createdAt: "desc" },
