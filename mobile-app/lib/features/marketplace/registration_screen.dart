@@ -116,6 +116,13 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       return;
     }
     if (!resend && !_emailVerified && !_form.currentState!.validate()) return;
+    // Reopen only a new registration, never an in-flight OTP challenge.
+    if (_challenge == null && !resend &&
+        !widget.repository.session.prepareRegistration()) {
+      setState(() => _message =
+          'Account access is busy or already signed in. Return to sign-in or your account and try again.');
+      return;
+    }
     FocusScope.of(context).unfocus();
     final epoch = ++_epoch;
     final generation = widget.repository.coordinator.generation;

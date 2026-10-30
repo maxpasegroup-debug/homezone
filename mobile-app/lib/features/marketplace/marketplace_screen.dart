@@ -599,10 +599,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         onPressed: loading ? null : () => load(next: true),
         child: const Text('Load more'),
       ),
-    if (listings.length >= 120)
-      const Text(
-        'Showing the first 120 results. Refine your search to find more specific matches.',
-      ),
     if (tab == 0) ...[
       Text('Recently Viewed', style: Theme.of(context).textTheme.titleLarge),
       if (recent.isEmpty)

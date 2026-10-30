@@ -156,6 +156,21 @@ final class MarketplaceRepository {
     }
     final generation = coordinator.generation;
     try {
+      // Public discovery must still work after logout or rejected restoration.
+      // A locally invalidated cookie coordinator intentionally blocks credential
+      // workflows; these read-only endpoints neither send nor accept cookies.
+      final publicCatalog = !protected &&
+          method == 'GET' &&
+          (path == '/api/mobile/properties' ||
+              RegExp(r'^/api/mobile/properties/[A-Za-z0-9_-]{8,128}$')
+                  .hasMatch(path));
+      if (publicCatalog) {
+        final result = await client.request(method, path, query: query);
+        if (coordinator.generation != generation) {
+          throw const CookieLifecycleInvalidated();
+        }
+        return object(result);
+      }
       return await coordinator.coordinate(
         path,
         (ticket) async {

@@ -8,6 +8,7 @@ import '../features/auth/recovery_screens.dart';
 import '../theme/app_theme.dart';
 import '../features/buyer/buyer_shell.dart';
 import '../features/auth/sign_in_controller.dart';
+import '../features/auth/profile_dashboard_gate.dart';
 import 'session_scope.dart';
 import '../features/marketplace/marketplace_repository.dart';
 import '../features/marketplace/marketplace_screen.dart';
@@ -67,15 +68,23 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
           : ListenableBuilder(
               listenable: widget.marketplace!.session,
               builder: (context, _) {
-                final role = widget.marketplace!.session.identity?.role;
-                if (role != null && role != 'USER')
-                  return WorkspaceScreen(repository: widget.marketplace!);
-                return MarketplaceScreen(
+                final repository = widget.marketplace!;
+                final identity = repository.session.identity;
+                if (identity == null) {
+                  return SignInScreen(controller: widget.signInController,
+                    serviceMode: true);
+                }
+                final dashboard = identity.role != 'USER'
+                    ? WorkspaceScreen(repository: repository)
+                    : MarketplaceScreen(
                   key: ObjectKey(widget.marketplace),
-                  repository: widget.marketplace!,
+                  repository: repository,
                   themeMode: _themeMode,
                   onThemeChanged: (value) => setState(() => _themeMode = value),
                 );
+                return ProfileDashboardGate(
+                  key: ValueKey('${repository.coordinator.generation}:${identity.id}:${identity.role}'),
+                  repository: repository, child: dashboard);
               },
             ),
     '/discovery' =>
@@ -102,13 +111,15 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
     '/workspace' =>
       widget.marketplace == null
           ? const SignInScreen()
-          : WorkspaceScreen(repository: widget.marketplace!),
+          : screen('/buyer'),
     '/buyer-preview' => const BuyerShell(),
     '/onboarding' => OnboardingScreen(serviceMode: widget.marketplace != null),
     '/roles' =>
       widget.marketplace == null
           ? const RoleScreen()
-          : RegistrationScreen(repository: widget.marketplace!),
+          : widget.marketplace!.session.verified
+              ? screen('/buyer')
+              : RegistrationScreen(repository: widget.marketplace!),
     '/sign-in' => SignInScreen(
       controller: widget.signInController,
       serviceMode: widget.marketplace != null,
@@ -116,7 +127,9 @@ class _HomezoneAppState extends State<HomezoneApp> with WidgetsBindingObserver {
     '/sign-up' =>
       widget.marketplace == null
           ? const SignUpScreen()
-          : RegistrationScreen(repository: widget.marketplace!),
+          : widget.marketplace!.session.verified
+              ? screen('/buyer')
+              : RegistrationScreen(repository: widget.marketplace!),
     '/forgot-password' =>
       widget.marketplace == null
           ? const ForgotPasswordScreen()

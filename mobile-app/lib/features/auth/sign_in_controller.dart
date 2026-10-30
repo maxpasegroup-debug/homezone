@@ -109,6 +109,22 @@ final class SignInController extends ChangeNotifier {
     }
   }
 
+  /// Start fresh registration after logout or failed session restoration.
+  /// Never interrupt restoration, sign-in/out, or an authenticated account.
+  bool prepareRegistration() {
+    if (_disposed || !_ownsProtocol || _pending || _signingOut || verified) {
+      return false;
+    }
+    try {
+      final generation = _protocol.prepareRegistrationOwned(_owner);
+      return !_disposed && !_pending && !_signingOut && !verified &&
+          _protocol.coordinator.generation == generation &&
+          _protocol.coordinator.boundary == CookieLifecycleBoundary.ready;
+    } catch (_) {
+      return false;
+    }
+  }
+
   SignInOperation beginSignIn(String email, String password) {
     if (_disposed || _pending || _signingOut || !_ownsProtocol) {
       return SignInOperation._(

@@ -42,6 +42,23 @@ final class PasswordAuthProtocol {
     client.close();
   }
 
+  /// Only the controller owner may reopen an invalidated anonymous workflow.
+  /// This grants no identity and preserves coordinated cookie requests.
+  int prepareRegistrationOwned(Object owner) {
+    if (!_ownsClient || _disposed || _busy ||
+        !identical(owner, _controllerOwner)) {
+      throw const ApiException(ApiFailure.invalidRequest);
+    }
+    final generation = coordinator.boundary == CookieLifecycleBoundary.ready
+        ? coordinator.generation
+        : coordinator.beginAccountSwitch();
+    if (_disposed || coordinator.generation != generation ||
+        coordinator.boundary != CookieLifecycleBoundary.ready) {
+      throw const CookieLifecycleInvalidated();
+    }
+    return generation;
+  }
+
   PasswordSignInAttempt admitSignIn({
     required String email,
     required String password,
