@@ -159,3 +159,15 @@ settings, conservative defaults and limitations. Migration is source-only and wa
 not run; Prisma client generation, compilation and runtime verification remain
 unperformed. Registration/enrollment API and all Flutter work are still pending.
 Existing web/admin authentication remains unchanged by explicit milestone scope.
+
+## Milestone 1B source status — 2026-10-30
+
+Approved security refinement implemented failure-only per-number accounting under
+a database row lock, retained separately committed aggregate admission, bounded
+skip-locked cleanup, safe fixed-category operational diagnostics and explicit
+authentication selects. Existing models/migration and v1 hash format unchanged.
+Default is five failures in a fixed 15-minute window from first failure; successes
+consume only aggregate admission, do not reset prior unexpired failures; blocked
+attempts do not extend expiry. See MOBILE_PIN_SECURITY_DECISIONS.md for key rotation,
+operational limits and required future concurrency/security verification. This
+is not enrollment, Flutter integration, provider activation or runtime approval.

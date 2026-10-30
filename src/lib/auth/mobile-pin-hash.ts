@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { isMobilePin, normalizeMobileNumber } from "@/lib/auth/mobile-number";
+import { MobilePinHashUnavailable, reportMobilePinFailure } from "@/lib/auth/mobile-pin-diagnostics";
 
 const prefix = "scrypt:v1:n32768:r8:p1";
 const format = /^scrypt:v1:n32768:r8:p1:([a-f0-9]{32}):([a-f0-9]{128})$/;
@@ -8,25 +9,33 @@ let activeDerivations = 0;
 function pepper() {
   const key = process.env.MOBILE_PIN_PEPPER_V1;
   if (!key || key.length < 32 || key.length > 256 || key.trim() !== key) {
-    throw new Error("Mobile PIN hashing unavailable");
+    reportMobilePinFailure("hash", "configuration");
+    throw new MobilePinHashUnavailable();
   }
   return key;
 }
 
 async function derive(pin: string, mobile: string, salt: string) {
   // No unbounded in-process KDF queue. Distributed admission is enforced separately.
-  if (activeDerivations >= 2) throw new Error("Mobile PIN hashing busy");
+  if (activeDerivations >= 2) {
+    reportMobilePinFailure("hash", "capacity");
+    throw new MobilePinHashUnavailable();
+  }
   const key = pepper();
   activeDerivations++;
-  const input = createHmac("sha256", key)
-    .update(`homezone:mobile-pin:hash:v1:${mobile}:${pin}`).digest();
+  let input: Buffer | undefined;
   try {
+    input = createHmac("sha256", key)
+      .update(`homezone:mobile-pin:hash:v1:${mobile}:${pin}`).digest();
     return await new Promise<Buffer>((resolve, reject) => {
-      scrypt(input, salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 },
-        (error, result) => error ? reject(new Error("Mobile PIN hashing unavailable")) : resolve(result));
+      scrypt(input!, salt, 64, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 },
+        (error, result) => error ? reject(new MobilePinHashUnavailable()) : resolve(result));
     });
+  } catch {
+    reportMobilePinFailure("hash", "operation");
+    throw new MobilePinHashUnavailable();
   } finally {
-    input.fill(0);
+    input?.fill(0);
     activeDerivations--;
   }
 }

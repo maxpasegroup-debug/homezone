@@ -1,6 +1,6 @@
 # Mobile PIN backend foundation — milestone 1
 
-Date: 2026-10-30. IMPLEMENTED IN SOURCE, NOT COMPILED OR RUNTIME VERIFIED.
+Date: 2026-10-30. Updated for milestone 1B. IMPLEMENTED IN SOURCE, NOT COMPILED OR RUNTIME VERIFIED.
 Read first: MOBILE_PIN_AUTHENTICATION_AUDIT.md,
 MOBILE_PIN_AUTHENTICATION_IMPLEMENTATION_PLAN.md and BACKEND_API_INVENTORY.md.
 Source matched their finding: no existing PIN identity/provider. Latest milestone
@@ -17,6 +17,7 @@ questions in the plan are therefore not implemented here.
 | src/lib/auth/mobile-pin-hash.ts | Salted, peppered, versioned scrypt generation/verification and bounded process KDF concurrency |
 | src/lib/auth/mobile-pin-admission.ts | Separate configurable PostgreSQL aggregate/account admission and temporary protection; no legacy quota changes |
 | src/lib/auth/mobile-pin.ts | Fail-closed credential authorization by canonical login identity, credential/version/suspension recheck |
+| src/lib/auth/mobile-pin-diagnostics.ts | Bounded fixed-label diagnostics, no raw errors or identifiers |
 | backend/auth.ts | Default-off mobile-pin Auth.js Credentials provider; existing providers/callbacks unchanged |
 | This document and implementation-plan status addendum | Source handoff, configuration names, limitations and activation gates |
 
@@ -72,25 +73,37 @@ rotation strategy before real enrollment. Do not change the key casually.
 ## Persistent admission and temporary protection
 
 New MobilePinLoginBudget is isolated from legacy RegistrationBudget cleanup/keys.
-The global upsert takes a row lock; PostgreSQL clock_timestamp is read after lock
-acquisition. The transaction counts global and HMAC-number-keyed attempts across
-replicas; only expired account rows are removed, at most 100 per admission. Live
-identity capacity is bounded, not evicted to admit attackers. Storage errors,
-invalid configuration, lock timeout or capacity exhaustion deny; no permissive
-process-local fallback. Unknown numbers and malformed shapes consume aggregate
-budget; malformed PIN/number shapes never start a KDF.
+Milestone 1B separates two stages. A short global-row transaction commits aggregate
+admission and allocates bounded HMAC-number failure state. A second transaction
+locks that number's row across credential verification. Only failed authentication
+increments its count; concurrent attempts cannot race past the threshold. Success
+does not increment failures or erase unexpired prior failures. Storage/config/KDF
+exceptions roll back account accounting and fail closed; aggregate admission stays
+consumed. Invalid numbers consume only aggregate budget; valid number + malformed
+PIN counts as failure without KDF. Unknown identities use the same failure policy.
 
-Default account policy: at most five total attempts per 15-minute fixed window.
-This counts successful and failed attempts and is NOT reset by successful login.
-After exhaustion, all PIN login for that number is denied until that first-admission
-window expires. It is temporary protection, not an escalating/permanent failed-PIN
-lock and not 15 minutes from the most recent failed attempt. Aggregate default:
-300 attempts per five-minute window; default 10,000 live account buckets. Denials
-consume aggregate budget when possible, and return ordinary Auth.js failure rather
-than exposing account-specific limits. No Retry-After contract is invented for
-Auth.js credentials errors. Thresholds and fixed-window semantics need owner review
-before enabling; deliberate lockout/global-budget denial of service remains possible.
-There is no trusted per-network/device limiter in this milestone.
+Five failures are allowed per 15-minute window starting at the first completed
+failure. After exhaustion, login is denied until that fixed deadline. Blocked
+attempts do not extend it; expiration automatically permits later attempts. No
+permanent lock or recovery was introduced. Aggregate default remains 300 attempts
+per five minutes, including successes, failures and account-blocked requests.
+Number keys, not untrusted IP headers, bind protection across replicas/IPs.
+
+Cleanup uses FOR UPDATE SKIP LOCKED and deletes at most 100 expired failure rows
+without waiting on an active verifier while holding the global lock. A missing row
+between admission and verification fails closed. At most 10,000 v2 failure rows are
+allocated; expired rows awaiting cleanup conservatively count toward capacity.
+New v2 failure keys isolate old v1 all-attempt rows; the global v1 budget is retained.
+Old v1 account rows are not reinterpreted or removed by this code. No schema change.
+
+Verification intentionally holds a database connection/row lock during KDF for
+serialization (transaction maxWait 2s, timeout 10s; aggregate transaction timeout
+3s). Capacity/locking need later authorized measurement. The two-job process KDF
+cap remains supplementary. Global and number budgets fail closed with generic
+Auth.js errors; no Retry-After contract is invented. Sustained attackers can exhaust
+successive temporary windows or aggregate capacity: there is no promise of availability
+under attack and no trusted network/device limiter. No lock is permanent or extended
+by blocked requests. See MOBILE_PIN_SECURITY_DECISIONS.md for policy and rollout.
 
 ## Configuration — names only; none set or changed
 
@@ -103,8 +116,8 @@ legacy startup. Numeric parsing uses positive decimal integers and explicit caps
 | AUTH_MOBILE_PIN_ENABLED | Only literal true includes the provider. Unset/other values leave it absent. A deployment restart would be required after an authorized change; none performed |
 | MOBILE_PIN_PEPPER_V1 | Required for hash/verify; separate high-entropy owner-provisioned secret, 32–256 characters, no surrounding whitespace |
 | MOBILE_PIN_RATE_LIMIT_KEY | Required for admission; distinct-purpose high-entropy secret, 32–256 characters, no surrounding whitespace; key rotation affects protection buckets |
-| MOBILE_PIN_ACCOUNT_WINDOW_MS | Default 900000; positive integer, maximum 86400000 |
-| MOBILE_PIN_ACCOUNT_ATTEMPTS | Default 5; positive integer, maximum 20 |
+| MOBILE_PIN_ACCOUNT_WINDOW_MS | Failure window from first failure; default 900000; positive integer, maximum 86400000 |
+| MOBILE_PIN_ACCOUNT_ATTEMPTS | Failed authentications only; default 5; positive integer, maximum 20 |
 | MOBILE_PIN_GLOBAL_WINDOW_MS | Default 300000; positive integer, maximum 3600000 |
 | MOBILE_PIN_GLOBAL_ATTEMPTS | Default 300; positive integer, maximum 10000 |
 | MOBILE_PIN_MAX_ACCOUNTS | Default 10000; positive integer, maximum 100000 |
@@ -126,7 +139,9 @@ expiry, protected API authorization and role normalization remain unchanged.
 The authorizer admits before KDF, looks up only MobilePinCredential.normalizedMobile,
 verifies hash (including dummy work for missing bindings), requires a real profile
 and rejects SUSPENDED. After expensive work it rechecks binding/hash/user/version
-and suspension. It returns only Auth.js user fields and sessionVersion, never phone
+and suspension. Both reads use explicit selects for credential id/userId/pinHash,
+User id/email/name/image/sessionVersion and profile.verificationStatus; no full
+profile is retrieved. It returns only Auth.js user fields and sessionVersion, never phone
 or hash. The existing issueSession callback rejects a changed User version before
 session issuance; later validation handles revocation/suspension. Future PIN changes
 must increment User.sessionVersion atomically and revoke sessions; no change-PIN

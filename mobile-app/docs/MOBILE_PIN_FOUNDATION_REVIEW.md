@@ -1,5 +1,25 @@
 # Mobile PIN foundation review — milestone 1A
 
+## Milestone 1B source follow-up — 2026-10-30
+
+The milestone 1A findings below are retained as historical review evidence; their
+line references describe the earlier commit. The approved 1B source refinement
+now separates aggregate admission from serialized number-keyed failure counting:
+success does not consume failed allowance, no permanent/sliding lockout, active
+verification protected from cleanup with SKIP LOCKED. Configuration/storage/hash
+failures have fixed-label rate-suppressed diagnostics. Both credential reads use
+explicit selects. The three P2 source requests have been addressed in source;
+no independent compilation/concurrency/runtime verification has been performed.
+
+Pepper format remains v1 only. Rotation/loss, backup custody, first-claim ownership,
+KDF/database capacity and effective staging configuration remain activation gates.
+See MOBILE_PIN_SECURITY_DECISIONS.md for exact current semantics and residual risks.
+The current assessment is SOURCE REFINED — NOT VERIFIED, not production approval.
+No schema/migration, Auth.js provider/session callback, website/admin or Flutter
+code changed in 1B. Existing restrictions and deferred registration/recovery remain.
+
+## Historical milestone 1A review
+
 Date: 2026-10-30. Reviewed commit: 9d730f2 (against parent 6beb356).
 Working tree was clean before review. Source/text inspection only, using the
 code-review skill; no compilation, tests, runtime requests or database access.
