@@ -1,5 +1,96 @@
 # HOMEZONE remaining integration blockers
 
+## Automatic registration-to-dashboard handoff acceptance - 2026-11-02
+
+Source baseline: `main/b581d6ea1ea88c0c086281593ab8cf43f95600b5`.
+The reported account-saved-but-still-on-signup behavior is explained in source:
+`AuthFormScreen.register()` previously acknowledged the request and required a
+separate sign-in action. It did not attempt automatic authentication or dashboard
+navigation. Earlier successful separate-sign-in evidence remains valid; it does
+not verify the new automatic journey requested by the founder.
+
+### Source correction compiled; five-role automatic handoff verified
+
+The Flutter-only change in
+`mobile-app/lib/features/auth/auth_form_screen.dart` captures the submitted email,
+password and selected public role, then passes them to the existing sign-in flow
+after a validated generic acknowledgment. It resolves the repository-owned
+controller for signup and preserves CSRF, independent session/profile checks,
+backend-authoritative roles, mismatch rejection, generation ownership and route
+cancellation. Acknowledgment alone never opens a protected dashboard or proves a
+new account was created.
+
+Registration remains blocked against accidental resubmission after acknowledgment.
+Authentication failure presents a recoverable submitted-but-unconfirmed message
+and an explicit sign-in route. Transport uncertainty never triggers automatic
+account creation retries or a claim of successful authentication. Duplicate
+acknowledgments preserve existing credentials and roles.
+
+27 relevant local fixture tests passed, including five public-role paths and
+security/navigation cases. The new test file is
+`mobile-app/test/email_registration_navigation_test.dart`. Focused Flutter analysis
+reported no issues. The explicit staging build succeeded with:
+
+```text
+node mobile-app/scripts/build-android.mjs --mode service --config config/staging.local.json
+```
+
+The debug APK is 184939163 bytes, SHA256
+`591cc3c77fa249d181a4a8583a505fd1abfb5612b5da0add5b2e3d5b60f42b89`;
+provenance is
+`mobile-app/build/android-source-builds/2026-11-02T09-16-24-832Z-1744/build-record.json`.
+It was installed using `adb install -r` on `emulator-5554`.
+
+Actual Create Account actions reached BUYER/USER, OWNER, BROKER, BUILDER and
+SERVICE_PROVIDER dashboards automatically, without a separate Sign In tap.
+BUYER/USER opened the real marketplace Home; its My profile view then retrieved
+the controlled account's name and Property Buyer role from the backend. Existing
+controlled staging accounts were reused: generic duplicate acknowledgment, then
+actual Auth.js/session/profile confirmation
+and the correct dashboard. No new account records were created in this run; this
+evidence must not be described as first-time account creation. Captures are
+`mobile-app/build/staging-auth-verification/owner-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/broker-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/builder-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/service_provider-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/user-auto-signup-dashboard.png` and
+`mobile-app/build/staging-auth-verification/user-auto-signup-profile.png`.
+All five public-role automatic-navigation checks passed on the installed APK;
+there are no pending role checks in that controlled set. First-time account
+creation was not retested in this run.
+Independent source review found no concrete new lifecycle/security defect.
+Actual Android presentation was reviewed directly for Buyer Home, including the
+valid empty database catalogue, and Owner; internal Flutter render captures were
+not substituted for device evidence. Final Buyer sign-out returned to the
+unauthenticated Who are you? screen with no controlled account logged in.
+
+The first BUILDER automatic attempt displayed a recoverable Unable to connect
+error, explained that signup was submitted but authentication was unconfirmed,
+and offered Continue to Sign In. It did not repeat registration or open a
+dashboard. Explicit sign-in recovered and opened the BUILDER dashboard; a later,
+deliberately initiated controlled registration-form test after sign-out passed
+the automatic handoff. The underlying network cause is unconfirmed; no source
+defect or automatic retry is inferred from this observation.
+
+Remaining acceptance scope:
+
+1. Keep first-time record creation distinct from this run's controlled
+   duplicate-account handoff evidence. Earlier creation behavior is documented
+   below; creating another account was not required for these correction checks.
+   A newly created account must not be claimed as verified by this run.
+2. Extend actual-device negative-path acceptance as needed: failed authentication/
+   profile loading, interrupted requests and role mismatch must remain recoverable
+   and never repeat registration automatically or open an unauthorized dashboard.
+
+No backend/schema/migration/environment change is required for the source
+correction. No backend/schema/configuration, environment, deployment or
+database-command changes were made, and no new account records were created.
+Approved authentication quota and session writes used the existing staging APIs.
+Earlier staging activation is not undone. Approved legal content and versioned
+consent, native recovery, social sign-in, wider session/security acceptance,
+nonempty listings/media, business workflows, separate credential
+rotation and production release remain the independent gates documented below.
+
 ## Staging activation completed; remaining acceptance gates - 2026-11-02
 
 This section supersedes the earlier same-day missing-HMAC/origin conflict gate below.

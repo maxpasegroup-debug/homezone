@@ -1,5 +1,104 @@
 # HOMEZONE integration implementation status
 
+## Automatic sign-in after native email registration - 2026-11-02
+
+Source baseline: `main/b581d6ea1ea88c0c086281593ab8cf43f95600b5`.
+Status: SOURCE IMPLEMENTED, COMPILED and DEVICE VERIFIED. The automatic staging
+handoff is RUNTIME VERIFIED for all five public roles: BUYER/USER, OWNER, BROKER,
+BUILDER and SERVICE_PROVIDER, using existing controlled staging accounts.
+Earlier runtime evidence below covers registration followed by a separate sign-in
+action, not this new automatic handoff.
+
+### Confirmed cause and correction
+
+The prior `AuthFormScreen.register()` intentionally stopped after the generic
+registration acknowledgment, cleared the password and displayed Continue to Sign
+In. Saving an account did not establish a session or trigger dashboard navigation.
+This was a client journey boundary, not evidence of a database or role-write fault.
+The founder now requests automatic authentication and role dashboard entry after
+the registration acknowledgment.
+
+`mobile-app/lib/features/auth/auth_form_screen.dart` now:
+
+- Captures normalized email, password and selected public role once, and binds
+  registration and its one automatic sign-in attempt to those submitted values.
+- Resolves the existing repository-owned sign-in controller for the signup screen
+  and reuses the existing Auth.js password protocol, CSRF/cookie coordinator and
+  secure session persistence. No competing authentication mechanism was added.
+- Independently verifies the authenticated session and backend profile, rejects
+  role mismatch without changing the stored role, then enters the existing
+  dashboard gate. USER opens the Buyer marketplace; other public roles use the
+  existing role workspace.
+- Explicitly hands ownership from the registration cookie generation to the new
+  sign-in generation, so the registration finalizer cannot overwrite the result
+  with a stale session-change message. Route cancellation and newer-account guards
+  remain in place.
+- Retains the generic duplicate acknowledgment. That response does not prove
+  creation or authentication. Failed sign-in/profile confirmation leaves a clear
+  submitted-but-unconfirmed result and an explicit sign-in route; registration is
+  not automatically retried. Ambiguous registration failures retain the existing
+  sign-in-before-registering-again guidance.
+
+### Evidence and limits for this correction
+
+27 relevant local tests passed, including all five public-role dashboard paths and
+registration/navigation security cases. These are local fixtures, separate from
+the device evidence below. Focused Flutter analysis reported no issues. New
+regression coverage is in `mobile-app/test/email_registration_navigation_test.dart`.
+
+The explicitly configured staging build succeeded:
+
+```text
+node mobile-app/scripts/build-android.mjs --mode service --config config/staging.local.json
+```
+
+The debug APK is 184939163 bytes, SHA256
+`591cc3c77fa249d181a4a8583a505fd1abfb5612b5da0add5b2e3d5b60f42b89`.
+Build provenance:
+`mobile-app/build/android-source-builds/2026-11-02T09-16-24-832Z-1744/build-record.json`.
+It was installed with `adb install -r` on `emulator-5554`, preserving app data.
+
+Actual Android Create Account actions automatically opened the correct BUYER/USER,
+OWNER, BROKER, BUILDER and SERVICE_PROVIDER dashboards without a Sign In tap.
+BUYER/USER opened the real marketplace Home; its My profile view then loaded the
+controlled account's name and Property Buyer role from the backend. These checks
+reused existing controlled staging accounts: generic duplicate acknowledgment,
+then actual Auth.js password authentication, independent session/profile
+confirmation and dashboard display.
+They do not demonstrate new account-record creation during this run. No new
+account records were created for these checks. First-time account creation was not
+retested in this run; earlier actual account-creation evidence is retained below.
+
+The first BUILDER automatic sign-in attempt returned a recoverable network error:
+registration was submitted, sign-in could not be confirmed, and the user was asked
+to continue with the same credentials. The app neither repeated registration nor
+opened a dashboard. Explicit Continue to Sign In recovered successfully and
+opened the actual BUILDER dashboard. After sign-out, a deliberately initiated
+second controlled registration-form test completed the automatic BUILDER handoff.
+This records the observed network failure and recovery; it does not establish the
+underlying transport cause or imply the app silently retried registration.
+
+Captures are under ignored build paths:
+`mobile-app/build/staging-auth-verification/owner-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/broker-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/builder-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/service_provider-auto-signup-dashboard.png`,
+`mobile-app/build/staging-auth-verification/user-auto-signup-dashboard.png` and
+`mobile-app/build/staging-auth-verification/user-auto-signup-profile.png`.
+Independent source re-review found no concrete new lifecycle/security defect.
+Actual Android captures confirmed the Buyer Home presentation, including a valid
+empty database catalogue, and the Owner dashboard. The final Buyer sign-out
+returned to the unauthenticated Who are you? entry screen; the controlled account
+was no longer logged in, leaving the app ready for the user's own account.
+
+No backend, database schema, migration, Railway variable, deployed configuration or
+authentication architecture change is required by this correction. Existing website
+authentication, separate PIN infrastructure and fictional preview remain unchanged.
+Versioned legal consent, recovery, social sign-in and wider business-workflow gates
+below remain separate work. This task made no backend/schema/configuration,
+environment, deployment or database-command changes. Approved authentication quota
+and session writes occurred through the existing staging APIs only.
+
 ## Staging activation and five-role authentication verified - 2026-11-02
 
 This section supersedes the earlier same-day configuration-blocked status below.
