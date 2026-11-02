@@ -5,6 +5,8 @@ import 'public_listing_media_button.dart';
 import 'account_listing_screen.dart';
 import 'listing_location.dart';
 import 'listing_media.dart';
+import 'buyer_presentation.dart';
+import '../../theme/design_tokens.dart';
 import '../workspace/workspace_screen.dart';
 
 /// Service-backed screens never consume DemoProperty or preview collections.
@@ -423,6 +425,18 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   Widget card(Listing listing) => Card(
+    margin: const EdgeInsets.only(bottom: 18),
+    elevation: 0,
+    color: Theme.of(context).colorScheme.surfaceContainerLowest,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(22),
+      side: BorderSide(
+        color: Theme.of(
+          context,
+        ).colorScheme.outlineVariant.withValues(alpha: .65),
+      ),
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -431,99 +445,176 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ListingImage(url: listing.images.firstOrNull, height: 190),
+              Stack(
+                children: [
+                  ListingImage(url: listing.images.firstOrNull, height: 206),
+                  if (listing.data['intent'] != null)
+                    Positioned(
+                      left: 14,
+                      top: 14,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: BrandColors.forest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          buyerReadableValue(listing.data['intent']),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      listing.price,
-                      style: Theme.of(context).textTheme.titleLarge,
+                      buyerPrice(listing.data),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.5,
+                      ),
                     ),
+                    const SizedBox(height: 6),
                     Text(
                       listing.title,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    Text(listing.location),
-                    Text(
-                      '${listing.fact('bedrooms')} bedrooms · ${listing.fact('bathrooms')} bathrooms',
+                    const SizedBox(height: 6),
+                    BuyerFact(
+                      icon: Icons.location_on_outlined,
+                      label: listing.location.isEmpty
+                          ? 'Location not provided'
+                          : listing.location,
                     ),
+                    if (listing.data['bedrooms'] != null ||
+                        listing.data['bathrooms'] != null ||
+                        listing.data['areaValue'] != null) ...[
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 10,
+                        children: [
+                          if (listing.data['bedrooms'] != null)
+                            BuyerFact(
+                              icon: Icons.bed_outlined,
+                              label: '${listing.fact('bedrooms')} beds',
+                            ),
+                          if (listing.data['bathrooms'] != null)
+                            BuyerFact(
+                              icon: Icons.bathtub_outlined,
+                              label: '${listing.fact('bathrooms')} baths',
+                            ),
+                          if (listing.data['areaValue'] != null)
+                            BuyerFact(
+                              icon: Icons.square_foot,
+                              label:
+                                  '${listing.fact('areaValue')} ${buyerReadableValue(listing.data['areaUnit'] ?? '')}',
+                            ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
         ),
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          children: [
-            TextButton.icon(
-              onPressed: mutating ? null : () => toggleSave(listing),
-              icon: Icon(
-                (favoriteStatus[listing.id] ?? saved.contains(listing.id))
-                    ? Icons.favorite
-                    : Icons.favorite_border,
+        Divider(
+          height: 1,
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: .6),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              TextButton.icon(
+                onPressed: mutating ? null : () => toggleSave(listing),
+                icon: Icon(
+                  (favoriteStatus[listing.id] ?? saved.contains(listing.id))
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                ),
+                label: Text(
+                  favoriteStatus[listing.id] == true ||
+                          (!favoriteStatus.containsKey(listing.id) &&
+                              saved.contains(listing.id))
+                      ? 'Saved'
+                      : favoriteStatus[listing.id] == false ||
+                            (account != null &&
+                                object(account!['pagination'])['saved'] == null)
+                      ? 'Save'
+                      : 'Toggle saved property',
+                ),
               ),
-              label: Text(
-                favoriteStatus[listing.id] == true ||
-                        (!favoriteStatus.containsKey(listing.id) &&
-                            saved.contains(listing.id))
-                    ? 'Saved'
-                    : favoriteStatus[listing.id] == false ||
-                          (account != null &&
-                              object(account!['pagination'])['saved'] == null)
-                    ? 'Save'
-                    : 'Toggle saved property',
+              TextButton.icon(
+                onPressed: () => setState(() {
+                  if (compare.containsKey(listing.id)) {
+                    compare.remove(listing.id);
+                  } else if (compare.length < 4) {
+                    compare[listing.id] = listing;
+                  } else {
+                    message('Compare up to four properties.');
+                  }
+                }),
+                icon: Icon(
+                  compare.containsKey(listing.id)
+                      ? Icons.check
+                      : Icons.compare_arrows,
+                ),
+                label: const Text('Compare'),
               ),
-            ),
-            TextButton.icon(
-              onPressed: () => setState(() {
-                if (compare.containsKey(listing.id)) {
-                  compare.remove(listing.id);
-                } else if (compare.length < 4) {
-                  compare[listing.id] = listing;
-                } else {
-                  message('Compare up to four properties.');
-                }
-              }),
-              icon: Icon(
-                compare.containsKey(listing.id)
-                    ? Icons.check
-                    : Icons.compare_arrows,
-              ),
-              label: const Text('Compare'),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     ),
   );
-  Widget empty(String title) => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Text(title, textAlign: TextAlign.center),
-  );
+  Widget empty(String title) =>
+      BuyerEmptyState(title: title, message: '', compact: true);
   List<Widget> browsing() => [
-    Text(
-      tab == 0 ? 'Discover a place' : 'Property Search',
-      style: Theme.of(context).textTheme.headlineMedium,
-    ),
-    const Text(
-      'Service-backed listings. The offline preview is a separate experience.',
-    ),
+    if (tab == 0)
+      const BuyerWelcome()
+    else
+      const BuyerHeading(
+        eyebrow: 'Discover',
+        title: 'Your home, your way.',
+        subtitle: 'A neighbourhood, a budget, a fresh start. Find what fits.',
+      ),
     TextField(
       controller: query,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
+        hintText: 'City, locality or a place you love',
         labelText: 'Search properties',
+        prefixIcon: const Icon(Icons.search_rounded),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
         suffixIcon: IconButton(
           tooltip: 'Search',
           onPressed: loading ? null : search,
-          icon: const Icon(Icons.search),
+          icon: const Icon(Icons.arrow_forward_rounded),
         ),
       ),
       onSubmitted: (_) => search(),
     ),
+    const SizedBox(height: 14),
     Wrap(
       spacing: 8,
       children: [
@@ -551,16 +642,28 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                     load();
                   },
           ),
+      ],
+    ),
+    const SizedBox(height: 8),
+    Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
         OutlinedButton.icon(
           onPressed: loading ? null : editFilters,
           icon: const Icon(Icons.tune),
           label: const Text('Filters'),
         ),
-        SizedBox(
-          width: MediaQuery.sizeOf(context).width - 32,
+        const SizedBox(width: 14),
+        Expanded(
           child: DropdownButton<String>(
             isExpanded: true,
             value: filters['sort'] ?? 'newest',
+            underline: const SizedBox.shrink(),
+            icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             items: [
               for (final entry in [
                 ('newest', 'Newest'),
@@ -587,8 +690,27 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         ),
       ],
     ),
+    BuyerSectionLabel(
+      tab == 0 ? 'Homes to discover' : 'Search results',
+      subtitle: filters.isEmpty
+          ? 'Published places, ready to explore.'
+          : 'Homes matching your preferences.',
+    ),
     if (listings.isEmpty && !loading && error == null)
-      empty('No matching published listings. Try changing the filters.'),
+      BuyerEmptyState(
+        title: 'A little space for possibility.',
+        message: filters.isEmpty
+            ? 'There are no published homes to explore just yet. Check back soon for your next place.'
+            : 'No matching published listings. Try changing the filters.',
+        icon: Icons.other_houses_outlined,
+        action: filters.isEmpty
+            ? null
+            : OutlinedButton.icon(
+                onPressed: editFilters,
+                icon: const Icon(Icons.tune_rounded),
+                label: const Text('Adjust filters'),
+              ),
+      ),
     ...listings.map(card),
     if (page >= 1000 && !more && listings.isNotEmpty)
       const Text(
@@ -600,9 +722,35 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
         child: const Text('Load more'),
       ),
     if (tab == 0) ...[
-      Text('Recently Viewed', style: Theme.of(context).textTheme.titleLarge),
-      if (recent.isEmpty)
-        empty('Properties you open appear here for this app session.'),
+      const SizedBox(height: 12),
+      BuyerSurface(
+        padding: const EdgeInsets.all(6),
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.favorite_border_rounded),
+              title: const Text('Your saved homes'),
+              subtitle: const Text('Keep the places you love close.'),
+              trailing: const Icon(Icons.arrow_forward_rounded, size: 19),
+              onTap: () => changeTab(2),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline_rounded),
+              title: const Text('Your enquiries'),
+              subtitle: const Text('Follow your interest in a property.'),
+              trailing: const Icon(Icons.arrow_forward_rounded, size: 19),
+              onTap: () => changeTab(3),
+            ),
+          ],
+        ),
+      ),
+    ],
+    if (tab == 0 && recent.isNotEmpty) ...[
+      const BuyerSectionLabel(
+        'Recently viewed',
+        subtitle: 'Take another look at the places you opened.',
+      ),
       ...recent.map(card),
     ],
   ];
@@ -619,17 +767,31 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   }
 
   List<Widget> collections() => [
-    Text(
-      'Saved & Shortlists',
-      style: Theme.of(context).textTheme.headlineMedium,
-    ),
-    const Text(
-      'Changes are stored in your signed-in account only after the server confirms them. Comparison is memory-only.',
+    const BuyerHeading(
+      eyebrow: 'Your collection',
+      title: 'Saved & Shortlists',
+      subtitle:
+          'Good places deserve a second look. Keep your favourites together.',
     ),
     if (account != null) ...[
-      if (objects(account!['saved']).isEmpty) empty('No saved properties.'),
+      if (objects(account!['saved']).isEmpty)
+        BuyerEmptyState(
+          title: 'Your favourites start here.',
+          message:
+              'No saved properties. Tap the heart on a home you love to keep it here.',
+          icon: Icons.favorite_border_rounded,
+          action: OutlinedButton.icon(
+            onPressed: () => changeTab(0),
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Browse homes'),
+          ),
+        ),
       ...objects(account!['saved']).map((row) => card(Listing.parse(row))),
       collectionMore('saved'),
+      const BuyerSectionLabel(
+        'Shortlists',
+        subtitle: 'A little organisation for your big decision.',
+      ),
       FilledButton(
         onPressed: mutating
             ? null
@@ -748,30 +910,65 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           ],
         ),
       collectionMore('shortlists'),
-      const Text(
-        'Load more to browse the rest of your account. Open a shortlist to load its properties. Unavailable listings are omitted. Refresh to see new changes.',
+      Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Text(
+          'Open a shortlist to see its homes. Unavailable listings are omitted.',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       ),
     ],
   ];
   List<Widget> enquiries() => [
-    Text('My Enquiries', style: Theme.of(context).textTheme.headlineMedium),
-    const Text(
-      'Only server-confirmed enquiries are shown. No automated retry is made for submissions.',
+    const BuyerHeading(
+      eyebrow: 'Your next move',
+      title: 'My Enquiries',
+      subtitle:
+          'Keep track of the properties you’ve asked about, all in one place.',
     ),
     if (account != null && objects(account!['enquiries']).isEmpty)
-      empty('No enquiries yet. Open a property to enquire.'),
+      BuyerEmptyState(
+        title: 'Take the next step.',
+        message: 'No enquiries yet. Open a property to enquire.',
+        icon: Icons.forum_outlined,
+        action: OutlinedButton.icon(
+          onPressed: () => changeTab(0),
+          icon: const Icon(Icons.search_rounded),
+          label: const Text('Browse homes'),
+        ),
+      ),
     if (account != null)
       for (final row in objects(account!['enquiries']))
         Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          color: Theme.of(context).colorScheme.surfaceContainerLowest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
           child: ListTile(
+            contentPadding: const EdgeInsets.all(18),
+            leading: Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             title: Text(
               row['property'] is JsonObject
                   ? textValue(object(row['property'])['title'])
                   : 'Unavailable property',
             ),
             subtitle: Text(
-              '${textValue(row['stage'])}\n${textValue(row['createdAt'])}',
+              '${buyerReadableValue(textValue(row['stage']))}\n${buyerDate(row['createdAt'])}',
             ),
+            trailing: row['property'] is JsonObject
+                ? const Icon(Icons.chevron_right_rounded)
+                : null,
             onTap: row['property'] is JsonObject
                 ? () async {
                     try {
@@ -789,104 +986,198 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     if (account != null) collectionMore('enquiries'),
   ];
   List<Widget> profile() => [
-    Text('My Profile', style: Theme.of(context).textTheme.headlineMedium),
+    const BuyerHeading(
+      eyebrow: 'Your HomeZone',
+      title: 'My Profile',
+      subtitle: 'A home for your details, preferences and next steps.',
+    ),
     if (account != null) ...[
-      Text(
-        textValue(object(account!['profile'])['fullName'], 'HOMEZONE buyer'),
-      ),
-      Text('City: ${textValue(object(account!['profile'])['city'])}'),
-      Text('Phone: ${textValue(object(account!['profile'])['phone'])}'),
-      OutlinedButton(
-        onPressed: mutating
-            ? null
-            : () async {
-                final values = await Navigator.push<(String, String)>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ProfileEditScreen(
-                      profile: object(account!['profile']),
-                      repository: widget.repository,
+      BuyerSurface(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 29,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .1),
+              child: Text(
+                buyerInitials(object(account!['profile'])['fullName']),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 21,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              textValue(
+                object(account!['profile'])['fullName'],
+                'HomeZone member',
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              object(account!['profile'])['role'] == 'USER'
+                  ? 'Property Buyer'
+                  : buyerReadableValue(
+                      textValue(object(account!['profile'])['role'], 'Member'),
                     ),
-                  ),
-                );
-                if (values != null && mounted) {
-                  await mutate(
-                    () => widget.repository.updateProfile(values.$1, values.$2),
-                  );
-                }
-              },
-        child: const Text('Edit city and phone'),
-      ),
-    ],
-    ListTile(
-      title: const Text('My role workspace & notifications'),
-      leading: const Icon(Icons.work_outline),
-      onTap: () async {
-        await Navigator.push<void>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => WorkspaceScreen(repository: widget.repository),
-          ),
-        );
-        if (mounted && verified) {
-          try {
-            await refreshAccount();
-          } catch (_) {
-            message('Refresh your account to load server changes.');
-          }
-        }
-      },
-    ),
-    ListTile(
-      title: const Text('Saved & Shortlists'),
-      leading: const Icon(Icons.favorite_border),
-      onTap: () => changeTab(2),
-    ),
-    ListTile(
-      title: const Text('My Enquiries'),
-      leading: const Icon(Icons.chat_bubble_outline),
-      onTap: () => changeTab(3),
-    ),
-    ListTile(
-      title: const Text('Compare properties'),
-      leading: const Icon(Icons.compare_arrows),
-      onTap: showCompare,
-    ),
-    const Text('Appearance preference is kept only for this app launch.'),
-    DropdownButtonFormField<ThemeMode>(
-      initialValue: widget.themeMode,
-      decoration: const InputDecoration(labelText: 'Appearance'),
-      items: [
-        for (final mode in ThemeMode.values)
-          DropdownMenuItem(value: mode, child: Text(mode.name)),
-      ],
-      onChanged: (value) {
-        if (value != null) widget.onThemeChanged?.call(value);
-      },
-    ),
-    ListTile(
-      title: const Text('Help, privacy & account deletion'),
-      leading: const Icon(Icons.help_outline),
-      onTap: () => showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          scrollable: true,
-          title: const Text('Account information'),
-          content: const Text(
-            'Session credentials use device-protected storage when available; reopening still requires server verification. Appearance follows your device settings. '
-            'External maps can open listed coordinates on supported Android devices; device location and calls are not enabled. Website payment controls may require a separate browser sign-in. '
-            'Email-verified account registration is available when configured. Account deletion and refund review requests can be recorded from My Workspace. Actual deletion, retention and refund execution require approved policies and provider operations. '
-            'Signing out clears this app’s local state and attempts server revocation. A network failure leaves revocation uncertain.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 18),
+            BuyerFact(
+              icon: Icons.location_on_outlined,
+              label: textValue(
+                object(account!['profile'])['city'],
+                'Add your city',
+              ),
+            ),
+            const SizedBox(height: 10),
+            BuyerFact(
+              icon: Icons.phone_outlined,
+              label: textValue(
+                object(account!['profile'])['phone'],
+                'Add a contact phone',
+              ),
+            ),
+            const SizedBox(height: 17),
+            OutlinedButton(
+              onPressed: mutating
+                  ? null
+                  : () async {
+                      final values = await Navigator.push<(String, String)>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProfileEditScreen(
+                            profile: object(account!['profile']),
+                            repository: widget.repository,
+                          ),
+                        ),
+                      );
+                      if (values != null && mounted) {
+                        await mutate(
+                          () => widget.repository.updateProfile(
+                            values.$1,
+                            values.$2,
+                          ),
+                        );
+                      }
+                    },
+              child: const Text('Edit city and phone'),
             ),
           ],
         ),
       ),
+    ],
+    const BuyerSectionLabel('Make yourself at home'),
+    BuyerSurface(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        children: [
+          ListTile(
+            title: const Text('My role workspace & notifications'),
+            leading: const Icon(Icons.work_outline),
+            onTap: () async {
+              await Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      WorkspaceScreen(repository: widget.repository),
+                ),
+              );
+              if (mounted && verified) {
+                try {
+                  await refreshAccount();
+                } catch (_) {
+                  message('Refresh your account to load server changes.');
+                }
+              }
+            },
+          ),
+          ListTile(
+            title: const Text('Saved & Shortlists'),
+            leading: const Icon(Icons.favorite_border),
+            onTap: () => changeTab(2),
+          ),
+          ListTile(
+            title: const Text('My Enquiries'),
+            leading: const Icon(Icons.chat_bubble_outline),
+            onTap: () => changeTab(3),
+          ),
+          ListTile(
+            title: const Text('Compare properties'),
+            leading: const Icon(Icons.compare_arrows),
+            onTap: showCompare,
+          ),
+          const Divider(indent: 20, endIndent: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Appearance',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<ThemeMode>(
+                  initialValue: widget.themeMode,
+                  decoration: const InputDecoration(labelText: 'App theme'),
+                  items: [
+                    for (final mode in ThemeMode.values)
+                      DropdownMenuItem(value: mode, child: Text(mode.name)),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) widget.onThemeChanged?.call(value);
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Follows your choice for this app launch.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            title: const Text('Help, privacy & account deletion'),
+            leading: const Icon(Icons.help_outline),
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                scrollable: true,
+                title: const Text('Account information'),
+                content: const Text(
+                  'Session credentials use device-protected storage when available; reopening still requires server verification. Appearance follows your device settings. '
+                  'External maps can open listed coordinates on supported Android devices; device location and calls are not enabled. Website payment controls may require a separate browser sign-in. '
+                  'Creating an account does not verify email ownership. Account deletion and refund review requests can be recorded from My Workspace. Actual deletion, retention and refund execution require approved policies and provider operations. '
+                  'Signing out clears this app’s local state and attempts server revocation. A network failure leaves revocation uncertain.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
+    const SizedBox(height: 24),
     FilledButton(
       onPressed: mutating || !verified ? null : signOut,
       child: const Text('Sign out'),
@@ -927,30 +1218,100 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('HOMEZONE'),
-      actions: [
-        IconButton(
-          tooltip: 'Compare selected properties',
-          onPressed: showCompare,
-          icon: Badge(
-            label: Text('${compare.length}'),
-            child: const Icon(Icons.compare_arrows),
+      toolbarHeight: 76,
+      titleSpacing: 20,
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (MediaQuery.textScalerOf(context).scale(1) < 1.4) ...[
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: BrandColors.forest,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: const Icon(
+                Icons.home_work_outlined,
+                size: 23,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          const Flexible(
+            child: Text(
+              'HOMEZONE',
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
+            ),
           ),
-        ),
+        ],
+      ),
+      actions: [
+        if (MediaQuery.textScalerOf(context).scale(1) < 1.4)
+          IconButton(
+            tooltip: 'Compare selected properties',
+            onPressed: showCompare,
+            icon: Badge(
+              isLabelVisible: compare.isNotEmpty,
+              label: Text('${compare.length}'),
+              child: const Icon(Icons.compare_arrows),
+            ),
+          ),
         IconButton(
           tooltip: 'Refresh',
           onPressed: loading || mutating ? null : () => load(),
           icon: const Icon(Icons.refresh),
         ),
+        if (MediaQuery.textScalerOf(context).scale(1) < 1.4)
+          IconButton(
+            tooltip: 'My profile',
+            onPressed: loading || mutating ? null : () => changeTab(4),
+            icon: const Icon(Icons.account_circle_outlined),
+          )
+        else
+          PopupMenuButton<String>(
+            tooltip: 'More options',
+            onSelected: (value) {
+              if (value == 'compare') {
+                showCompare();
+              } else {
+                changeTab(4);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'compare',
+                child: Text('Compare selected properties'),
+              ),
+              PopupMenuItem(
+                value: 'profile',
+                enabled: !loading && !mutating,
+                child: const Text('My profile'),
+              ),
+            ],
+          ),
+        const SizedBox(width: 8),
       ],
     ),
     body: RefreshIndicator(
       onRefresh: () => load(),
       child: ListView(
         key: PageStorageKey('marketplace-$tab'),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
+          if (loading) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: const LinearProgressIndicator(minHeight: 3),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (tab >= 2 && !verified) ...[
             empty(
               'Sign in to access your account. Offline preview data is separate.',
@@ -970,39 +1331,76 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
               3 => enquiries(),
               _ => profile(),
             },
-          if (loading || mutating) const LinearProgressIndicator(),
+          if (mutating) const LinearProgressIndicator(),
           if (error != null) ...[
-            Text(
-              error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-            TextButton(
-              onPressed: loading ? null : () => load(),
-              child: const Text('Retry'),
+            BuyerEmptyState(
+              title: 'Let’s try that again.',
+              message: error!,
+              icon: Icons.wifi_off_rounded,
+              action: OutlinedButton.icon(
+                onPressed: loading ? null : () => load(),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
             ),
           ],
         ],
       ),
     ),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: tab,
-      onDestinationSelected: changeTab,
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
-        NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
-        NavigationDestination(
-          icon: Icon(Icons.favorite_border),
-          label: 'Saved',
+    bottomNavigationBar: NavigationBarTheme(
+      data: NavigationBarThemeData(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+        indicatorColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: .1),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 11,
+            height: 1.2,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+            color: states.contains(WidgetState.selected)
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
-        NavigationDestination(
-          icon: Icon(Icons.chat_bubble_outline),
-          label: 'Enquiries',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          label: 'Profile',
-        ),
-      ],
+      ),
+      child: NavigationBar(
+        height: MediaQuery.textScalerOf(context).scale(1) > 1.4 ? 92 : 76,
+        labelBehavior: MediaQuery.textScalerOf(context).scale(1) > 1.4
+            ? NavigationDestinationLabelBehavior.onlyShowSelected
+            : NavigationDestinationLabelBehavior.alwaysShow,
+        selectedIndex: tab,
+        onDestinationSelected: changeTab,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.search),
+            selectedIcon: Icon(Icons.manage_search_rounded),
+            label: 'Search',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.favorite_border),
+            selectedIcon: Icon(Icons.favorite_rounded),
+            label: 'Saved',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble_rounded),
+            label: 'Enquiries',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Profile',
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -1038,14 +1436,29 @@ class _ListingImageState extends State<ListingImage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget fallback() => SizedBox(
+    Widget fallback() => Container(
       height: widget.height,
-      child: const Center(
+      width: double.infinity,
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: .06),
+      child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.image_not_supported_outlined, size: 40),
-            Text('Image unavailable'),
+            Icon(
+              Icons.other_houses_outlined,
+              size: 49,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .5),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Image unavailable',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
@@ -1127,7 +1540,9 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
     final id = widget.id;
     final repository = widget.repository;
     final property = await repository.detail(id);
-    if (mounted && widget.id == id && identical(widget.repository, repository)) {
+    if (mounted &&
+        widget.id == id &&
+        identical(widget.repository, repository)) {
       related = widget.repository.listings({
         if (property.data['city'] is String)
           'city': property.data['city'] as String,
@@ -1147,7 +1562,12 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Property details')),
+    appBar: AppBar(
+      title: const Text(
+        'Property details',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+      ),
+    ),
     body: FutureBuilder<Listing>(
       future: result,
       builder: (context, snapshot) {
@@ -1156,15 +1576,18 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
         }
         if (snapshot.hasError) {
           return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(marketplaceError(snapshot.error!)),
-                TextButton(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: BuyerEmptyState(
+                title: 'This home couldn’t be opened.',
+                message: marketplaceError(snapshot.error!),
+                icon: Icons.home_work_outlined,
+                action: OutlinedButton.icon(
                   onPressed: () => setState(() => result = readProperty()),
-                  child: const Text('Retry'),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
                 ),
-              ],
+              ),
             ),
           );
         }
@@ -1173,7 +1596,7 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
         }
         final property = snapshot.data!;
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
             InkWell(
               onTap: () => Navigator.push<void>(
@@ -1182,19 +1605,96 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
                   builder: (_) => LiveGalleryScreen(property: property),
                 ),
               ),
-              child: ListingImage(url: property.images.firstOrNull),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  children: [
+                    ListingImage(url: property.images.firstOrNull, height: 280),
+                    Positioned(
+                      bottom: 14,
+                      right: 14,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: BrandColors.forest,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.photo_library_outlined,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Photo gallery',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            Text(
-              property.price,
-              style: Theme.of(context).textTheme.headlineMedium,
+            const SizedBox(height: 22),
+            BuyerSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (property.data['intent'] != null) ...[
+                    Text(
+                      buyerReadableValue(property.data['intent']).toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                  ],
+                  Text(
+                    buyerPrice(property.data),
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontSize: 29,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.8,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    property.title,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  BuyerFact(
+                    icon: Icons.location_on_outlined,
+                    label: property.location.isEmpty
+                        ? 'Location not provided'
+                        : property.location,
+                  ),
+                ],
+              ),
             ),
-            Text(property.title, style: Theme.of(context).textTheme.titleLarge),
-            Text(property.location),
+            const BuyerSectionLabel('At a glance'),
             Wrap(
               spacing: 8,
+              runSpacing: 4,
               children: [
                 for (final key in [
-                  'intent',
                   'category',
                   'propertyType',
                   'bedrooms',
@@ -1202,21 +1702,60 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
                   'areaValue',
                   'areaUnit',
                 ])
-                  Chip(label: Text('$key: ${property.fact(key)}')),
+                  if (property.data[key] != null)
+                    Chip(
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerLowest,
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      label: Text(
+                        '${switch (key) {
+                          'propertyType' => 'Property type',
+                          'areaValue' => 'Area',
+                          'areaUnit' => 'Area unit',
+                          _ => buyerReadableValue(key),
+                        }}: ${buyerReadableValue(property.fact(key))}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
               ],
             ),
-            Text(
-              textValue(
-                property.data['description'],
-                'No description provided.',
+            const BuyerSectionLabel('About this place'),
+            BuyerSurface(
+              child: Text(
+                textValue(
+                  property.data['description'],
+                  'No description provided.',
+                ),
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.7,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             if (property.data['amenities'] is List) ...[
-              const Text('Listed amenities'),
-              for (final amenity
-                  in (property.data['amenities'] as List).whereType<String>())
-                Text('• $amenity'),
+              const BuyerSectionLabel('Listed amenities'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final amenity
+                      in (property.data['amenities'] as List)
+                          .whereType<String>())
+                    Chip(
+                      avatar: const Icon(Icons.check_rounded, size: 16),
+                      label: Text(
+                        buyerReadableValue(amenity),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                ],
+              ),
             ],
+            const BuyerSectionLabel('Make your next move'),
             TextButton.icon(
               onPressed: saving || !(widget.favoriteReady?.call() ?? true)
                   ? null
@@ -1379,17 +1918,29 @@ class LiveGalleryScreen extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(property.title)),
     body: property.images.isEmpty
-        ? const Center(child: Text('No photographs are available.'))
+        ? const Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(20),
+              child: BuyerEmptyState(
+                title: 'A closer look, soon.',
+                message: 'No photographs are available.',
+                icon: Icons.photo_library_outlined,
+              ),
+            ),
+          )
         : ListView(
             padding: const EdgeInsets.all(16),
             children: [
               for (final url in property.images)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: InteractiveViewer(
-                    minScale: 1,
-                    maxScale: 4,
-                    child: ListingImage(url: url, height: 320),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: InteractiveViewer(
+                      minScale: 1,
+                      maxScale: 4,
+                      child: ListingImage(url: url, height: 320),
+                    ),
                   ),
                 ),
             ],

@@ -528,6 +528,11 @@ void main() {
         MaterialApp(home: MarketplaceScreen(repository: f.repository)),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Synthetic home'),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Synthetic home'), findsOneWidget);
       await tester.ensureVisible(find.text('Toggle saved property'));
       await tester.pumpAndSettle();
@@ -611,7 +616,12 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+        await tester.scrollUntilVisible(
+          find.text('Synthetic home'),
+          250,
+          maxScrolls: 30,
+          scrollable: find.byType(Scrollable).first,
+        );
         await tester.pumpAndSettle();
         expect(find.text('Synthetic home'), findsOneWidget);
         expect(tester.takeException(), isNull);
