@@ -1,5 +1,45 @@
 # HOMEZONE integration implementation status
 
+## Registration API and APK reconciliation — 2026-10-30 11:32 UTC
+
+This observation supersedes the earlier 11:14 registration-route404 as the current
+public routing evidence. Source HEAD is now `88fc8f82a123ecc4afbc013fbb2279963797c3c7`,
+containing the native email route and related prior changes; working tree was clean
+at inspection. Those changes are no longer uncommitted. No commit/push was performed
+by this investigation. Deployed SHA remains UNKNOWN.
+
+| Staging check | Result / scope |
+| --- | --- |
+| GET /api/auth/providers, 11:32:12.290Z | 200; password provider; staging callback origin. Credential verification not exercised. |
+| GET /api/mobile/auth/email-register, 11:32:12.707Z | 405; expected method rejection for a POST-only route, not a missing route. |
+| OPTIONS /api/mobile/auth/email-register, 11:32:13.095Z | 204; Allow OPTIONS, POST. Native route is now exposed. No POST/account/quota writes performed. |
+| OPTIONS /api/mobile/auth/register | 204; Allow OPTIONS, POST. PIN registration route exposed separately. |
+| OPTIONS /api/auth/password/web-signup and /api/auth/password/signup | Both204; Allow OPTIONS, POST. Browser-direct and legacy OTP routes remain separately exposed. |
+
+All probes used only https://homezone-staging.up.railway.app, no redirect following,
+credentials or response-cookie/body disclosure. Route availability is not proof of
+POST security/configuration/quota/hash/account-creation success.
+
+Existing APK artifact inspection (read-only, no device/build):
+`mobile-app/build/app/outputs/apk/debug/app-debug.apk`, last written
+2026-10-30T08:35:31.9610298Z, has a debug kernel containing
+`/api/mobile/auth/register`, but no `/api/mobile/auth/email-register` or current
+native email-registration acknowledgment text. It predates the current email flow.
+Latest script build record is staging-origin service mode but predates this APK;
+its existence is not exact APK provenance or proof of what is installed/running.
+
+Confirmed: current source and this on-disk artifact differ. Conditional explanation:
+if this APK is installed, it cannot execute the latest native email registration path.
+Installed artifact/configuration and actual latest failed POST remain UNKNOWN.
+Do not claim a database fault or a definitive device root cause from these probes.
+
+Next evidence: latest failed signup's HTTP status plus existing sanitized
+`Native email registration unavailable` stage, if any; no payload/email/password
+or secret values. Then separately authorize current staging build/install/launch
+to replace/verify the old artifact. Actual registration/account writes retain their
+own approval gate. Source route, payload and URL construction align; no speculative
+application fix made. No tests/builds/device/database/settings/deployment actions.
+
 ## Current staging email-authentication availability — 2026-10-30 11:14 UTC
 
 Read-only checks from the development computer, **not Flutter workflow verification**:

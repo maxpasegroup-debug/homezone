@@ -1,5 +1,35 @@
 # HOMEZONE remaining integration blockers
 
+## Updated registration blockers — 2026-10-30 11:32 UTC
+
+The earlier native email route404 is NO LONGER REPRODUCIBLE: staging GET now405,
+OPTIONS204 with Allow OPTIONS, POST. Password provider200 and staging callback origin
+also confirmed. Source native registration is committed in local HEAD88fc8f82...;
+deployed SHA still UNKNOWN. Do not continue diagnosing a currently missing route or
+claim a successful registration from these nonmutating probes.
+
+New confirmed source/artifact mismatch: existing app-debug.apk was written08:35 UTC;
+its debug kernel contains the PIN registration URL but not the native email
+registration URL/current feedback. It cannot represent the current email-flow source.
+If installed, it is a supported explanation for the wrong registration journey.
+Installed/running artifact not inspected; no emulator/build/install/launch authorized
+or performed here. Latest script build record also cannot prove current APK identity.
+
+Needed next: existing failed POST status and sanitized server stage; privately verify
+AUTH_URL/NEXTAUTH_URL/AUTH_STAGING_ORIGIN consistency, PASSWORD_SIGNIN_HMAC_KEY
+length32-256 and database quota/account schema only if that stage warrants it.
+Stages: origin(configuration), request-admission(DB quota), validation(input),
+attempt-admission(HMAC/config/quota), password-hash(scrypt), account-create(transaction).
+403 identifies supplied Origin mismatch/cross-site in the registration handler;
+400 invalid fields/JSON,429 quota,503 unexpected stage-labelled failure. No stage
+alone proves a specific database error or missing secret.
+
+Separately authorize a fresh staging build/install/launch for current source, then
+controlled account/signup/login verification. Do not deploy again or modify backend
+security merely to resolve an outdated APK. No application source changes justified
+by this inspection. No registration POST, accounts, tests/builds/device/database
+operations, settings, deployments, commits or pushes performed.
+
 ## Confirmed staging route availability blocker — 2026-10-30 11:14 UTC
 
 - Staging advertises existing `password` provider with correct staging callbacks
