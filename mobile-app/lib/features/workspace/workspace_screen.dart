@@ -143,9 +143,74 @@ const _providerFields = [
 ];
 
 /// Role is obtained exclusively from the verified controller; server repeats checks.
-class WorkspaceScreen extends StatelessWidget {
+class WorkspaceScreen extends StatefulWidget {
   const WorkspaceScreen({super.key, required this.repository});
   final MarketplaceRepository repository;
+  @override
+  State<WorkspaceScreen> createState() => _WorkspaceScreenState();
+}
+
+class _WorkspaceScreenState extends State<WorkspaceScreen> {
+  static const _ownerPrimaryModules = {'properties', 'ownerEnquiries'};
+  MarketplaceRepository get repository => widget.repository;
+  String? _ownerScope;
+  int _ownerTab = 0;
+
+  void _selectOwnerTab(String scope, int index) => setState(() {
+    _ownerScope = scope;
+    _ownerTab = index;
+  });
+
+  Widget _ownerNavigation(BuildContext context, String scope, int tab) {
+    final colors = Theme.of(context).colorScheme;
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.4;
+    return NavigationBarTheme(
+      data: NavigationBarThemeData(
+        backgroundColor: colors.surfaceContainerLowest,
+        indicatorColor: colors.primary.withValues(alpha: .1),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 11,
+            height: 1.2,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+            color: states.contains(WidgetState.selected)
+                ? colors.primary
+                : colors.onSurfaceVariant,
+          ),
+        ),
+      ),
+      child: NavigationBar(
+        key: const ValueKey('owner-bottom-navigation'),
+        height: largeText ? 92 : 76,
+        labelBehavior: largeText
+            ? NavigationDestinationLabelBehavior.onlyShowSelected
+            : NavigationDestinationLabelBehavior.alwaysShow,
+        selectedIndex: tab,
+        onDestinationSelected: (index) => _selectOwnerTab(scope, index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.home_work_outlined),
+            selectedIcon: Icon(Icons.home_work_rounded),
+            label: 'Listings',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble_rounded),
+            label: 'Enquiries',
+          ),
+          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: repository.session,
@@ -179,6 +244,26 @@ class WorkspaceScreen extends StatelessWidget {
           ),
         );
       final generationAtBuild = repository.coordinator.generation;
+      final isOwner = identity.role == 'OWNER';
+      final ownerScope = '$generationAtBuild:${identity.id}';
+      final ownerTab = _ownerScope == ownerScope ? _ownerTab : 0;
+      final ownerMore = isOwner && ownerTab == 3;
+      final showAccountActions = !isOwner || ownerMore;
+      final navigation = isOwner
+          ? _ownerNavigation(context, ownerScope, ownerTab)
+          : null;
+      if (isOwner && (ownerTab == 1 || ownerTab == 2)) {
+        final module = ownerTab == 1 ? 'properties' : 'ownerEnquiries';
+        return Scaffold(
+          body: WorkspaceRecords(
+            key: ValueKey('$ownerScope:$module'),
+            repository: repository,
+            module: module,
+            title: ownerTab == 1 ? 'My listings' : 'Listing enquiries',
+          ),
+          bottomNavigationBar: navigation,
+        );
+      }
       final modules = <String, String>{
         if (['USER', 'OWNER', 'BROKER'].contains(identity.role))
           'properties': 'My listings',
@@ -205,141 +290,168 @@ class WorkspaceScreen extends StatelessWidget {
         'history': 'Recently viewed',
       };
       return Scaffold(
-        appBar: AppBar(title: const Text('My workspace')),
+        appBar: AppBar(
+          title: Text(
+            isOwner
+                ? ownerMore
+                      ? 'More'
+                      : 'HOMEZONE'
+                : 'My workspace',
+          ),
+        ),
         body: ListView(
+          key: isOwner ? PageStorageKey('owner-$ownerScope-$ownerTab') : null,
           padding: const EdgeInsets.all(16),
           children: [
             Text(
               'Account role: ${identity.role}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, '/discovery'),
-              icon: const Icon(Icons.home_work_outlined),
-              label: const Text('Browse properties'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
-                final acknowledged = await repository.session.signOut();
-                if (!navigator.mounted) return;
-                if (repository.session.verified) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'An account operation is still active. Please try again.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
-                navigator.pushNamedAndRemoveUntil('/sign-in', (_) => false);
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      !repository.session.credentialRemovalConfirmed
-                          ? 'In-memory access was cleared. Device credential removal could not be confirmed; use the website account controls before sharing this device.'
-                          : acknowledged
-                          ? 'The server acknowledged sign-out. Local credentials were cleared.'
-                          : 'Local credentials were cleared. Server revocation could not be confirmed.',
-                    ),
-                  ),
-                );
-              },
-              child: const Text('Sign out'),
-            ),
-            const Text(
-              'Records are loaded from your HOMEZONE account. Availability and actions depend on server permissions.',
-            ),
-            Card(
-              child: ListTile(
-                title: const Text('Account summary'),
-                trailing: const Icon(Icons.insights_outlined),
-                onTap: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => WorkspaceSummary(repository: repository),
-                  ),
-                ),
+            if (!ownerMore)
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/discovery'),
+                icon: const Icon(Icons.home_work_outlined),
+                label: const Text('Browse properties'),
               ),
-            ),
-            OutlinedButton(
-              onPressed: () async {
-                final yes = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    scrollable: true,
-                    title: const Text('Request account-deletion review?'),
-                    content: const Text(
-                      'This records a request for human review. It does not delete your account or data. Retention and deletion rules must be approved before deletion can occur.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Record review request'),
-                      ),
-                    ],
-                  ),
-                );
-                if (yes != true ||
-                    !context.mounted ||
-                    repository.session.identity?.id != identity.id ||
-                    repository.coordinator.generation != generationAtBuild)
-                  return;
-                try {
-                  final result = await repository.call(
-                    'POST',
-                    '/api/mobile/account-requests',
-                    body: {'kind': 'DELETION_REVIEW'},
-                  );
-                  if (result['request'] is! Map) throw const FormatException();
-                  if (context.mounted &&
-                      repository.session.identity?.id == identity.id &&
-                      repository.coordinator.generation == generationAtBuild)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+            if (showAccountActions)
+              TextButton(
+                onPressed: () async {
+                  final navigator = Navigator.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
+                  final acknowledged = await repository.session.signOut();
+                  if (!navigator.mounted) return;
+                  if (repository.session.verified) {
+                    messenger.showSnackBar(
+                      const SnackBar(
                         content: Text(
-                          'Review request status: ${(result['request'] as Map)['status']}. No account data was deleted.',
+                          'An account operation is still active. Please try again.',
                         ),
                       ),
                     );
-                } catch (e) {
-                  if (context.mounted &&
-                      repository.session.identity?.id == identity.id &&
-                      repository.coordinator.generation == generationAtBuild)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(marketplaceError(e, mutation: true)),
+                    return;
+                  }
+                  navigator.pushNamedAndRemoveUntil('/sign-in', (_) => false);
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        !repository.session.credentialRemovalConfirmed
+                            ? 'In-memory access was cleared. Device credential removal could not be confirmed; use the website account controls before sharing this device.'
+                            : acknowledged
+                            ? 'The server acknowledged sign-out. Local credentials were cleared.'
+                            : 'Local credentials were cleared. Server revocation could not be confirmed.',
                       ),
-                    );
-                }
-              },
-              child: const Text('Request account-deletion review'),
+                    ),
+                  );
+                },
+                child: const Text('Sign out'),
+              ),
+            const Text(
+              'Records are loaded from your HOMEZONE account. Availability and actions depend on server permissions.',
             ),
-            for (final entry in modules.entries)
+            if (!ownerMore)
               Card(
                 child: ListTile(
-                  title: Text(entry.value),
-                  trailing: const Icon(Icons.chevron_right),
+                  title: const Text('Account summary'),
+                  trailing: const Icon(Icons.insights_outlined),
                   onTap: () => Navigator.push<void>(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => WorkspaceRecords(
-                        repository: repository,
-                        module: entry.key,
-                        title: entry.value,
-                      ),
+                      builder: (_) => WorkspaceSummary(repository: repository),
                     ),
                   ),
                 ),
               ),
+            if (showAccountActions)
+              OutlinedButton(
+                onPressed: () async {
+                  final yes = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      scrollable: true,
+                      title: const Text('Request account-deletion review?'),
+                      content: const Text(
+                        'This records a request for human review. It does not delete your account or data. Retention and deletion rules must be approved before deletion can occur.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Record review request'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (yes != true ||
+                      !context.mounted ||
+                      repository.session.identity?.id != identity.id ||
+                      repository.coordinator.generation != generationAtBuild)
+                    return;
+                  try {
+                    final result = await repository.call(
+                      'POST',
+                      '/api/mobile/account-requests',
+                      body: {'kind': 'DELETION_REVIEW'},
+                    );
+                    if (result['request'] is! Map)
+                      throw const FormatException();
+                    if (context.mounted &&
+                        repository.session.identity?.id == identity.id &&
+                        repository.coordinator.generation == generationAtBuild)
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Review request status: ${(result['request'] as Map)['status']}. No account data was deleted.',
+                          ),
+                        ),
+                      );
+                  } catch (e) {
+                    if (context.mounted &&
+                        repository.session.identity?.id == identity.id &&
+                        repository.coordinator.generation == generationAtBuild)
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(marketplaceError(e, mutation: true)),
+                        ),
+                      );
+                  }
+                },
+                child: const Text('Request account-deletion review'),
+              ),
+            for (final entry in modules.entries)
+              if (!isOwner ||
+                  (ownerMore
+                      ? !_ownerPrimaryModules.contains(entry.key)
+                      : _ownerPrimaryModules.contains(entry.key)))
+                Card(
+                  child: ListTile(
+                    title: Text(entry.value),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      if (isOwner && entry.key == 'properties') {
+                        _selectOwnerTab(ownerScope, 1);
+                      } else if (isOwner && entry.key == 'ownerEnquiries') {
+                        _selectOwnerTab(ownerScope, 2);
+                      } else {
+                        Navigator.push<void>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => WorkspaceRecords(
+                              repository: repository,
+                              module: entry.key,
+                              title: entry.value,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
           ],
         ),
+        bottomNavigationBar: navigation,
       );
     },
   );

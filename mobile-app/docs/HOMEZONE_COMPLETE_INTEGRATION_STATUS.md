@@ -1,5 +1,39 @@
 # HOMEZONE integration implementation status
 
+## Owner dashboard bottom navigation - 2026-11-02
+
+Baseline: `main/51b16fa`. Status: SOURCE IMPLEMENTED, COMPILED and DEVICE VERIFIED.
+
+`WorkspaceScreen` now provides OWNER-only Home, Listings, Enquiries and More
+destinations. Listings and Enquiries reuse the existing `WorkspaceRecords` pages
+and `/api/mobile/workspace` modules `properties` and `ownerEnquiries`. Their
+widgets are keyed by authenticated account, cookie generation and module to avoid
+reusing another tab's records. More retains the existing account/service tools
+and sign-out. HOMEZONE branding appears on Owner Home; other sections use their
+own titles. Other roles, role/profile gates and backend permissions are unchanged.
+
+40 relevant local tests passed. The seven-test role suite passed again after
+strengthening the session-end check while a private listing was visible. Focused
+analysis found no errors/warnings; its 37 informational findings match pre-existing
+workspace statements. Independent source review found no concrete new defect.
+
+The explicit staging service build succeeded using
+`node scripts/build-android.mjs --mode service --config config/staging.local.json`.
+APK SHA256: `ba81574447201703e7b7d3c400346de0cce4139170c92bbf37694fae2eec7e58`.
+It was installed with `adb install -r` on `emulator-5554`. After installation the
+app opened onboarding; verification used an explicit sign-in with an existing
+controlled staging OWNER account. Session restoration is not certified by this
+check, and the reason for that onboarding outcome was not investigated here.
+Actual Android presentation confirmed the four bottom tabs. Listings, Enquiries
+and More opened with the bar retained; Listings retained its existing Create
+action, and More retained sign-out. No listing/enquiry mutation was performed.
+The app was returned to Owner Home on the controlled test account. Capture:
+`mobile-app/build/staging-auth-verification/owner-bottom-navigation-home.png`.
+
+Changed source: `mobile-app/lib/features/workspace/workspace_screen.dart` and
+`mobile-app/test/email_auth_role_flow_test.dart`. No backend/authentication,
+schema, Railway configuration, deployment or production changes were made.
+
 ## Automatic sign-in after native email registration - 2026-11-02
 
 Source baseline: `main/b581d6ea1ea88c0c086281593ab8cf43f95600b5`.
