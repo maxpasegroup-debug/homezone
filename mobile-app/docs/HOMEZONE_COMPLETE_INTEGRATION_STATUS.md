@@ -1,5 +1,102 @@
 # HOMEZONE integration implementation status
 
+## Authentication execution and confirmed blockers — 2026-11-02
+
+Latest source baseline `main/e0181263c638e70332dde3c30650f5d890d38e07`.
+This supersedes older assumptions that deployed identity and configuration were
+inaccessible or that the current issue is an absent native registration route.
+
+### Completed changes and device evidence
+
+- Confirmed the running registration screen was the fictional preview: it explicitly
+  said no account/sign-in/email service was connected. The outer workspace
+  `../.vscode/launch.json` omitted staging defines, even though the repository's
+  `.vscode/launch.json` was correct. Fixed the outer three launch profiles to pass
+  `config/staging.local.json`; preserved an explicit offline-preview profile.
+- `mobile-app/lib/main.dart` now rejects missing HOMEZONE_ENABLE_API configuration
+  instead of silently becoming preview. Explicit false still selects the fictional
+  preview; explicit true still uses the existing central staging API architecture.
+- Built with `node mobile-app/scripts/build-android.mjs --mode service --config
+  config/staging.local.json`, installed on emulator-5554 and launched. Actual Android
+  capture showed onboarding with Service-backed access, role selection and the real
+  email-registration screen. No black-screen failure observed in this execution.
+- Final build: debug/staging, approved staging origin, freshlyWritten:true,
+  SHA256 `913359c1e8152ea81d697b347b0176c2c68f596e38d74f297bbd3dd52ad7bf84`.
+- Corrected PasswordAuthProtocol's Configuration callback handling: it is now a
+  server-availability failure rather than invalid credentials. SignInController
+  displays a safe temporary-unavailability message. CSRF/access denial remain
+  forbidden; genuine bad credentials remain unauthorized. PIN/provider contracts,
+  registration fields, hashing, session ownership and website authentication unchanged.
+
+### Live staging root cause, now confirmed
+
+Authenticated Railway read-only inspection identified project
+`1f8c9007-2993-426c-bbd0-b8dd0a0b17da`, staging environment
+`2181eadf-21a0-4ca3-8269-b6b6f28af9f4`, backend HomeZone
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00`, active successful deployment
+`1487808f-02fb-44e9-9f23-475935f07221`, created 2026-11-02T04:30:38.343Z,
+commit `e0181263c638e70332dde3c30650f5d890d38e07`. Its sole public domain is the
+approved staging host, with no custom production domain on that staging instance.
+
+Private compliance checks printed only names/booleans, not values:
+
+| Setting / evidence | Result |
+| --- | --- |
+| AUTH_URL, AUTH_STAGING_ORIGIN, NEXT_PUBLIC_SITE_URL | Present and match the approved staging origin |
+| NEXTAUTH_URL | Present but conflicts with the canonical staging settings |
+| PASSWORD_SIGNIN_HMAC_KEY | Missing; required for both registration admission and password login |
+| AUTH_SECRET | Present, source minimum-length compliance confirmed; not rotated or displayed |
+| DATABASE_URL | Present; private host comparison confirms the backend uses staging Postgres-9ZqA service `8a0f4b40-a4d6-4924-8b07-79e82065fe24` |
+| Migration runner evidence | Active deployment logs at04:33:07Z report21 migrations and no pending migrations. No SQL/schema introspection or migration execution by this task. |
+
+Railway registration logs explicitly show `stage:origin`. Both native signup and
+browser signup fail503 before validation; Auth.js returns Configuration. Source
+`src/lib/auth/redirect.ts:34` rejects conflicting AUTH_URL/NEXTAUTH_URL. Thus the
+origin conflict is the confirmed current blocker. The missing HMAC key is a separate
+confirmed prerequisite that would block the next registration/login stage. No
+database fault is established; the catalogue still returns200/source database.
+
+### Verification and actual limits
+
+Controlled credentials for five public roles were generated and Windows-DPAPI encrypted
+under ignored `mobile-app/build/staging-auth-verification`; no real-recipient email,
+OTP or credentials in this report. One Buyer signup was submitted through the actual
+Flutter UI and failed with an uncertain result. One independent controlled sign-in
+returned Configuration and no authenticated session. Do not claim account creation
+or successful live login/role routing. No blind signup retry was performed.
+
+Final combined local run: **84 tests passed** across password_auth_protocol,
+sign_in_integration, session_ownership, session_provenance, auth_transport,
+email_auth_role_flow and startup_configuration tests. Includes all five public roles,
+mismatch signout, configuration-error UI feedback and explicit startup selection.
+These fixture-backed results are not live staging acceptance. Focused analysis has
+no errors/warnings; five existing style info diagnostics remain. Final APK was
+installed/launched successfully and the device APK SHA matches the final build.
+
+### Precise remaining approval gate
+
+Automatic approval review rejected the attempted command to align NEXTAUTH_URL,
+generate/provision PASSWORD_SIGNIN_HMAC_KEY and apply a staging configuration
+deployment: broad authorization did not explicitly approve those exact mutations.
+The rejected command did not run; no secret snapshot/key was generated by it, no
+Railway variable changed and no service deployed/restarted by this task.
+
+Required explicit approval: set NEXTAUTH_URL to the approved staging origin,
+securely provision PASSWORD_SIGNIN_HMAC_KEY (32-256 characters, no display), and
+apply the configuration deployment only to the identified staging backend. Preserve
+old nonsecret settings/private encrypted rollback evidence first. Do not change
+AUTH_SECRET/database credentials, public roles, authorization or production. Existing
+predeploy migration behavior must remain accounted for; latest runner evidence says
+none pending. Then verify actual Flutter signup -> separate login -> profile/role ->
+dashboard for each public role, restore/logout and mismatch denial.
+
+Application changes: main.dart, core/api/password_auth_protocol.dart,
+features/auth/sign_in_controller.dart. Tests: password_auth_protocol_test.dart,
+sign_in_integration_test.dart, new email_auth_role_flow_test.dart and
+startup_configuration_test.dart. Also updated the outer workspace launch file and
+the four authentication/integration documents. No backend, schema, PIN architecture,
+production, commit or push changes.
+
 ## Registration API and APK reconciliation — 2026-10-30 11:32 UTC
 
 This observation supersedes the earlier 11:14 registration-route404 as the current

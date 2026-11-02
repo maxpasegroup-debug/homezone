@@ -290,7 +290,12 @@ final class PasswordAuthProtocol {
           client.configuration,
         );
         if (result.error != null) {
-          throw const ApiException(ApiFailure.unauthorized);
+          throw ApiException(switch (result.error!) {
+            AuthDestinationError.credentials => ApiFailure.unauthorized,
+            AuthDestinationError.csrf || AuthDestinationError.accessDenied => ApiFailure.forbidden,
+            AuthDestinationError.configuration => ApiFailure.server,
+            AuthDestinationError.other => ApiFailure.invalidResponse,
+          });
         }
       }, expectedGeneration: workflow);
       final session = await coordinator.coordinate('/api/auth/session', (

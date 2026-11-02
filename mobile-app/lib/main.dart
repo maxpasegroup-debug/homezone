@@ -11,16 +11,18 @@ import 'features/auth/sign_in_controller.dart';
 import 'features/marketplace/marketplace_repository.dart';
 
 Future<void> main() async {
-  const enabled = bool.fromEnvironment(
-    'HOMEZONE_ENABLE_API',
-    defaultValue: false,
-  );
-  if (!enabled) {
-    runApp(const HomezoneApp());
-    return;
-  }
+  WidgetsFlutterBinding.ensureInitialized();
   try {
-    WidgetsFlutterBinding.ensureInitialized();
+    // A missing launch configuration must never impersonate working account UI.
+    // The fictional preview remains available only when explicitly selected.
+    if (!const bool.hasEnvironment('HOMEZONE_ENABLE_API')) {
+      throw const ApiConfigurationException();
+    }
+    const enabled = bool.fromEnvironment('HOMEZONE_ENABLE_API');
+    if (!enabled) {
+      runApp(const HomezoneApp());
+      return;
+    }
     final configuration = ApiConfiguration.fromBuild();
     final client = ApiClient(
       configuration: configuration,
@@ -56,7 +58,7 @@ Future<void> main() async {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'HOMEZONE service configuration is missing or invalid. No connection was started.',
+                  'HOMEZONE service configuration is missing or invalid. No connection was started. Use the HOMEZONE staging launch profile, or explicitly select offline preview.',
                 ),
               ),
             ),

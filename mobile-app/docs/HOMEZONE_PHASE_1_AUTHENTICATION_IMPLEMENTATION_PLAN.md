@@ -1,6 +1,29 @@
 # Phase 1 — authentication implementation readiness
 
-## Latest slice: email/password sign-in and session integration, 2026-10-30
+## Execution update — 2026-11-02
+
+Source work has moved beyond planning: fixed the outer workspace's missing staging
+defines, made main reject an unspecified mode instead of silent preview, and fixed
+Auth.js Configuration error categorization/message. Explicit fictional preview,
+website authentication and separate PIN infrastructure are preserved. Fresh staging
+APK built/installed/rendered; local service-backed five-role/mismatch, session,
+transport and startup tests passed. These are not successful live account workflows.
+
+Authenticated Railway evidence now identifies the exact staging deployment matching
+e0181263... and its database binding. Registration logs confirm origin-stage failure;
+NEXTAUTH_URL is inconsistent with the other canonical staging settings and
+PASSWORD_SIGNIN_HMAC_KEY is missing. The attempted two-setting correction was
+rejected by automatic approval review before execution. No variable/deployment
+changes. See latest HOMEZONE_COMPLETE_INTEGRATION_STATUS.md for IDs/evidence.
+
+Next operation requires explicit approval of those two staging settings plus their
+configuration deployment effect. Snapshot rollback settings privately, preserve
+AUTH_SECRET/database credentials/production, account for predeploy migrations (latest
+active runner says21/no pending), then exercise actual Flutter signup/login/profile/
+role/dashboard/restore/logout. Do not rewrite registration or loosen origin/rate
+checks to hide a configuration error. Legal consent/recovery remain later gaps.
+
+## Prior slice: email/password sign-in and session integration, 2026-10-30
 
 **IMPLEMENTED BUT RUNTIME UNVERIFIED.** This section supersedes older sign-in
 handoff assumptions below. No compilation, tests, device or live authentication

@@ -1,6 +1,32 @@
 # Complete authentication UI audit and first implementation slice
 
-## Email/password sign-in and session source update — 2026-10-30
+## Device/source execution update — 2026-11-02
+
+VERIFIED ON DEVICE: actual Android screenshot showed registration in local preview
+mode, explaining why those forms were not backend authentication. Outer VS Code
+workspace launch profiles omitted staging defines. Corrected those profiles and
+built/installed an explicit staging APK; actual onboarding/role/registration UI now
+renders service-backed mode. Missing configuration now shows an actionable error,
+while explicit preview remains separate. No authentication UI redesign.
+
+VERIFIED LOCALLY: six new fixture-backed tests cover five public-role service
+dashboards and mismatch signout without role writes. Protocol/session/transport and
+startup regressions pass. Server Configuration callback now maps to availability,
+not incorrect password; UI regression confirms the message. All are local fixtures,
+not successful staging login or real role persistence evidence.
+
+CONFIRMED LIVE BLOCKER: staging NEXTAUTH_URL is inconsistent, registration logs show
+stage origin, and PASSWORD_SIGNIN_HMAC_KEY is absent. Actual controlled Flutter signup
+did not confirm creation, and controlled sign-in returned Configuration. Correcting
+those exact settings requires explicit approval after automatic review rejected the
+broadly authorized write. No Railway variables changed, no deployment performed.
+Actual five-role account/dashboard/session acceptance therefore remains INCOMPLETE.
+
+Full technical evidence and exact target/rollback gate are in the newest integration
+status/blockers sections. Consent content/persistence and native recovery/social
+remain separate release gaps. No OTP, PIN or website auth redesign was introduced.
+
+## Prior email/password sign-in and session source update — 2026-10-30
 
 This update supersedes earlier sign-in handoff descriptions. **IMPLEMENTED BUT
 RUNTIME UNVERIFIED**; no tests, builds, device actions, requests or accounts used.

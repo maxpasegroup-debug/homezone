@@ -133,6 +133,7 @@ void main() {
   });
   for (final entry in {
     'credentials': 'Unable to sign in. Check your email and password.',
+    'configuration': 'HOMEZONE sign-in is temporarily unavailable. Please try later.',
     'csrf': 'Sign-in verification failed. Please try again.',
     'timeout': 'The request timed out. Please try again.',
     'session': 'Unable to sign in. Check your email and password.',
@@ -147,6 +148,9 @@ void main() {
             throw TimeoutException('synthetic-sensitive');
           }
           if (entry.key == 'csrf') return const ApiResponse(403, '{}');
+          if (entry.key == 'configuration') {
+            return const ApiResponse(200, '{"url":"/auth?error=Configuration"}');
+          }
           if (entry.key == 'credentials') {
             return const ApiResponse(
               200,

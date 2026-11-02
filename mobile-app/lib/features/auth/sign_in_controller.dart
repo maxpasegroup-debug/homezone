@@ -236,6 +236,8 @@ final class SignInController extends ChangeNotifier {
             'Sign-in verification failed. Please try again.',
           ApiFailure.rateLimited =>
             'Too many attempts. Please wait before trying again.',
+          ApiFailure.server =>
+            'HOMEZONE sign-in is temporarily unavailable. Please try later.',
           _ => 'Unable to verify sign-in. Please try again.',
         };
         return SignInOutcome._(false, message);

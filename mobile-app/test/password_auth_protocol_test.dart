@@ -142,6 +142,27 @@ void main() {
       expect(coordinator.boundary, CookieLifecycleBoundary.locallyInvalidated);
     });
   }
+  for (final entry in {
+    'CredentialsSignin': ApiFailure.unauthorized,
+    'Configuration': ApiFailure.server,
+    'MissingCSRF': ApiFailure.forbidden,
+    'AccessDenied': ApiFailure.forbidden,
+    'UnexpectedError': ApiFailure.invalidResponse,
+  }.entries) {
+    test('callback ${entry.key} preserves the safe failure category', () async {
+      final harness = protocol((request) async =>
+        request.uri.path == '/api/auth/callback/password'
+          ? ApiResponse(200, jsonEncode({'url': '/auth?error=${entry.key}'}))
+          : standard(request));
+      await expectLater(
+        harness.signIn(email: 'fixture', password: 'synthetic'),
+        throwsA(isA<ApiException>().having((error) => error.failure, 'failure', entry.value)),
+      );
+      expect(transport.requests.map((request) => request.uri.path),
+        ['/api/auth/csrf', '/api/auth/callback/password']);
+      expect(coordinator.boundary, CookieLifecycleBoundary.locallyInvalidated);
+    });
+  }
   for (final response in [
     const ApiResponse(
       200,

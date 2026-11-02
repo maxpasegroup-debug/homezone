@@ -1,5 +1,44 @@
 # HOMEZONE remaining integration blockers
 
+## Confirmed authentication activation gate — 2026-11-02
+
+Two concrete staging configuration issues are now established by authenticated
+Railway compliance inspection, not inferred from response timing:
+
+1. NEXTAUTH_URL conflicts with the staging AUTH_URL/AUTH_STAGING_ORIGIN. Logs show
+   registration `stage:origin`; signup returns503 and Auth.js returns Configuration.
+2. PASSWORD_SIGNIN_HMAC_KEY is missing. Both native email registration and existing
+   password-login admission require it. Do not weaken or replace the shared DB limiter.
+
+Verified target: homezone project `1f8c9007-2993-426c-bbd0-b8dd0a0b17da`, staging
+environment `2181eadf-21a0-4ca3-8269-b6b6f28af9f4`, HomeZone backend
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00`. Domain maps to staging only on that instance;
+active deployment1487808f... matches local source e0181263.... Private comparison
+confirms staging Postgres-9ZqA binding. Active deployment's migration log reports21
+migrations and none pending. No database commands executed; no database fault proven.
+
+Automatic approval review rejected the exact variable/provisioning command because
+the broad request did not explicitly approve these persistent settings and potential
+configuration deployment. No variables changed or deployment triggered. Required next
+explicit approval is only these two settings and their staging deployment effect;
+production/AUTH_SECRET/database credentials remain outside the change.
+
+Local/device blockers already addressed: outer VS Code launch profiles now pass
+staging defines; main requires explicit mode so missing defines cannot silently run
+demo authentication; a staging APK built/installed/rendered; Configuration errors no
+longer masquerade as bad passwords. Local five-role/mismatch and session tests passed.
+These fixes do not make the misconfigured deployed backend authenticate successfully.
+
+After settings activation: actual controlled account creation, login, backend role
+readback, dashboard, restart restoration, mismatch and logout/revocation are still
+required. So far the one controlled Flutter signup and sign-in did not establish
+an account/session. Do not claim the five test identities exist merely because
+encrypted local credentials were prepared. No OTP/mail sent, no blind create retries.
+
+Approved legal content/durable consent, native recovery/social integration and prior
+credential-rotation review remain separate release gaps. No migration, database
+command, backend source change, production access, commit or push in this execution.
+
 ## Updated registration blockers — 2026-10-30 11:32 UTC
 
 The earlier native email route404 is NO LONGER REPRODUCIBLE: staging GET now405,
