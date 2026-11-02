@@ -1,5 +1,66 @@
 # HOMEZONE remaining integration blockers
 
+## Staging activation completed; remaining acceptance gates - 2026-11-02
+
+This section supersedes the earlier same-day missing-HMAC/origin conflict gate below.
+Following explicit founder approval, `PASSWORD_SIGNIN_HMAC_KEY` was provisioned
+privately and `NEXTAUTH_URL` was aligned with the approved staging origin. Successful
+configuration deployment `1e1efa9f-1dc8-4684-b289-fa82e000c758` runs commit
+`c71f626da51ae688d2a79d953300f3f50d6e7442`. The earlier automatic rejection was
+subsequently superseded by that exact approval; it is no longer the current blocker.
+
+`AUTH_SECRET` and database credentials/URL were not changed; production was untouched.
+Railway's automatic pre-deploy runner reported 21 migrations and no pending changes.
+No manual SQL/database/migration commands were executed. Password-provider callbacks
+now target staging; invalid native registration returns 400, browser missing-Origin
+returns 403 and unauthenticated profile returns 401.
+
+Actual Flutter registration, separate sign-in, backend profile confirmation and
+correct dashboard navigation are verified for five synthetic controlled staging
+accounts: USER, OWNER, BROKER, BUILDER and SERVICE_PROVIDER. USER displayed the real
+marketplace/profile; OWNER My listings, BROKER Leads & pipeline, BUILDER Projects &
+inventory and SERVICE_PROVIDER Provider profile displayed valid empty results.
+Independent session/profile checks returned 200 with the correct role for every
+account; the four corresponding role-workspace module reads returned 200.
+
+Actual app force-stop/restart restored USER and SERVICE_PROVIDER profiles and their
+correct dashboards without clearing app data. Independent logout returned
+200, protected profile returned 401 and replay of the previous session cookie
+returned 401 for each controlled account. Actual Flutter USER logout acknowledged
+server sign-out and cleared local access. A duplicate USER registration with a
+different password and BROKER role preserved original USER credentials/role;
+public ADMIN/SUPER_ADMIN registration returned 400. No OTP or mail was sent.
+Actual Flutter selected-OWNER login with correct USER credentials rejected the role
+mismatch, opened no dashboard and acknowledged sign-out without an uncertainty
+warning. Actual Flutter Buyer login with an incorrect password displayed the generic
+credential rejection and opened no dashboard. The app was left at public role
+entry without an active test-account session.
+These results establish the tested authentication journeys, not every business
+capability, arbitrary account or application-release requirement.
+
+Remaining work:
+
+1. Broaden security/session acceptance as appropriate before release: additional
+   account isolation, suspension/revocation, expiry, transient-network and concurrent
+   operation cases are not all established by the controlled happy/negative paths.
+2. Address nonblocking UI polish in a separate source slice: after an authentication
+   result, password clearing can trigger required/minimum-length field warnings.
+   Authentication rejection and role mismatch remained correct; no source change
+   was made for this display issue in the activation task.
+3. Verify nonempty property details/media and authorized role-specific business data
+   separately. A service-provider role does not itself create a verified provider
+   business entity or authorize incoming jobs; preserve existing business gates.
+4. Supply approved Terms/Privacy documents and resolve versioned consent persistence;
+   current `termsAccepted` is a request acknowledgment and `consentRecorded:false`.
+5. Complete native recovery and social integration only in their approved scopes;
+   current forms/buttons explicitly do not perform those actions.
+6. Retain separate media-host, exposed-credential rotation and production-release
+   approval/readiness work. No production readiness is implied by staging login.
+
+No new application/backend source changes, builds or tests were performed for this
+activation follow-up. The earlier committed local 84-test result was not rerun.
+No commit or push was performed; historical sections below remain for traceability.
+
 ## Confirmed authentication activation gate — 2026-11-02
 
 Two concrete staging configuration issues are now established by authenticated

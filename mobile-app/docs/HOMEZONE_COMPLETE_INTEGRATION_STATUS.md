@@ -1,5 +1,63 @@
 # HOMEZONE integration implementation status
 
+## Staging activation and five-role authentication verified - 2026-11-02
+
+This section supersedes the earlier same-day configuration-blocked status below.
+The founder explicitly approved the two staging settings and their configuration
+deployment after the earlier automatic approval rejection. That rejection is
+retained below as historical evidence, not a current approval gate for these actions.
+
+### Activated staging backend
+
+- Privately provisioned `PASSWORD_SIGNIN_HMAC_KEY` and aligned `NEXTAUTH_URL` with
+  `https://homezone-staging.up.railway.app`. Secret values were not displayed.
+- `AUTH_SECRET` and database credentials/URL were unchanged. Production was untouched.
+- Configuration deployment `1e1efa9f-1dc8-4684-b289-fa82e000c758` succeeded for the
+  identified staging HomeZone backend, running source commit
+  `c71f626da51ae688d2a79d953300f3f50d6e7442`.
+- Railway's automatic pre-deploy migration runner reported 21 migrations and no
+  pending migrations. No manual database, SQL, migration or introspection command
+  was executed in this task.
+- Readiness probes: password providers 200 with staging callback origins; native
+  email registration with invalid `{}` returned 400; browser registration without
+  Origin returned 403; unauthenticated profile returned 401. These probes alone do
+  not establish successful authentication.
+
+### Actual authentication evidence
+
+| Workflow | Evidence and status |
+| --- | --- |
+| Buyer registration and sign-in | RUNTIME VERIFIED for one controlled USER account: actual Flutter registration acknowledgment, separate email/password sign-in and real marketplace/profile display were observed. The acknowledgment alone was not used as proof of account creation. |
+| Authenticated profile and role | RUNTIME VERIFIED independently for the same controlled account: authenticated session 200, profile 200 and backend role USER. No credential, cookie, email or response body is recorded here. |
+| Session restoration | RUNTIME VERIFIED for USER and SERVICE_PROVIDER: actual app force-stop/restart restored each authenticated profile and correct dashboard without clearing app data. |
+| Logout and revocation | RUNTIME VERIFIED for the controlled USER session: independent logout 200, protected profile 401 and old-cookie replay 401; actual Flutter UI logout also acknowledged server sign-out and cleared local access. |
+| OWNER registration and dashboard | RUNTIME VERIFIED through actual Flutter create-account acknowledgment, separate sign-in, profile gate and dashboard showing Account role OWNER; My listings displayed a valid empty result. |
+| BROKER registration and dashboard | RUNTIME VERIFIED through actual Flutter create-account acknowledgment, separate sign-in, profile gate and dashboard showing Account role BROKER; Leads & pipeline displayed a valid empty result. |
+| BUILDER registration and dashboard | RUNTIME VERIFIED through actual Flutter create-account acknowledgment, separate sign-in, profile gate and dashboard showing Account role BUILDER; Projects & inventory displayed a valid empty result. |
+| SERVICE_PROVIDER registration and dashboard | RUNTIME VERIFIED through actual Flutter create-account acknowledgment, separate sign-in, profile gate and dashboard showing Account role SERVICE_PROVIDER; Provider profile displayed a valid empty result. |
+| Five-role API confirmation | Each controlled account independently returned authenticated session 200 and profile 200 with its correct role. OWNER properties, BROKER crm, BUILDER projects and SERVICE_PROVIDER providerProfile workspace reads returned 200 using the module query contract. Diagnostic logout returned 200, subsequent protected profile returned 401 and old-cookie replay returned 401 for each account. |
+| Duplicate and privileged-role safety | Controlled duplicate USER registration submitted a different password and BROKER role but returned only the generic acknowledgment; original credentials still authenticated as USER. Public ADMIN and SUPER_ADMIN registration attempts returned 400. Existing role and credentials were preserved. |
+| Role-mismatch denial | RUNTIME VERIFIED in actual Flutter: selected OWNER with controlled USER credentials was rejected with the role-mismatch message, no dashboard opened and server sign-out was acknowledged. No account role was changed. |
+| Incorrect-password denial | RUNTIME VERIFIED in actual Flutter: Buyer sign-in with the controlled email and an incorrect password displayed the generic email/password rejection and opened no dashboard. |
+
+Five synthetic controlled staging accounts were created through the actual Flutter
+UI. No OTP or mail was sent. The final app was left at public role entry without
+an active test-account session. A nonblocking UI polish issue remains: clearing the
+password after an authentication result can display the required/minimum-length
+field warning alongside that result. No source change was made for this issue.
+
+The prior committed baseline's 84 local tests passed in the earlier execution;
+they were not rerun in this activation task. No new application/backend source,
+schema, credential architecture or renderer changes were required here. Temporary
+verification tools and encrypted credential material remain under ignored build
+paths. No commit or push was performed.
+
+Authentication activation is distinct from complete application/release readiness.
+Approved Terms/Privacy content and versioned consent storage, native password
+recovery, social sign-in, wider security/session acceptance and business-workflow acceptance
+remain separate limitations. Existing media allowlist and credential-rotation
+requirements are not resolved by a successful Buyer login.
+
 ## Authentication execution and confirmed blockers — 2026-11-02
 
 Latest source baseline `main/e0181263c638e70332dde3c30650f5d890d38e07`.

@@ -1,5 +1,52 @@
 # Phase 1 — authentication implementation readiness
 
+## Staging execution completed - 2026-11-02
+
+This update supersedes the earlier configuration-blocked execution notes below.
+The founder explicitly approved provisioning PASSWORD_SIGNIN_HMAC_KEY, aligning
+NEXTAUTH_URL with the staging origin and applying the configuration deployment.
+Those changes are active in successful deployment
+`1e1efa9f-1dc8-4684-b289-fa82e000c758`, source commit
+`c71f626da51ae688d2a79d953300f3f50d6e7442`. AUTH_SECRET and DATABASE_URL were
+unchanged; production was not contacted or modified.
+
+The existing native email registration, password Auth.js provider, centralized
+Flutter client, secure session storage and profile/dashboard gate required no
+additional application source changes. The deployed configuration was the blocker.
+Railway's automatic pre-deploy runner reported 21 migrations and no pending
+migrations; no manual database or migration command was run.
+
+Acceptance observed on emulator-5554 against staging:
+
+- Five controlled synthetic accounts registered through Flutter with name, email,
+  password, selected public role and terms acknowledgment. No OTP or mail was sent.
+- All five independently authenticated with session/profile HTTP 200 and their
+  stored USER, OWNER, BROKER, BUILDER or SERVICE_PROVIDER role.
+- Flutter opened USER marketplace/profile and each other role's correct workspace.
+  Owner listings, Broker leads, Builder projects and Provider profile loaded valid
+  empty account-scoped results; their corresponding workspace API reads returned 200.
+- Actual process restart restored USER and SERVICE_PROVIDER sessions and roles.
+- Actual UI selected-role mismatch and incorrect-password attempts were rejected
+  without dashboard access. Existing roles were not changed.
+- Independent diagnostic logout returned 200; protected profile and replay of the
+  old session cookie both returned 401 for every controlled role. Actual Flutter
+  logout also cleared local credentials and acknowledged server sign-out.
+- A duplicate USER registration requesting a different password and BROKER role
+  preserved the original credentials and USER role. Public ADMIN/SUPER_ADMIN
+  registration returned 400.
+
+No new local build or automated test run was needed for these configuration-only
+changes; the previously built staging APK was used. The prior committed 84-test
+result remains historical. No commit or push was performed. Temporary verification
+scripts and DPAPI-encrypted credentials are under ignored build paths.
+
+Remaining scope is separate: approved legal content/versioned consent storage,
+native recovery/social login, credential-rotation planning, nonempty property/media
+and business-workflow acceptance. Role login success does not prove every dashboard
+mutation or production readiness. A small UI polish issue remains: clearing a
+password after an outcome can display a required/minimum-length field warning;
+the actual server outcome is displayed separately and this does not block login.
+
 ## Execution update — 2026-11-02
 
 Source work has moved beyond planning: fixed the outer workspace's missing staging

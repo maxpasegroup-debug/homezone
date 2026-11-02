@@ -1,5 +1,42 @@
 # Complete authentication UI audit and first implementation slice
 
+## Actual staging authentication acceptance - 2026-11-02
+
+This supersedes earlier statements below that live registration/login remained
+blocked by missing HMAC configuration and conflicting canonical URLs. Both settings
+were corrected with explicit founder approval; staging configuration deployment
+`1e1efa9f-1dc8-4684-b289-fa82e000c758` succeeded on commit
+`c71f626da51ae688d2a79d953300f3f50d6e7442`. No authentication UI redesign or new
+application/backend source changes were necessary in this activation task.
+
+| Journey | Current evidence |
+| --- | --- |
+| Role selection and Create Account | RUNTIME VERIFIED for USER, OWNER, BROKER, BUILDER and SERVICE_PROVIDER through actual Flutter actions using five controlled staging identities; name/email/password/terms fields and selected role were submitted. |
+| Registration result | Actual generic backend acknowledgment displayed, followed by separate sign-in. Successful session and profile, rather than acknowledgment alone, established usable account creation. |
+| Email/password Sign In | RUNTIME VERIFIED for all five roles. Independent session and profile checks returned 200 with the correct stored role. No OTP or mail was sent. |
+| Correct dashboard | USER displayed the real marketplace/profile; OWNER, BROKER, BUILDER and SERVICE_PROVIDER displayed their correct account-role workspace. Scoped listings/leads/projects/provider-profile reads displayed genuine empty results. |
+| Wrong selected role | Actual OWNER-selected login using a controlled USER account was rejected with a clear mismatch message, no role change and no Owner dashboard. |
+| Incorrect password | Actual Flutter attempt displayed 'Unable to sign in. Check your email and password.' and did not open a dashboard. |
+| Restart restoration | Actual force-stop/start without data clearing restored USER and SERVICE_PROVIDER to their confirmed role experience. |
+| Logout | Actual UI sign-out acknowledged the server and cleared local credentials. Independent per-role sign-out returned 200; protected-profile access and replay of the prior cookie returned 401. |
+| Duplicate/elevated registration | A controlled duplicate did not replace original USER credentials/role. Public ADMIN/SUPER_ADMIN requests returned 400. |
+
+Normal Android screenshot capture showed the actual marketplace and provider
+workspace; this was not solely an internal Flutter render capture. No current
+black-screen failure was observed. Only staging was accessed; AUTH_SECRET and
+database credentials were unchanged. Railway's automatic pre-deploy runner reported
+21 migrations and no pending migrations; no manual SQL or migration commands ran.
+
+The existing APK was reused, with no new local build/test run. The earlier committed
+84 local tests remain historical evidence. Approved Terms/Privacy documents and
+versioned consent storage, native recovery and Google/Apple integration still need
+their separate implementation/release work. Service-provider business verification
+and nonempty property/media/business mutations were not exercised or bypassed.
+
+Nonblocking UI polish observed: the password is cleared after a result, and the
+existing form can then show a required/minimum-length warning alongside that result.
+No source correction was made for that cosmetic issue during activation.
+
 ## Device/source execution update — 2026-11-02
 
 VERIFIED ON DEVICE: actual Android screenshot showed registration in local preview
