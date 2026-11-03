@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_transport.dart';
 import '../../core/api/cookie_request_coordinator.dart';
@@ -144,6 +145,18 @@ final class MarketplaceRepository {
   final CookieRequestCoordinator coordinator;
   final SignInController session;
 
+  /// Invalidates visible listing reads after a confirmed local write. No
+  /// account or listing data is retained here; screens re-read their own API.
+  final ValueNotifier<int> listingChanges = ValueNotifier<int>(0);
+
+  bool _changesListings(String method, String path) =>
+      (method == 'POST' &&
+          (path == '/api/properties' || path == '/api/mobile/upload')) ||
+      (method == 'PATCH' &&
+          RegExp(
+            r'^/api/properties/[A-Za-z0-9_-]{8,128}(?:/media)?$',
+          ).hasMatch(path));
+
   Future<JsonObject> call(
     String method,
     String path, {
@@ -159,11 +172,13 @@ final class MarketplaceRepository {
       // Public discovery must still work after logout or rejected restoration.
       // A locally invalidated cookie coordinator intentionally blocks credential
       // workflows; these read-only endpoints neither send nor accept cookies.
-      final publicCatalog = !protected &&
+      final publicCatalog =
+          !protected &&
           method == 'GET' &&
           (path == '/api/mobile/properties' ||
-              RegExp(r'^/api/mobile/properties/[A-Za-z0-9_-]{8,128}$')
-                  .hasMatch(path));
+              RegExp(
+                r'^/api/mobile/properties/[A-Za-z0-9_-]{8,128}$',
+              ).hasMatch(path));
       if (publicCatalog) {
         final result = await client.request(method, path, query: query);
         if (coordinator.generation != generation) {
@@ -171,7 +186,7 @@ final class MarketplaceRepository {
         }
         return object(result);
       }
-      return await coordinator.coordinate(
+      final result = await coordinator.coordinate(
         path,
         (ticket) async {
           if (protected && !session.verified) {
@@ -209,6 +224,14 @@ final class MarketplaceRepository {
         query: query,
         expectedGeneration: generation,
       );
+      if (session.verified &&
+          coordinator.generation == generation &&
+          result.isNotEmpty &&
+          result['ok'] != false &&
+          _changesListings(method, path)) {
+        listingChanges.value++;
+      }
+      return result;
     } on ApiException catch (error) {
       if (error.failure == ApiFailure.unauthorized &&
           coordinator.generation == generation) {
@@ -268,17 +291,33 @@ final class MarketplaceRepository {
     final identity = session.identity;
     final generation = coordinator.generation;
     if (identity == null) throw const ApiException(ApiFailure.unauthorized);
-    final response = await call('GET', '/api/mobile/account',
-      query: {'view': 'profile'});
+    final response = await call(
+      'GET',
+      '/api/mobile/account',
+      query: {'view': 'profile'},
+    );
     if (generation != coordinator.generation ||
-        session.identity?.id != identity.id || session.identity?.role != identity.role) {
+        session.identity?.id != identity.id ||
+        session.identity?.role != identity.role) {
       throw const CookieLifecycleInvalidated();
     }
     final profile = object(response['profile']);
-    const roles = {'USER', 'OWNER', 'BROKER', 'BUILDER',
-      'SERVICE_PROVIDER', 'ADMIN', 'SUPER_ADMIN'};
-    if (!roles.contains(identity.role) || profile['role'] != identity.role ||
-        !{'PENDING', 'VERIFIED', 'REJECTED'}.contains(profile['verificationStatus'])) {
+    const roles = {
+      'USER',
+      'OWNER',
+      'BROKER',
+      'BUILDER',
+      'SERVICE_PROVIDER',
+      'ADMIN',
+      'SUPER_ADMIN',
+    };
+    if (!roles.contains(identity.role) ||
+        profile['role'] != identity.role ||
+        !{
+          'PENDING',
+          'VERIFIED',
+          'REJECTED',
+        }.contains(profile['verificationStatus'])) {
       throw const ApiException(ApiFailure.forbidden);
     }
     return profile;

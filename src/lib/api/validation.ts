@@ -285,7 +285,7 @@ export const propertyCreateSchema = z.object({
   mediaUrls: z.array(z.string().url()).max(40).optional(),
   videoUrl: publicListingMediaUrl.optional(),
   virtualTourUrl: publicListingMediaUrl.optional(),
-  status: z.enum(["DRAFT", "PENDING_REVIEW"]).default("PENDING_REVIEW")
+  status: z.enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED"]).default("PENDING_REVIEW")
 });
 
 export const propertyUpdateSchema = propertyCreateSchema

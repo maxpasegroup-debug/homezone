@@ -40,7 +40,10 @@ type ListingDraft = {
 type ListingValue = Omit<Partial<ListingDraft>, "amenities"> & {
   amenities?: string[];
   status?: string;
+  verificationStatus?: string;
 };
+
+type SaveStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED";
 
 const categories = ["RESIDENTIAL", "COMMERCIAL", "LAND", "INDUSTRIAL", "AGRICULTURAL", "HOSPITALITY", "LUXURY"];
 const currencies = ["INR", "AED", "USD", "GBP", "EUR"];
@@ -82,7 +85,7 @@ function optionalText(value: string, minLength = 1) {
   return trimmed.length >= minLength ? trimmed : undefined;
 }
 
-function payloadFor(form: ListingDraft, status: "DRAFT" | "PENDING_REVIEW") {
+function payloadFor(form: ListingDraft, status: SaveStatus) {
   const isDraft = status === "DRAFT";
 
   return {
@@ -90,7 +93,7 @@ function payloadFor(form: ListingDraft, status: "DRAFT" | "PENDING_REVIEW") {
     city: isDraft && !form.city ? "Location pending" : form.city,
     description:
       isDraft && !form.description
-        ? "Owner draft saved for completion before verification."
+        ? "Owner draft saved for completion before publication."
         : form.description.trim(),
     title: isDraft && !form.title ? "Untitled property draft" : form.title.trim(),
     address: optionalText(form.address),
@@ -118,7 +121,7 @@ function payloadFor(form: ListingDraft, status: "DRAFT" | "PENDING_REVIEW") {
   };
 }
 
-function validateBeforeSubmit(form: ListingDraft, status: "DRAFT" | "PENDING_REVIEW") {
+function validateBeforeSubmit(form: ListingDraft, status: SaveStatus) {
   if (status === "DRAFT") return "";
 
   const missing = [
@@ -131,7 +134,8 @@ function validateBeforeSubmit(form: ListingDraft, status: "DRAFT" | "PENDING_REV
     .filter(([invalid]) => invalid)
     .map(([, label]) => label);
 
-  return missing.length ? `Please complete ${missing.join(", ")} before submitting for verification.` : "";
+  const action = status === "PUBLISHED" ? "publishing" : "submitting for verification";
+  return missing.length ? `Please complete ${missing.join(", ")} before ${action}.` : "";
 }
 
 function apiMessage(data: unknown, fallback: string) {
@@ -150,9 +154,11 @@ function apiMessage(data: unknown, fallback: string) {
 }
 
 export function OwnerListingEditor({
-  property
+  property,
+  directPublication = false
 }: {
   property?: ListingValue;
+  directPublication?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<ListingDraft>(() => toFormData(property));
@@ -160,9 +166,17 @@ export function OwnerListingEditor({
   const [uploading, setUploading] = useState<"cover" | "gallery" | "tour" | "video" | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [savedStatus, setSavedStatus] = useState(property?.status ?? "DRAFT");
+  const [verificationStatus, setVerificationStatus] = useState(property?.verificationStatus ?? "PENDING");
+  const [createUncertain, setCreateUncertain] = useState(false);
   const hasExisting = Boolean(property?.id);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saving = useRef(false);
+  const dirtyRevision = useRef(0);
+  const attemptedRevision = useRef(0);
   const endpoint = hasExisting ? `/api/properties/${property?.id}` : "/api/properties";
+  const restricted = directPublication && (["REJECTED", "ARCHIVED"].includes(savedStatus) ||
+    ["REJECTED", "NEEDS_CHANGES", "EXPIRED"].includes(verificationStatus));
 
   const completion = useMemo(() => {
     const required = [
@@ -177,6 +191,7 @@ export function OwnerListingEditor({
   }, [form]);
 
   function updateField(field: keyof ListingDraft, value: string) {
+    dirtyRevision.current += 1;
     setForm((current) => ({
       ...current,
       [field]: value
@@ -184,6 +199,7 @@ export function OwnerListingEditor({
   }
 
   async function uploadFile(file: File, target: "cover" | "gallery" | "tour" | "video") {
+    if (uploading || saving.current || createUncertain) return;
     setUploading(target);
     setError("");
     setMessage("");
@@ -192,18 +208,19 @@ export function OwnerListingEditor({
     formData.append("file", file);
     formData.append("folder", "homezone/property-media");
 
+    try {
     const response = await fetch("/api/media/upload", {
       body: formData,
       method: "POST"
     });
     const data = await response.json().catch(() => null);
-    setUploading(null);
 
     if (!response.ok || !data?.url) {
       setError(data?.error ?? "Upload failed. Check Cloudinary settings and file size.");
       return;
     }
 
+    dirtyRevision.current += 1;
     setForm((current) => {
       if (target === "cover") {
         return { ...current, coverImageUrl: data.url };
@@ -220,57 +237,109 @@ export function OwnerListingEditor({
         .filter(Boolean);
       return { ...current, mediaUrls: [...urls, data.url].join("\n") };
     });
-    setMessage("Media uploaded and attached to this listing.");
+    setMessage("Media uploaded. Save the listing to confirm it is attached.");
+    } catch {
+      setError("Upload confirmation was not received. Check the listing before trying again.");
+    } finally {
+      setUploading(null);
+    }
   }
 
-  async function save(status: "DRAFT" | "PENDING_REVIEW", mode: "draft" | "submit" | "autosave" = "draft") {
-    const validationMessage = validateBeforeSubmit(form, status);
+  async function save(status: SaveStatus | undefined, mode: "draft" | "submit" | "autosave" = "draft") {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (saving.current || uploading || createUncertain) return;
+    if (restricted && status) {
+      setError("This listing has a moderation restriction. Contact HomeZone support before republishing.");
+      return;
+    }
+    const validationStatus = status ?? (savedStatus === "PUBLISHED" ? "PUBLISHED" :
+      savedStatus === "PENDING_REVIEW" ? "PENDING_REVIEW" : "DRAFT");
+    const validationMessage = validateBeforeSubmit(form, validationStatus);
     if (validationMessage) {
+      attemptedRevision.current = dirtyRevision.current;
       setError(validationMessage);
       return;
     }
 
+    saving.current = true;
+    attemptedRevision.current = dirtyRevision.current;
     setLoadingAction(mode);
     setError("");
     setMessage("");
 
+    // Autosave updates content only. Opening or editing a published listing must
+    // never silently turn it back into a draft or reset moderation state.
+    const { status: _status, ...content } = payloadFor(form, validationStatus);
+    try {
     const response = await fetch(endpoint, {
-      body: JSON.stringify(payloadFor(form, status)),
+      body: JSON.stringify(status ? { ...content, status } : content),
       headers: {
         "Content-Type": "application/json"
       },
       method: hasExisting ? "PATCH" : "POST"
     });
 
-    setLoadingAction(null);
-
     if (!response.ok) {
       const data = await response.json().catch(() => null);
-      setError(apiMessage(data, "Could not save listing."));
+      if (!hasExisting && response.status >= 500) {
+        setCreateUncertain(true);
+        setError("Creation could not be confirmed. The property may already exist. Check My Listings before creating it again.");
+      } else {
+        setError(apiMessage(data, "Could not save listing."));
+      }
       return;
     }
 
-    const data = await response.json();
-    setMessage(status === "DRAFT" ? "Draft saved." : "Submitted for HomeZone verification.");
+    const data = await response.json().catch(() => null);
+    const confirmed = data?.property;
+    if (!confirmed || typeof confirmed.id !== "string" ||
+        !/^[A-Za-z0-9_-]{8,128}$/.test(confirmed.id) ||
+        (hasExisting && confirmed.id !== property?.id) ||
+        !["DRAFT", "PENDING_REVIEW", "PUBLISHED", "REJECTED", "ARCHIVED"].includes(confirmed.status) ||
+        (status && confirmed.status !== status)) {
+      if (!hasExisting) setCreateUncertain(true);
+      setError("The backend did not confirm the requested listing status. Check My Listings before trying again.");
+      return;
+    }
+    setSavedStatus(confirmed.status);
+    if (typeof confirmed.verificationStatus === "string") setVerificationStatus(confirmed.verificationStatus);
+    setMessage(mode === "autosave" ? "Changes saved." : status === "DRAFT" ? "Draft saved privately." :
+      status === "PUBLISHED" ? "Listing published and available to buyers." : "Submitted for HomeZone verification.");
 
     if (!hasExisting && data?.property?.id) {
+      setCreateUncertain(true);
       router.push(`/dashboard/listings/${data.property.id}/edit` as Route);
       return;
     }
 
     router.refresh();
+    } catch {
+      if (!hasExisting) setCreateUncertain(true);
+      setError(hasExisting
+        ? "Save confirmation was not received. Refresh this listing to check its latest details before trying again."
+        : "Creation confirmation was not received. The property may already exist. Check My Listings before creating it again.");
+    } finally {
+      saving.current = false;
+      setLoadingAction(null);
+    }
   }
 
   useEffect(() => {
-    if (!hasExisting) return;
+    if (!hasExisting || uploading || loadingAction || dirtyRevision.current <= attemptedRevision.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      void save("DRAFT", "autosave");
+      void save(undefined, "autosave");
     }, 1800);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form, loadingAction, uploading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (saving.current) return;
+    setSavedStatus(property?.status ?? "DRAFT");
+    setVerificationStatus(property?.verificationStatus ?? "PENDING");
+  }, [property?.status, property?.verificationStatus]);
 
   return (
     <Card className="p-6 shadow-soft sm:p-8">
@@ -281,14 +350,16 @@ export function OwnerListingEditor({
             {hasExisting ? "Edit your property" : "Create a property listing"}
           </h1>
           <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">
-            Save drafts, preview the listing, upload media and documents, then submit for HomeZone verification.
+            {directPublication
+              ? "Save a private draft or publish your property directly for buyers. Upload media and keep your listing up to date."
+              : "Save drafts, preview the listing, upload media and documents, then submit for HomeZone verification."}
           </p>
         </div>
         <div className="rounded-3xl bg-violet-50 p-5">
           <p className="text-sm font-bold text-violet-700">Listing readiness</p>
           <p className="mt-3 text-4xl font-bold">{completion}%</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Complete the key fields before submitting for verification.
+            {directPublication ? "Complete the key fields before publishing." : "Complete the key fields before submitting for verification."}
           </p>
         </div>
       </div>
@@ -366,6 +437,8 @@ export function OwnerListingEditor({
         </div>
       </div>
 
+      {restricted ? <p className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">This listing has a moderation restriction. You can edit its details, but contact HomeZone support before publishing it again.</p> : null}
+      {directPublication && savedStatus === "PUBLISHED" && ["PENDING", "UNDER_REVIEW"].includes(verificationStatus) ? <p className="mt-5 text-sm text-muted-foreground">Published · Not independently verified</p> : null}
       {error ? <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{error}</p> : null}
       {message ? (
         <p className="mt-5 flex items-center gap-2 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
@@ -375,13 +448,13 @@ export function OwnerListingEditor({
       ) : null}
 
       <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-        <Button disabled={Boolean(loadingAction)} onClick={() => save("DRAFT")} size="lg" variant="outline">
+        <Button disabled={Boolean(loadingAction) || Boolean(uploading) || createUncertain} onClick={() => save(restricted ? undefined : "DRAFT")} size="lg" variant="outline">
           {loadingAction === "draft" || loadingAction === "autosave" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save Draft
+          {restricted ? "Save changes" : directPublication && savedStatus === "PUBLISHED" ? "Save Draft (hide from buyers)" : "Save Draft"}
         </Button>
-        <Button disabled={Boolean(loadingAction)} onClick={() => save("PENDING_REVIEW", "submit")} size="lg">
+        <Button disabled={Boolean(loadingAction) || Boolean(uploading) || createUncertain || restricted} onClick={() => save(directPublication ? "PUBLISHED" : "PENDING_REVIEW", "submit")} size="lg">
           {loadingAction === "submit" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Submit for Verification
+          {directPublication ? savedStatus === "PUBLISHED" ? "Save published listing" : "Publish listing" : "Submit for Verification"}
         </Button>
       </div>
     </Card>

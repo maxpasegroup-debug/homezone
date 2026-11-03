@@ -14,6 +14,7 @@ import { propertyUpdateSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { updatePublication } from "@/lib/properties/publication";
 
 type RouteContext = {
   params: Promise<{
@@ -85,33 +86,38 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const data = parsed.data;
-    const nextStatus = data.status;
-
-    if (
-      nextStatus === "PUBLISHED" &&
-      ownership.property.verificationStatus !== "VERIFIED" &&
-      !isAdminRole(ownership.profile.role)
-    ) {
-      return forbidden("Listing must be verified before publishing.");
-    }
-
-    const updated = await db.property.update({
-      data: {
-        ...data,
-        publishedAt: nextStatus === "PUBLISHED" ? new Date() : undefined,
-        verificationStatus:
-          nextStatus === "PENDING_REVIEW"
-            ? "UNDER_REVIEW"
-            : nextStatus === "DRAFT"
-              ? "PENDING"
-              : undefined
-      },
-      where: {
-        id,
-        ...(!isAdminRole(ownership.profile.role) ? { ownerId: ownership.profile.id,
-          ...(nextStatus === "PUBLISHED" ? { verificationStatus: "VERIFIED" as const } : {}) } : {})
+    const result = await db.$transaction(async tx => {
+      // Match media mutation lock order and decide against the current rows,
+      // rather than a stale ownership/moderation snapshot from before the write.
+      await tx.$queryRaw`SELECT id FROM "Profile" WHERE id=${ownership.profile.id} FOR UPDATE`;
+      const currentProfile = await tx.profile.findUnique({
+        where: { id: ownership.profile.id }, select: { role: true, verificationStatus: true }
+      });
+      if (!currentProfile || currentProfile.verificationStatus === "SUSPENDED" ||
+          currentProfile.role !== ownership.profile.role) {
+        return { error: forbidden("Listing account changed. Refresh before continuing.") } as const;
       }
+      await tx.$queryRaw`SELECT id FROM "Property" WHERE id=${id} FOR UPDATE`;
+      const currentProperty = await tx.property.findUnique({
+        where: { id },
+        select: { id: true, ownerId: true, status: true, verificationStatus: true, publishedAt: true }
+      });
+      if (!currentProperty) return { error: notFound("Property not found") } as const;
+      const admin = isAdminRole(currentProfile.role);
+      if (!admin && currentProperty.ownerId !== ownership.profile.id) {
+        return { error: forbidden() } as const;
+      }
+      const publication = updatePublication(currentProfile.role, currentProperty, data.status, new Date());
+      if ("error" in publication) return { error: forbidden(publication.error) } as const;
+
+      const property = await tx.property.update({
+        data: { ...data, ...publication.data },
+        where: { id, ...(!admin ? { ownerId: ownership.profile.id } : {}) }
+      });
+      return { property } as const;
     });
+    if ("error" in result) return result.error;
+    const updated = result.property;
 
     await auditLog({
       action: "property_updated",

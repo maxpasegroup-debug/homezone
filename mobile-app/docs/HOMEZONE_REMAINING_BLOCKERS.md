@@ -1,5 +1,286 @@
 # HOMEZONE remaining integration blockers
 
+## Direct Owner publication release gate - 2026-11-03
+
+SOURCE IMPLEMENTED: New Owner creation now publishes directly through the existing
+property API, with no approval queue. Buyer foreground refresh automatically picks
+up catalogue membership changes, including after multiple pages were loaded.
+Website Owner controls also publish directly; content autosave preserves status
+and existing galleries. Publication does not grant a verification badge. Explicit
+drafts and administrative moderation restrictions remain private/restricted.
+See `OWNER_DIRECT_PUBLICATION.md` for the exact scope and release evidence.
+
+LOCAL VERIFICATION: 96 focused Flutter tests and 24 backend tests passed without
+live services. Flutter analysis found no errors or warnings (48 informational
+lints). Local compilation is distinct from deployment and runtime acceptance.
+TypeScript typechecking and the explicit staging APK build also passed. The
+candidate was not installed; its matching backend is not yet released. The build
+record and previous-APK recovery path are in `OWNER_DIRECT_PUBLICATION.md`.
+
+Remaining, in dependency order:
+
+1. Approve the exact staging-only backend release and read-only migration
+   preflight. `railway.json` runs `npm run db:migrate` before deployment; although
+   this slice adds no migration and the source has 21 migration directories, the
+   current pending set is unknown. Do not trigger migration execution silently.
+   Confirm active target/version and recoverability first; any pending migration
+   requires separate explicit approval.
+2. Deploy the reviewed backend only under that approval. Install the matching
+   staging APK only after the backend accepts the new publication contract.
+   Installing it against the old backend would make Owner creation fail.
+3. Verify one authorized real staging Owner publication, a fresh public API
+   read, and Buyer UI on another authorized client. No existing fictional/test
+   draft may be published just to populate the catalogue. Capture actual Android
+   presentation and automatic refresh evidence; source tests are insufficient.
+4. Separately provision `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and
+   `CLOUDINARY_API_SECRET` under approved secret custody before verifying device
+   photo upload. Their prior read-only staging presence check reported MISSING;
+   values were not exposed. Publication alone does not fix uploads. Photos upload
+   sequentially after publication and may appear later than the listing.
+5. Optional verified-only Buyer filters intentionally exclude unverified
+   publications. HTTP foreground polling normally discovers new first-page
+   listings within one cycle, or two with multiple loaded pages, plus request
+   time. This is not a push-delivery guarantee.
+
+No schema or environment changes are needed for the publication policy itself.
+No release, database operation or live property mutation was performed in this
+slice. The installed working APK and previous live property evidence remain
+separate from the unreleased direct-publication candidate.
+
+## Original Owner gallery acceptance checkpoint - 2026-11-03
+
+PASS / DEVICE VERIFIED: The original owner signed in through the actual Android
+Auth.js UI and reached the backend-confirmed OWNER dashboard. Its existing
+`STAGING CHECK - Owner photo 20261103 0950` draft opened in Owner details, where
+the inline gallery displayed the actual house photograph and `1 of 1 photos`
+without the unavailable-image fallback. Evidence:
+`mobile-app/build/staging-auth-verification/supplied-owner-existing-gallery.png`.
+The prior requirement to obtain original-owner access and verify this particular
+stored Pexels URL on Android is closed; earlier sections retain historical facts.
+
+PASS / RUNTIME VERIFIED: One authorized new sale test,
+`STAGING TEST - Owner Sale 20261103`, was saved once through Flutter with one
+native photo selected. Fresh owner Listings returned DRAFT/PENDING, Kochi and
+price 5000000. Fresh details returned price 5000000, area 1500, three bedrooms,
+two bathrooms and `No property photos`. The form showed BUY intent, INR and
+House before Save. No publication or Buyer visibility is claimed.
+
+FAIL / CONFIRMED CONFIGURATION BLOCKER: Read-only inspection of the explicitly
+scoped Railway staging backend reported `CLOUDINARY_CLOUD_NAME`,
+`CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` all MISSING. No secret values
+were displayed or stored. Native upload again reported zero of one photos
+confirmed; its exact HTTP response was not captured, so a particular response
+status or exception is not established. Provisioning the missing staging upload
+configuration and any resulting deploy/restart require separate authorization.
+
+PASS / RUNTIME VERIFIED: The approved Pexels photograph URL was attached to the
+same new sale draft using the existing media PATCH form. The app acknowledged
+the change. Independently returning to Listings and reopening that exact new
+record displayed the actual house photograph, `1 of 1 photos`, its sale-test
+title and saved property values on Android. The unavailable-image fallback was
+absent. Evidence: `mobile-app/build/staging-auth-verification/owner-sale-with-photo.png`
+and `owner-sale-verification.json`. The new draft's photo-reference/display
+acceptance is closed; this must not be reported as successful native file upload.
+
+Remaining: provision compliant staging Cloudinary configuration under approved
+secret custody, approve any resulting restart/deployment effects, then verify
+one authorized device-file upload and readback. Do not enable broad media hosts
+or bypass publication to work around this. Published-property photo changes
+reaching a Buyer on another authorized client remain runtime unverified. Exactly
+one new sale test record was created, the earlier record was retained and neither
+was published. No application source, migration, Railway configuration,
+deployment or production change was made for this test.
+
+## Automatic photo refresh acceptance - 2026-11-03
+
+Owner inline detail photos and Buyer foreground catalogue/detail/gallery refresh
+are SOURCE IMPLEMENTED. The six focused test files passed all 90 cases; analysis
+reported zero errors/warnings and 51 existing informational findings. These are
+local fixtures and regression evidence, not a claim of live upload or cross-client
+delivery. The existing create-listing picker remains intact.
+
+The explicit staging APK was built and installed successfully (build record
+`2026-11-03T05-56-45-285Z-15016`). Android rendered onboarding and public discovery.
+Actual app-process logs showed repeated HTTP 200 staging catalogue responses at
+roughly five seconds plus network time, and the Android screenshot showed the
+genuine empty published-catalogue state. Public read-only automatic refresh is
+DEVICE/BACKEND VERIFIED. Live Owner photo display and cross-client photo mutation
+remain unverified; no new records or uploads were used to manufacture acceptance.
+
+Remaining acceptance requirements:
+
+1. Open the original owner's existing test draft privately on the emulator. The
+   available controlled Owner account has no records and cannot read another
+   owner's private gallery. Confirm the new inline `Property photos` gallery and
+   the actual Android house photograph, preserving ownership boundaries.
+2. Diagnose the previous device-file upload's 0-of-1 acknowledgment separately.
+   The existing Cloudinary adapter requires compliant `CLOUDINARY_CLOUD_NAME`,
+   `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET`; effective staging compliance
+   has not been established. No values were retrieved, printed or changed here.
+   A stored URL reference is not proof of a successful device upload.
+3. The staging build image allowlist now contains exactly `images.pexels.com` and
+   the existing Cloudinary CDN `res.cloudinary.com`; video/tour hosts remain empty.
+   A successful upload URL on another host remains blocked until that exact host
+   is reviewed. Rebuild/install is required for compile-time allowlist changes.
+4. Use an approved already-PUBLISHED property and two authorized client sessions
+   to verify an actual Owner photo change reaches Buyer UI. Do not publish the
+   current DRAFT/PENDING test record merely to populate discovery. Any new upload,
+   listing/publication or test-data change needs its own authorized scope.
+5. Refresh is near-real-time foreground HTTP, normally five seconds after the
+   previous read plus network time, with backoff/Retry-After under failures. A
+   multi-page catalogue refreshes one page each cycle; membership changes require
+   explicit user refresh. This does not provide push delivery or an instantaneous
+   cross-device guarantee. WebSocket infrastructure is not introduced by this
+   source slice.
+
+No additional property/account/photo mutation, backend deployment, database
+command, migration, Railway change, commit, push or production operation was
+performed. Earlier storage/session observations below remain historical and
+unresolved unless explicitly superseded by fresh evidence.
+
+## Stored staging photo display acceptance - 2026-11-03
+
+The exact source/configuration cause of the saved test photo's fallback is
+confirmed: the staging image-host allowlist was empty, and shared `ListingImage`
+blocked its `images.pexels.com` URL before HTTP. The ignored local
+`mobile-app/config/staging.local.json` now contains that one exact image hostname.
+The staging API origin is unchanged and `HOMEZONE_MEDIA_HOSTS` remains empty.
+HTTPS, no credentials/fragments, port 443, redirect rejection, credential-free
+image transport, 8 MiB response limit and 20-second deadline remain intact.
+
+Both existing focused exact-host and redirect-policy tests passed. The existing
+`ListingMedia.load` also fetched the exact stored URL successfully as 139599 JPEG
+bytes using its normal security policy. This proves the loader path on this
+workstation, not the installed Flutter widget or Android display.
+
+The explicit staging rebuild succeeded. Provenance:
+`mobile-app/build/android-source-builds/2026-11-03T05-12-47-257Z-3968/build-record.json`.
+APK SHA256:
+`7cb03a89a29c4656b873ec2c4766e5386b61bd96b0dbc56c2e6d4029e97c0449`.
+`adb install -r` succeeded; the app launched and rendered onboarding on Android.
+The previous session was not restored after restart. A normal UI sign-in with an
+existing authorized controlled OWNER account succeeded, but its owner-scoped
+My listings response was `No records yet`: this is not the original owner of the
+previous draft. Ownership boundaries remain intact; no foreign listing was
+exposed or account created. Actual Android display of the existing draft's stored
+photograph remains PENDING the original owner's private emulator sign-in.
+
+Remaining gates:
+
+1. Have the original owner sign in privately on the emulator, open that existing
+   test draft and refresh Listing media. Confirm the house photograph in an Android
+   screenshot and that `Image unavailable` is absent. Reuse the existing record;
+   do not create or attach another property/photo for this display check.
+2. Keep direct device-file upload unresolved. Its previous 0-of-1 acknowledgment
+   remains UNKNOWN; this host correction neither repairs nor verifies Cloudinary
+   upload or storage configuration. Cloudinary's eventual exact display host
+   requires evidence and a separately justified allowlist decision.
+3. Do not infer public catalogue visibility from owner gallery display. The test
+   property remains DRAFT/PENDING and unpublished under existing policy.
+4. Investigate the separate session-restoration observation in its own
+   authentication slice. Reinstall/restart opened onboarding; successful explicit
+   sign-in does not certify session restoration. No authentication logic was
+   changed for the image-host correction.
+
+No application-source/backend/schema/authentication/Cloudinary/Railway change, database
+write, migration, account creation, deployment, commit, push or production action
+was performed for this correction. Prior source, draft/reference and failed
+upload observations remain below as historical evidence.
+
+## Owner Create Listing photos acceptance - 2026-11-03
+
+The requested placement is implemented in source: photos can be selected,
+previewed and removed directly inside Owner Create Listing before Save. This
+property-create-only feature also supports BROKER and leaves edit/generic forms
+unchanged. It accepts local JPEG, PNG and WebP files up to 6 MiB each, 10 photos
+and 24 MiB total, with canonical base64, signature and readable-image checks.
+Both validation decoding and previews are bounded to 360 pixels in both axes
+without upscaling. Picker cancellation and all selection changes are local and
+make no API request.
+
+Save creates one DRAFT through the existing API, retains its confirmed ID, then
+uploads sequentially through `POST /api/mobile/upload` with raw base64. The upload
+API already attaches photos; no duplicate media-add call is made. Acknowledgment
+URLs and account/cookie generation are checked before continuing. Unknown or
+partial results lock further Save attempts and direct the user back to Listings;
+all returns from the create form refresh its parent, including normal Back.
+There is no automatic create/upload retry. Local fixtures cover these safety
+boundaries; later authorized device evidence below verifies draft and reference
+persistence separately from file-upload success.
+
+30 new local fixture tests and 40 existing regression tests passed: 70 total.
+Final focused analysis found zero errors, zero warnings and 37 existing
+informational `curly_braces_in_flow_control_structures` findings, all in
+`workspace_screen.dart`. The picker and new test file had no diagnostics. Flutter
+exits 1 for informational findings under its default behavior.
+The implementation is in
+`mobile-app/lib/features/workspace/listing_photo_picker.dart` and
+`mobile-app/lib/features/workspace/workspace_screen.dart`, with new coverage in
+`mobile-app/test/create_listing_photos_test.dart`.
+
+The explicit staging APK build succeeded; provenance is
+`mobile-app/build/android-source-builds/2026-11-03T03-40-35-216Z-30488/build-record.json`.
+APK SHA256:
+`0ed98d6f227fff50c1f3844eda0eba20494dfca965c0cc3671bce0b20d0c79a3`.
+`adb install -r` succeeded and the actual Android app rendered onboarding after a
+slow native splash. No renderer changes were made. Later authorized OWNER access
+allowed actual Create Listing verification: native chooser selection, local photo
+thumbnail and Remove control were visible on Android. The installed APK SHA256
+matched the staging provenance. Earlier rejected controlled-account sign-ins are
+historical observations, not a current proof that the photo screen is unreachable.
+
+One Save at 2026-11-03 04:31:34 UTC created the test draft
+`STAGING CHECK - Owner photo 20261103 0950` (DRAFT/PENDING, Kochi, INR,
+RESIDENTIAL), but the app reported 0 of 1 photo uploads confirmed. Fresh Listings
+and record views returned that same draft; the initial fresh gallery had zero
+photographs. There was no creation or device-upload retry.
+
+At 2026-11-03 05:01:24 UTC, the existing Attach property photograph form added
+`https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?w=1200` to this
+same draft. A fresh Listing media view returned `Photograph 1` with the expected
+`Image unavailable` display fallback. Its authenticated no-store GET reads Prisma
+directly. Draft persistence and one image URL reference are therefore RUNTIME
+VERIFIED; Cloudinary/device-file upload and remote image rendering are not.
+Image bytes were not established as stored in PostgreSQL.
+
+Final fresh gallery Refresh at 2026-11-03T05:05:49.9213655Z again confirmed the test
+title, `Photograph 1`, no empty-gallery message and `Image unavailable`. Actual
+Android capture: `mobile-app/build/staging-auth-verification/property-final-media.png`.
+
+The selected property photograph is Binyamin Mellish's
+https://www.pexels.com/photo/house-lights-turned-on-106399/, covered by the Pexels
+License, not CC0. The downloaded file was 139599 bytes, SHA256
+`b188d810dc048706cf189ad4364d781eeebfc336cc571e4a1b8d0561cc506b56`.
+
+Remaining acceptance gates for this feature:
+
+1. Diagnose the unconfirmed device-file upload before claiming the complete Save
+   with photos workflow works. Source, route-deployment, storage-provider and
+   sanitized request/error evidence are still needed to isolate the failure.
+   Read-only Railway metadata identified active SUCCESS deployment
+   `2a773275-a44b-4382-b00e-4ff7fdc3e794` on the staging domain; bounded application
+   and HTTP log searches returned no matching records. They do not establish a
+   missing route or provider/configuration cause. Do not recreate this draft or
+   automatically retry its upload.
+2. The earlier remote-display check found
+   `mobile-app/config/staging.local.json` with `HOMEZONE_IMAGE_HOSTS=''` and
+   `HOMEZONE_MEDIA_HOSTS=''`, with zero exact hosts in both allowlists. These
+   security settings were kept unchanged during that check. The subsequent
+   exact-host correction and its pending device acceptance are recorded above;
+   local previews alone do not prove remote photographs can render.
+3. After a justified correction and its required approval, verify a controlled
+   device-file upload, fresh gallery readback and actual remote-image rendering.
+   Stored URL-reference evidence alone does not verify provider upload. Removal
+   and cancellation are source/fixture-covered; collect device evidence if full
+   picker acceptance is required.
+
+The founder authorized this one staging property/image check. Normal owner APIs
+created one test draft, attempted one device-file upload and attached one image
+URL to that same draft. No direct database command, migration, new account,
+infrastructure write, application-code/configuration change, deployment, commit,
+push or production action was performed during verification. Historical reports
+below remain intact and must be read within their original scopes.
+
 ## Automatic registration-to-dashboard handoff acceptance - 2026-11-02
 
 Source baseline: `main/b581d6ea1ea88c0c086281593ab8cf43f95600b5`.

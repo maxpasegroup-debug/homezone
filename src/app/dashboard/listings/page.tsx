@@ -61,7 +61,9 @@ export default async function ListingsPage() {
               Manage your properties
             </h1>
             <p className="mt-4 max-w-2xl text-muted-foreground">
-              Draft, verify, publish, manage leads, inspect performance, and upgrade listing visibility.
+              {profile.role === "OWNER"
+                ? "Publish directly to buyers, manage leads, inspect performance, and upgrade listing visibility."
+                : "Draft, verify, publish, manage leads, inspect performance, and upgrade listing visibility."}
             </p>
           </div>
           <Button asChild size="lg">
@@ -75,7 +77,7 @@ export default async function ListingsPage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-4">
           {[
             ["Drafts", totals.drafts],
-            ["Under Review", totals.review],
+            [profile.role === "OWNER" ? "Not yet published" : "Under Review", totals.review],
             ["Published", totals.active],
             ["Views", totals.views]
           ].map(([label, value]) => (
@@ -93,10 +95,13 @@ export default async function ListingsPage() {
                 <p className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">
                   {property.status.replace("_", " ")}
                 </p>
-                <VerificationBadge
+                {profile.role === "OWNER" && property.status === "PUBLISHED" &&
+                  ["PENDING", "UNDER_REVIEW"].includes(property.verificationStatus) ? (
+                    <p className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">Not independently verified</p>
+                  ) : <VerificationBadge
                   entity="property"
                   status={property.verificationStatus}
-                />
+                />}
               </div>
               <div className="mt-3">
                 <ListingBadges
@@ -148,7 +153,8 @@ export default async function ListingsPage() {
                 </Button>
               </div>
               <div className="mt-4">
-                <OwnerListingActions propertyId={property.id} status={property.status} />
+                <OwnerListingActions directPublication={profile.role === "OWNER"} propertyId={property.id}
+                  status={property.status} verificationStatus={property.verificationStatus} />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <PaymentButton
@@ -170,7 +176,8 @@ export default async function ListingsPage() {
             <Card className="p-8 text-center shadow-sm md:col-span-2 xl:col-span-3">
               <h2 className="text-2xl font-bold">No listings yet</h2>
               <p className="mt-3 text-muted-foreground">
-                Add your first property and submit it for HomeZone review.
+                {profile.role === "OWNER" ? "Add your first property and publish it directly to buyers."
+                  : "Add your first property and submit it for HomeZone review."}
               </p>
             </Card>
           ) : null}

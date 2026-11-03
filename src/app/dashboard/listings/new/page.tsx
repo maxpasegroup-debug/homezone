@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OwnerListingEditor } from "@/components/properties/owner-listing-editor";
+import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
 
 type NewListingPageProps = {
@@ -19,6 +20,7 @@ export default async function NewListingPage({ searchParams }: NewListingPagePro
   if (!user) {
     redirect("/auth?next=/dashboard/listings/new");
   }
+  const profile = await getOrCreateProfile(user);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
@@ -27,7 +29,7 @@ export default async function NewListingPage({ searchParams }: NewListingPagePro
           Dashboard
         </Link>
         <div className="mt-10">
-          <OwnerListingEditor property={intent ? { intent } : undefined} />
+          <OwnerListingEditor directPublication={profile.role === "OWNER"} property={intent ? { intent } : undefined} />
         </div>
       </section>
     </main>

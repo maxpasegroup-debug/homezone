@@ -43,6 +43,7 @@ export default async function EditListingPage({ params }: PageProps) {
         </Link>
         <div className="mt-10">
           <OwnerListingEditor
+            directPublication={profile.role === "OWNER"}
             property={{
               address: property.address ?? "",
               amenities: property.amenities,
@@ -61,10 +62,12 @@ export default async function EditListingPage({ params }: PageProps) {
               latitude: property.latitude?.toString() ?? "",
               locality: property.locality ?? "",
               longitude: property.longitude?.toString() ?? "",
+              mediaUrls: property.mediaUrls.join("\n"),
               price: property.price?.toString() ?? "",
               propertyType: property.propertyType,
               state: property.state ?? "",
               status: property.status,
+              verificationStatus: property.verificationStatus,
               timezone: property.timezone ?? "",
               title: property.title,
               videoUrl: property.videoUrl ?? "",

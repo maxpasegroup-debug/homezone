@@ -23,6 +23,7 @@ function locationFor(property: { city: string; locality?: string | null }) {
 
 export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
   const firstName = data.profile?.fullName?.split(" ")[0] ?? "Owner";
+  const directPublication = data.profile?.role === "OWNER";
   const pendingActions = data.listings.filter(
     (listing) =>
       listing.status === "DRAFT" ||
@@ -41,7 +42,8 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
             Welcome, {firstName}
           </h1>
           <p className="mt-4 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Manage drafts, verification, leads, media, documents, performance, and premium upgrades from one calm workspace.
+            {directPublication ? "Publish directly to buyers and manage leads, media, documents, performance, and premium upgrades."
+              : "Manage drafts, verification, leads, media, documents, performance, and premium upgrades from one calm workspace."}
           </p>
         </div>
         <Card className="p-5 shadow-soft">
@@ -50,7 +52,7 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
             {data.analytics.listingCount ? Math.round(((data.analytics.activeCount + data.analytics.reviewCount) / data.analytics.listingCount) * 100) : 0}%
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Active or under review listings across your owner portfolio.
+            {directPublication ? "Published or submitted listings across your owner portfolio." : "Active or under review listings across your owner portfolio."}
           </p>
           <Button asChild className="mt-5 w-full">
             <Link href="/dashboard/listings/new">
@@ -63,7 +65,7 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={<Home className="h-5 w-5" />} label="Listings" value={data.analytics.listingCount} />
-        <Metric icon={<ShieldCheck className="h-5 w-5" />} label="Under Review" value={data.analytics.reviewCount} />
+        <Metric icon={<ShieldCheck className="h-5 w-5" />} label={directPublication ? "Not yet published" : "Under Review"} value={data.analytics.reviewCount} />
         <Metric icon={<Users className="h-5 w-5" />} label="Buyer Leads" value={data.analytics.leadCount} />
         <Metric icon={<BarChart3 className="h-5 w-5" />} label="Views" value={data.analytics.viewCount} />
       </div>
@@ -91,7 +93,9 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
                       <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">
                         {property.status.replace("_", " ")}
                       </span>
-                      <VerificationBadge entity="property" status={property.verificationStatus} />
+                      {directPublication && property.status === "PUBLISHED" && ["PENDING", "UNDER_REVIEW"].includes(property.verificationStatus)
+                        ? <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">Not independently verified</span>
+                        : <VerificationBadge entity="property" status={property.verificationStatus} />}
                     </div>
                     <h3 className="mt-3 text-xl font-bold">{property.title}</h3>
                     <p className="mt-1 text-sm font-semibold text-violet-700">{locationFor(property)}</p>
@@ -124,13 +128,15 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/dashboard/listings/${property.id}/documents` as Route}>Documents</Link>
                     </Button>
-                    <OwnerListingActions propertyId={property.id} status={property.status} />
+                    <OwnerListingActions directPublication={directPublication} propertyId={property.id}
+                      status={property.status} verificationStatus={property.verificationStatus} />
                   </div>
                 </div>
               </div>
             ))}
             {!data.listings.length ? (
-              <EmptyState title="No listings yet" text="Create your first draft listing and HomeZone will guide you through media, documents, preview, and verification." />
+              <EmptyState title="No listings yet" text={directPublication ? "Add your first property and publish it directly to buyers."
+                : "Create your first draft listing and HomeZone will guide you through media, documents, preview, and verification."} />
             ) : null}
           </div>
         </Card>
@@ -144,7 +150,7 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
                   <p className="text-sm font-bold">{listing.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {listing.status === "DRAFT"
-                      ? "Complete draft and submit for verification."
+                      ? directPublication ? "Complete your draft and publish it to buyers." : "Complete draft and submit for verification."
                       : !listing.mediaUrls.length
                         ? "Add a cover photo and gallery."
                         : !listing._count.documents

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:typed_data';
+import '../../app/session_scope.dart';
+import '../../core/api/api_client.dart';
 import 'marketplace_repository.dart';
 import 'public_listing_media_button.dart';
 import 'account_listing_screen.dart';
@@ -8,6 +11,188 @@ import 'listing_media.dart';
 import 'buyer_presentation.dart';
 import '../../theme/design_tokens.dart';
 import '../workspace/workspace_screen.dart';
+
+/// Reuses the existing HTTP client while a service-backed screen is visible.
+/// Polling is read-only, single-flight, and waits after each completed request.
+mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
+    implements RouteAware {
+  MarketplaceRepository? get listingRefreshRepository;
+  bool get canRefreshListingData => true;
+  Future<void> refreshListingData();
+
+  RouteObserver<ModalRoute<dynamic>>? _listingObserver;
+  ModalRoute<dynamic>? _listingRoute;
+  MarketplaceRepository? _listeningRepository;
+  late final _ListingLifecycle _listingLifecycle;
+  Timer? _listingTimer;
+  DateTime? _listingRetryAt;
+  bool _listingForeground = true;
+  bool _listingRouteVisible = true;
+  bool _listingRefreshRunning = false;
+  bool _listingRefreshAgain = false;
+  int _listingFailures = 0;
+
+  bool get listingRefreshVisible =>
+      mounted &&
+      _listingForeground &&
+      _listingRouteVisible &&
+      (_listingRoute?.isCurrent ?? true);
+
+  @override
+  void initState() {
+    super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _listingForeground =
+        lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    _listingLifecycle = _ListingLifecycle((state) {
+      _listingForeground = state == AppLifecycleState.resumed;
+      requestListingRefresh(immediate: _listingForeground);
+    });
+    WidgetsBinding.instance.addObserver(_listingLifecycle);
+    _listenToListingChanges();
+  }
+
+  void _listenToListingChanges() {
+    final repository = listingRefreshRepository;
+    if (identical(repository, _listeningRepository)) return;
+    _listeningRepository?.listingChanges.removeListener(_listingChanged);
+    _listeningRepository = repository;
+    repository?.listingChanges.addListener(_listingChanged);
+  }
+
+  void _listingChanged() => requestListingRefresh(immediate: true);
+
+  @override
+  void didUpdateWidget(covariant T oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final previous = _listeningRepository;
+    _listenToListingChanges();
+    if (!identical(previous, _listeningRepository)) {
+      _listingRetryAt = null;
+      _listingFailures = 0;
+    }
+    requestListingRefresh();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final observer = SessionScope.observerOf(context);
+    final route = ModalRoute.of(context);
+    if (!identical(observer, _listingObserver) ||
+        !identical(route, _listingRoute)) {
+      _listingObserver?.unsubscribe(this);
+      _listingObserver = observer;
+      _listingRoute = route;
+      _listingRouteVisible = route?.isCurrent ?? true;
+      if (route != null) observer?.subscribe(this, route);
+    }
+    requestListingRefresh();
+  }
+
+  /// Immediate means the next safe read, never a concurrent request or bypass of
+  /// a server Retry-After deadline.
+  void requestListingRefresh({bool immediate = false}) {
+    if (!listingRefreshVisible || listingRefreshRepository == null) {
+      _listingTimer?.cancel();
+      _listingTimer = null;
+      return;
+    }
+    if (_listingRefreshRunning) {
+      _listingRefreshAgain |= immediate;
+      return;
+    }
+    if (_listingTimer != null && !immediate) return;
+    _listingTimer?.cancel();
+    var delay = immediate ? Duration.zero : const Duration(seconds: 5);
+    final deadline = _listingRetryAt;
+    if (deadline != null && deadline.isAfter(DateTime.now())) {
+      final remaining = deadline.difference(DateTime.now());
+      if (remaining > delay) delay = remaining;
+    }
+    _listingTimer = Timer(delay, _runListingRefresh);
+  }
+
+  Future<void> _runListingRefresh() async {
+    _listingTimer = null;
+    if (!listingRefreshVisible || listingRefreshRepository == null) return;
+    if (!canRefreshListingData) {
+      requestListingRefresh();
+      return;
+    }
+    if (_listingRefreshRunning) return;
+    _listingRefreshRunning = true;
+    try {
+      await refreshListingData();
+      _listingFailures = 0;
+      _listingRetryAt = null;
+    } catch (failure) {
+      _listingFailures = (_listingFailures + 1).clamp(1, 5);
+      var seconds = (5 * (1 << (_listingFailures - 1))).clamp(5, 60);
+      if (failure is ApiException &&
+          failure.retryAfterSeconds != null &&
+          failure.retryAfterSeconds! > seconds) {
+        seconds = failure.retryAfterSeconds!;
+      }
+      _listingRetryAt = DateTime.now().add(Duration(seconds: seconds));
+    } finally {
+      _listingRefreshRunning = false;
+      if (mounted) {
+        final immediate = _listingRefreshAgain;
+        _listingRefreshAgain = false;
+        requestListingRefresh(immediate: immediate);
+      }
+    }
+  }
+
+  @override
+  void didPush() {
+    _listingRouteVisible = true;
+    requestListingRefresh();
+  }
+
+  @override
+  void didPushNext() {
+    _listingRouteVisible = false;
+    requestListingRefresh();
+  }
+
+  @override
+  void didPopNext() {
+    _listingRouteVisible = true;
+    requestListingRefresh(immediate: true);
+  }
+
+  @override
+  void didPop() {
+    _listingRouteVisible = false;
+    requestListingRefresh();
+  }
+
+  @override
+  void dispose() {
+    _listingTimer?.cancel();
+    _listingObserver?.unsubscribe(this);
+    _listeningRepository?.listingChanges.removeListener(_listingChanged);
+    WidgetsBinding.instance.removeObserver(_listingLifecycle);
+    super.dispose();
+  }
+}
+
+class _ListingLifecycle extends WidgetsBindingObserver {
+  _ListingLifecycle(this.changed);
+  final ValueChanged<AppLifecycleState> changed;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) => changed(state);
+}
+
+bool _listingUnavailable(Object failure) =>
+    failure is ApiException &&
+    const {
+      ApiFailure.unauthorized,
+      ApiFailure.forbidden,
+      ApiFailure.notFound,
+    }.contains(failure.failure);
 
 /// Service-backed screens never consume DemoProperty or preview collections.
 class MarketplaceScreen extends StatefulWidget {
@@ -24,7 +209,8 @@ class MarketplaceScreen extends StatefulWidget {
   State<MarketplaceScreen> createState() => _MarketplaceScreenState();
 }
 
-class _MarketplaceScreenState extends State<MarketplaceScreen> {
+class _MarketplaceScreenState extends State<MarketplaceScreen>
+    with _ForegroundListingRefresh<MarketplaceScreen> {
   final query = TextEditingController();
   final filters = <String, String>{};
   final recent = <Listing>[];
@@ -40,6 +226,108 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
   int accountEpoch = 0;
   final collectionPending = <String>{};
   String? error;
+  String? _catalogRefreshError;
+  int _catalogRefreshPage = 1;
+  int _catalogRefreshLaterPage = 2;
+  @override
+  MarketplaceRepository get listingRefreshRepository => widget.repository;
+  @override
+  bool get canRefreshListingData => tab < 2 && !loading && !mutating;
+
+  @override
+  Future<void> refreshListingData() async {
+    final requestedRevision = revision;
+    final requestedGeneration = widget.repository.coordinator.generation;
+    final requestedListingChange = widget.repository.listingChanges.value;
+    final requestedFilters = Map<String, String>.from(filters);
+    final requestedTab = tab;
+    final loadedPages = page;
+    final requestedPage = _catalogRefreshPage.clamp(1, loadedPages);
+    bool current() =>
+        listingRefreshVisible &&
+        requestedRevision == revision &&
+        requestedGeneration == widget.repository.coordinator.generation &&
+        requestedListingChange == widget.repository.listingChanges.value &&
+        requestedTab == tab &&
+        loadedPages == page &&
+        requestedFilters.length == filters.length &&
+        requestedFilters.entries.every(
+          (entry) => filters[entry.key] == entry.value,
+        );
+    try {
+      final next = await widget.repository.listings(
+        requestedFilters,
+        requestedPage,
+      );
+      if (!current()) return;
+      var refreshFirstPageNow = false;
+      setState(() {
+        _catalogRefreshError = null;
+        if (loadedPages == 1) {
+          listings = next.items;
+          more = next.hasMore;
+          _catalogRefreshPage = 1;
+          _catalogRefreshLaterPage = 2;
+        } else {
+          final byId = {for (final item in next.items) item.id: item};
+          final start = (requestedPage - 1) * 12;
+          final oldPage = listings
+              .skip(start)
+              .take(12)
+              .map((item) => item.id)
+              .toList();
+          final newPage = next.items.map((item) => item.id).toList();
+          final membershipChanged =
+              oldPage.length != newPage.length ||
+              Iterable<int>.generate(
+                oldPage.length,
+              ).any((index) => oldPage[index] != newPage[index]);
+          if (membershipChanged) {
+            // Insertions, removals and reordered results move offset page
+            // boundaries. Rebuild from page 1 instead of skipping new records,
+            // retaining unpublished rows, or requiring a manual refresh.
+            page = 1;
+            listings = requestedPage == 1
+                ? next.items
+                : listings.take(12).toList();
+            more = requestedPage == 1 ? next.hasMore : true;
+            _catalogRefreshPage = 1;
+            _catalogRefreshLaterPage = 2;
+            refreshFirstPageNow = requestedPage != 1;
+          } else {
+            listings = [for (final item in listings) byId[item.id] ?? item];
+            if (requestedPage == loadedPages) more = next.hasMore;
+            // Prioritize page 1 between later-page reads: new publications are
+            // detected within two foreground cycles while existing cards also
+            // receive photo updates. Each cycle sends only one public GET.
+            if (requestedPage == 1) {
+              _catalogRefreshPage = _catalogRefreshLaterPage.clamp(
+                2,
+                loadedPages,
+              );
+            } else {
+              _catalogRefreshLaterPage = requestedPage >= loadedPages
+                  ? 2
+                  : requestedPage + 1;
+              _catalogRefreshPage = 1;
+            }
+          }
+        }
+        final byId = {for (final item in next.items) item.id: item};
+        for (var index = 0; index < recent.length; index++) {
+          recent[index] = byId[recent[index].id] ?? recent[index];
+        }
+        compare.updateAll((id, item) => byId[id] ?? item);
+      });
+      if (refreshFirstPageNow) requestListingRefresh(immediate: true);
+    } catch (failure) {
+      if (current()) {
+        setState(() => _catalogRefreshError = marketplaceError(failure));
+      }
+      rethrow;
+    }
+  }
+
   bool get verified => widget.repository.session.verified;
   Set<String> get saved => account == null
       ? <String>{}
@@ -80,6 +368,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       favoriteStatus.clear();
       recent.clear();
       error = null;
+      _catalogRefreshError = null;
+      _catalogRefreshPage = 1;
+      _catalogRefreshLaterPage = 2;
       loading = false;
     });
   }
@@ -91,6 +382,11 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     setState(() {
       loading = true;
       error = null;
+      _catalogRefreshError = null;
+      if (!next) {
+        _catalogRefreshPage = 1;
+        _catalogRefreshLaterPage = 2;
+      }
     });
     try {
       if (tab < 2) {
@@ -1324,6 +1620,11 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             ),
             const SizedBox(height: 16),
           ],
+          if (tab < 2 && _catalogRefreshError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text('Live updates paused. $_catalogRefreshError'),
+            ),
           if (tab >= 2 && !verified) ...[
             empty(
               'Sign in to access your account. Offline preview data is separate.',
@@ -1528,10 +1829,59 @@ class LivePropertyScreen extends StatefulWidget {
   State<LivePropertyScreen> createState() => _LivePropertyScreenState();
 }
 
-class _LivePropertyScreenState extends State<LivePropertyScreen> {
+class _LivePropertyScreenState extends State<LivePropertyScreen>
+    with _ForegroundListingRefresh<LivePropertyScreen> {
   late Future<Listing> result;
   Future<ListingPage>? related;
   bool saving = false;
+  bool _reading = false;
+  bool _unavailable = false;
+  int _detailEpoch = 0;
+  Listing? _liveProperty;
+  Object? _detailRefreshError;
+  @override
+  MarketplaceRepository get listingRefreshRepository => widget.repository;
+  @override
+  bool get canRefreshListingData => !_reading && !saving && !_unavailable;
+
+  @override
+  Future<void> refreshListingData() async {
+    final request = ++_detailEpoch;
+    final id = widget.id;
+    final repository = widget.repository;
+    final generation = repository.coordinator.generation;
+    final listingChange = repository.listingChanges.value;
+    bool current() =>
+        listingRefreshVisible &&
+        request == _detailEpoch &&
+        widget.id == id &&
+        identical(widget.repository, repository) &&
+        generation == repository.coordinator.generation &&
+        listingChange == repository.listingChanges.value;
+    try {
+      // Timed reads must not repeat view/history writes or related-list requests.
+      final next = await repository.detail(id);
+      if (current()) {
+        setState(() {
+          _liveProperty = next;
+          _detailRefreshError = null;
+        });
+      }
+    } catch (failure) {
+      if (current()) {
+        setState(() {
+          _detailRefreshError = failure;
+          if (_listingUnavailable(failure)) {
+            _unavailable = true;
+            _liveProperty = null;
+            related = null;
+          }
+        });
+      }
+      rethrow;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1544,17 +1894,35 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
     if (oldWidget.id != widget.id ||
         !identical(oldWidget.repository, widget.repository)) {
       related = null;
+      _liveProperty = null;
+      _detailRefreshError = null;
+      _unavailable = false;
       result = readProperty();
     }
   }
 
   Future<Listing> readProperty() async {
+    final request = ++_detailEpoch;
     final id = widget.id;
     final repository = widget.repository;
-    final property = await repository.detail(id);
+    final generation = repository.coordinator.generation;
+    final listingChange = repository.listingChanges.value;
+    _reading = true;
+    late final Listing property;
+    try {
+      property = await repository.detail(id);
+    } finally {
+      if (request == _detailEpoch) _reading = false;
+    }
     if (mounted &&
+        request == _detailEpoch &&
         widget.id == id &&
-        identical(widget.repository, repository)) {
+        identical(widget.repository, repository) &&
+        generation == repository.coordinator.generation &&
+        listingChange == repository.listingChanges.value) {
+      _liveProperty = property;
+      _detailRefreshError = null;
+      _unavailable = false;
       related = widget.repository.listings({
         if (property.data['city'] is String)
           'city': property.data['city'] as String,
@@ -1583,19 +1951,29 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
     body: FutureBuilder<Listing>(
       future: result,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        final displayed = _unavailable ? null : _liveProperty;
+        if (displayed == null &&
+            !_unavailable &&
+            snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError) {
+        if (_unavailable || (snapshot.hasError && displayed == null)) {
           return Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: BuyerEmptyState(
                 title: 'This home couldn’t be opened.',
-                message: marketplaceError(snapshot.error!),
+                message: marketplaceError(
+                  _detailRefreshError ?? snapshot.error!,
+                ),
                 icon: Icons.home_work_outlined,
                 action: OutlinedButton.icon(
-                  onPressed: () => setState(() => result = readProperty()),
+                  onPressed: () => setState(() {
+                    _unavailable = false;
+                    _liveProperty = null;
+                    _detailRefreshError = null;
+                    result = readProperty();
+                  }),
                   icon: const Icon(Icons.refresh_rounded),
                   label: const Text('Retry'),
                 ),
@@ -1603,18 +1981,28 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
             ),
           );
         }
-        if (!snapshot.hasData) {
+        if (displayed == null) {
           return const Center(child: CircularProgressIndicator());
         }
-        final property = snapshot.data!;
+        final property = displayed;
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
+            if (_detailRefreshError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Showing the last confirmed listing. ${marketplaceError(_detailRefreshError!)}',
+                ),
+              ),
             InkWell(
               onTap: () => Navigator.push<void>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => LiveGalleryScreen(property: property),
+                  builder: (_) => LiveGalleryScreen(
+                    property: property,
+                    repository: widget.repository,
+                  ),
                 ),
               ),
               child: ClipRRect(
@@ -1796,7 +2184,10 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
               onPressed: () => Navigator.push<void>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => LiveGalleryScreen(property: property),
+                  builder: (_) => LiveGalleryScreen(
+                    property: property,
+                    repository: widget.repository,
+                  ),
                 ),
               ),
               child: const Text('View photos'),
@@ -1923,13 +2314,92 @@ class _LivePropertyScreenState extends State<LivePropertyScreen> {
   );
 }
 
-class LiveGalleryScreen extends StatelessWidget {
-  const LiveGalleryScreen({super.key, required this.property});
+class LiveGalleryScreen extends StatefulWidget {
+  const LiveGalleryScreen({super.key, required this.property, this.repository});
   final Listing property;
+  final MarketplaceRepository? repository;
+  @override
+  State<LiveGalleryScreen> createState() => _LiveGalleryScreenState();
+}
+
+class _LiveGalleryScreenState extends State<LiveGalleryScreen>
+    with _ForegroundListingRefresh<LiveGalleryScreen> {
+  late Listing _property;
+  Object? _error;
+  bool _unavailable = false;
+  int _epoch = 0;
+  @override
+  MarketplaceRepository? get listingRefreshRepository => widget.repository;
+  @override
+  bool get canRefreshListingData => !_unavailable;
+
+  @override
+  void initState() {
+    super.initState();
+    _property = widget.property;
+  }
+
+  @override
+  void didUpdateWidget(LiveGalleryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.property.id != widget.property.id ||
+        !identical(oldWidget.repository, widget.repository)) {
+      _epoch++;
+      _property = widget.property;
+      _error = null;
+      _unavailable = false;
+    }
+  }
+
+  @override
+  Future<void> refreshListingData() async {
+    final repository = widget.repository;
+    if (repository == null) return;
+    final id = widget.property.id;
+    final request = ++_epoch;
+    final generation = repository.coordinator.generation;
+    final listingChange = repository.listingChanges.value;
+    bool current() =>
+        listingRefreshVisible &&
+        request == _epoch &&
+        id == widget.property.id &&
+        identical(repository, widget.repository) &&
+        generation == repository.coordinator.generation &&
+        listingChange == repository.listingChanges.value;
+    try {
+      final next = await repository.detail(id);
+      if (current()) {
+        setState(() {
+          _property = next;
+          _error = null;
+        });
+      }
+    } catch (failure) {
+      if (current()) {
+        setState(() {
+          _error = failure;
+          _unavailable = _listingUnavailable(failure);
+        });
+      }
+      rethrow;
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(property.title)),
-    body: property.images.isEmpty
+    appBar: AppBar(title: Text(_property.title)),
+    body: _unavailable
+        ? Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: BuyerEmptyState(
+                title: 'This listing is no longer available.',
+                message: marketplaceError(_error!),
+                icon: Icons.home_work_outlined,
+              ),
+            ),
+          )
+        : _property.images.isEmpty && _error == null
         ? const Center(
             child: SingleChildScrollView(
               padding: EdgeInsets.all(20),
@@ -1943,7 +2413,18 @@ class LiveGalleryScreen extends StatelessWidget {
         : ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              for (final url in property.images)
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Showing the last confirmed photographs. ${marketplaceError(_error!)}',
+                  ),
+                ),
+              if (_property.images.isEmpty)
+                const Text(
+                  'No photographs were available at the last successful refresh.',
+                ),
+              for (final url in _property.images)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: ClipRRect(
