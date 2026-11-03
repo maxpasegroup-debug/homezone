@@ -1108,7 +1108,21 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
       }
     } catch (failure) {
       if (current) {
-        setState(() => error = marketplaceError(failure, mutation: dispatched));
+        final needsPhotos =
+            publishing &&
+            failure is ApiException &&
+            failure.failure == ApiFailure.validation;
+        final message = needsPhotos
+            ? 'Publishing requires at least 4 different property photos. Add photos, then refresh this listing before publishing again.'
+            : marketplaceError(failure, mutation: dispatched);
+        setState(() => error = message);
+        // Publish controls can be below the fold. Keep the minimum-photo
+        // feedback visible without requiring a scroll back to the error text.
+        if (needsPhotos) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+        }
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -1990,6 +2004,8 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   List<SelectedListingPhoto> _photos = const [];
   bool _pickingPhoto = false,
       _listingCreateStarted = false,
+      _draftConfirmed = false,
+      _publicationStarted = false,
       _publicationConfirmed = false;
   String? _createdListingId, _saveProgress;
   int _confirmedPhotos = 0, _plannedPhotos = 0;
@@ -2045,6 +2061,14 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
         !key.currentState!.validate()) {
       return;
     }
+    if (_publishesListing &&
+        _photos.length < ListingPhotoPicker.minimumPublicationPhotos) {
+      setState(
+        () => error =
+            'Add at least 4 different property photos before publishing.',
+      );
+      return;
+    }
     final payload = <String, dynamic>{...widget.fixed};
     for (final field in widget.fields) {
       final value = controls[field.key]!.text.trim();
@@ -2098,9 +2122,12 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
         setState(() {
           if (_isListingCreate && _createdListingId != null) {
             if (_publishesListing && !_publicationConfirmed) {
-              error =
-                  'Listing saved, but publication could not be confirmed. '
-                  'Return to Listings and refresh before making any changes.';
+              error = _draftConfirmed && !_publicationStarted
+                  ? 'Draft saved. It has not been published. '
+                        'Photo confirmation is incomplete ($_confirmedPhotos of $_plannedPhotos photos confirmed). '
+                        'Return to Listings and refresh this draft before adding photos and publishing.'
+                  : 'Listing saved, but publication could not be confirmed. '
+                        'Return to Listings and refresh before making any changes.';
             } else {
               error =
                   '${_publicationConfirmed ? 'Listing published' : 'Listing created'}, but photo upload could not be confirmed '
@@ -2134,18 +2161,19 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
 
   Future<void> _createListing(JsonObject payload, int generation) async {
     final selected = List<SelectedListingPhoto>.of(_photos);
+    final publishAfterPhotos = _publishesListing;
     // Creation/upload endpoints are non-idempotent. Never retry a lost response.
     _listingCreateStarted = true;
     _plannedPhotos = selected.length;
     setState(
-      () => _saveProgress = _publishesListing
-          ? 'Publishing listing...'
+      () => _saveProgress = publishAfterPhotos
+          ? 'Saving a private draft before uploading photos...'
           : 'Saving listing...',
     );
     final data = await widget.repository.call(
       'POST',
       '/api/properties',
-      body: payload,
+      body: {...payload, if (publishAfterPhotos) 'status': 'DRAFT'},
     );
     if (!current || generation != widget.repository.coordinator.generation) {
       return;
@@ -2153,11 +2181,11 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     if (data['ok'] == false) throw const FormatException();
     final property = object(data['property']);
     _createdListingId = recordId(property);
-    if (_publishesListing) {
-      if (property['status'] != 'PUBLISHED') {
-        throw const FormatException('Publication confirmation unavailable');
+    if (publishAfterPhotos) {
+      if (property['status'] != 'DRAFT') {
+        throw const FormatException('Private draft confirmation unavailable');
       }
-      _publicationConfirmed = true;
+      _draftConfirmed = true;
     }
     await widget.repository.session.revalidateSession();
     if (!current || generation != widget.repository.coordinator.generation) {
@@ -2197,6 +2225,60 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     }
     if (!current || generation != widget.repository.coordinator.generation) {
       return;
+    }
+    if (publishAfterPhotos) {
+      setState(() => _saveProgress = 'Confirming property photos...');
+      final media = await widget.repository.call(
+        'GET',
+        '/api/properties/$_createdListingId/media',
+      );
+      if (!current || generation != widget.repository.coordinator.generation) {
+        return;
+      }
+      final stored = object(media['property']);
+      final gallery = stored['mediaUrls'];
+      final cover = stored['coverImageUrl'];
+      if (media['ok'] == false ||
+          stored['id'] != _createdListingId ||
+          gallery is! List ||
+          gallery.length > 40 ||
+          gallery.any((url) => url is! String || url.length > 4096) ||
+          (cover != null && (cover is! String || cover.length > 4096))) {
+        throw const FormatException('Photo confirmation unavailable');
+      }
+      final urls = <String>{
+        if (cover is String && cover.isNotEmpty) cover,
+        ...gallery.cast<String>().where((url) => url.isNotEmpty),
+      };
+      if (urls.length < ListingPhotoPicker.minimumPublicationPhotos ||
+          urls.any((raw) {
+            final url = Uri.tryParse(raw);
+            return url == null ||
+                url.scheme != 'https' ||
+                url.host.isEmpty ||
+                url.userInfo.isNotEmpty ||
+                url.hasFragment ||
+                url.port != 443;
+          })) {
+        throw const FormatException('At least four stored photos are required');
+      }
+      setState(() => _saveProgress = 'Publishing listing...');
+      _publicationStarted = true;
+      final published = await widget.repository.call(
+        'PATCH',
+        '/api/properties/$_createdListingId',
+        body: const {'status': 'PUBLISHED'},
+      );
+      if (!current || generation != widget.repository.coordinator.generation) {
+        return;
+      }
+      final confirmed = object(published['property']);
+      if (published['ok'] == false ||
+          confirmed['id'] != _createdListingId ||
+          confirmed['status'] != 'PUBLISHED') {
+        throw const FormatException('Publication confirmation unavailable');
+      }
+      _publicationConfirmed = true;
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -2271,12 +2353,15 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                       const Padding(
                         padding: EdgeInsets.only(bottom: 16),
                         child: Text(
-                          'Your listing will be visible to Buyers when you publish. Photos appear as each upload is confirmed.',
+                          'Add at least 4 different property photos. Your listing becomes visible to Buyers only after the photos are confirmed and publication succeeds.',
                         ),
                       ),
                     if (_supportsPhotos)
                       ListingPhotoPicker(
                         photos: _photos,
+                        minimumPhotos: _publishesListing
+                            ? ListingPhotoPicker.minimumPublicationPhotos
+                            : 0,
                         enabled: !busy && !_listingCreateStarted,
                         isCurrent: () => current,
                         onChanged: (photos) => setState(() => _photos = photos),

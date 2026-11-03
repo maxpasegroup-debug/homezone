@@ -1,5 +1,53 @@
 # HOMEZONE integration implementation status
 
+## Four required property photographs - SOURCE IMPLEMENTED - 2026-11-03
+
+New Owner publication now requires at least four distinct photos. Mobile creates
+one private draft, confirms all selected uploads and the stored gallery, then
+publishes automatically without approval. Failed uploads do not make the draft
+public or repeat creation. Web forms/actions display counts and minimum guidance.
+Backend create/update/media and both admin publication paths enforce the final
+gallery requirement under transaction locks. Cover/gallery duplicates count once;
+video/tour fields do not count. Explicit drafts may have fewer. Existing published
+records stay visible but cannot lose photos below their existing count; compliant
+records cannot drop below four while public. No existing staging data was changed.
+
+105 focused Flutter tests, 42 backend tests and TypeScript checking passed.
+Focused Flutter analysis had no errors/warnings and 39 informational lints. The
+explicit staging APK build also passed (`2026-11-03T11-51-04-206Z-25992`); it was
+not installed or launched, and the previous working APK was preserved.
+The four-photo source rule has not been deployed or exercised through live uploads.
+No schema/migration is required. Coordinated staging backend/new APK release and
+the existing Cloudinary upload prerequisites remain. Details and candidate build
+evidence: `OWNER_DIRECT_PUBLICATION.md`. Earlier one-photo acceptance is historical
+evidence of automatic Buyer discovery, not acceptance of this new upload rule.
+
+## Owner publication to Android Buyer discovery - RUNTIME VERIFIED - 2026-11-03
+
+With the user's explicit authorization, the supplied Owner account signed in
+through the staging website and published exactly one labelled test property:
+`STAGING TEST - Owner live update 20261103`, ID `cmw0jtf930003nw0x97xdmy4n`.
+POST returned HTTP 200/PUBLISHED with verified false and verification PENDING.
+No approval/review action was required. The saved Owner edit page returned the
+correct fields. Existing synthetic drafts were left unchanged.
+
+The matching APK was installed without clearing data. Already-open Android
+Buyer public discovery changed from empty to the new listing automatically,
+without an agent Refresh/navigation/input after publication. The normal Android
+screenshot shows the actual house photo, price, title and room/area values.
+Detail navigation also returned matching fields and test description. Process
+logs show staging catalogue HTTP 200 at roughly 5.25-second intervals; separate
+public API readbacks returned database source and the same PUBLISHED record.
+
+The emulator initially failed DNS resolution. A same-AVD cold boot with explicit
+DNS recovered staging access, without wiping data or changing renderer/TLS/API
+configuration. No production, Railway change, migration, deployment or direct
+database command was used. This verifies website Owner -> Android public Buyer
+discovery, not native Owner creation, authenticated Buyer account actions or
+device-file upload. The displayed photo uses a hosted URL reference. Full
+evidence and clock/timing limitations are in `OWNER_DIRECT_PUBLICATION.md` and
+the ignored `direct-publication-verification.json` evidence artifact.
+
 ## Direct-publication verification update - 2026-11-03, 09:15 UTC
 
 The direct-publication implementation is now committed at

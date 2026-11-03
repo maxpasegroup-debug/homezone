@@ -8,6 +8,7 @@ import { CheckCircle2, ImagePlus, Loader2, Save, Send, Sparkles, UploadCloud, Vi
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { VoiceInputButton } from "@/components/voice/voice-input-button";
+import { countPropertyPhotos, MIN_PROPERTY_PHOTOS } from "@/lib/properties/photos";
 
 type ListingDraft = {
   id?: string;
@@ -121,8 +122,21 @@ function payloadFor(form: ListingDraft, status: SaveStatus) {
   };
 }
 
-function validateBeforeSubmit(form: ListingDraft, status: SaveStatus) {
+function photosFor(form: Pick<ListingDraft, "coverImageUrl" | "mediaUrls">) {
+  return countPropertyPhotos({
+    coverImageUrl: form.coverImageUrl,
+    mediaUrls: form.mediaUrls.split(/\n|,/).map((item) => item.trim()).filter(Boolean)
+  });
+}
+
+function validateBeforeSubmit(form: ListingDraft, status: SaveStatus, minimumPhotos = MIN_PROPERTY_PHOTOS) {
   if (status === "DRAFT") return "";
+
+  if (status === "PUBLISHED" && photosFor(form) < minimumPhotos) {
+    return minimumPhotos === MIN_PROPERTY_PHOTOS
+      ? `Add at least ${MIN_PROPERTY_PHOTOS} distinct property photos before publishing. Cover and gallery photos count once; videos and tours do not count.`
+      : "Keep the existing property photos or add replacements before saving this published listing.";
+  }
 
   const missing = [
     [form.title.trim().length < 3, "title"],
@@ -177,6 +191,13 @@ export function OwnerListingEditor({
   const endpoint = hasExisting ? `/api/properties/${property?.id}` : "/api/properties";
   const restricted = directPublication && (["REJECTED", "ARCHIVED"].includes(savedStatus) ||
     ["REJECTED", "NEEDS_CHANGES", "EXPIRED"].includes(verificationStatus));
+  const photoCount = useMemo(() => photosFor(form), [form.coverImageUrl, form.mediaUrls]);
+  // Existing published listings may keep their photos while the new minimum is
+  // introduced. Saving a draft then publishing it again requires the full set.
+  const publicationPhotoMinimum = savedStatus === "PUBLISHED"
+    ? Math.min(MIN_PROPERTY_PHOTOS, photosFor(toFormData(property)))
+    : MIN_PROPERTY_PHOTOS;
+  const publicationNeedsPhotos = photoCount < publicationPhotoMinimum;
 
   const completion = useMemo(() => {
     const required = [
@@ -254,7 +275,7 @@ export function OwnerListingEditor({
     }
     const validationStatus = status ?? (savedStatus === "PUBLISHED" ? "PUBLISHED" :
       savedStatus === "PENDING_REVIEW" ? "PENDING_REVIEW" : "DRAFT");
-    const validationMessage = validateBeforeSubmit(form, validationStatus);
+    const validationMessage = validateBeforeSubmit(form, validationStatus, publicationPhotoMinimum);
     if (validationMessage) {
       attemptedRevision.current = dirtyRevision.current;
       setError(validationMessage);
@@ -396,7 +417,13 @@ export function OwnerListingEditor({
       <div className="mt-8 rounded-[1.5rem] border bg-white p-5">
         <p className="text-sm font-bold text-violet-700">Property Media</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload files directly or paste hosted URLs. Uploaded files are attached automatically.
+          Upload files directly or paste hosted URLs, then save the listing to attach them.
+        </p>
+        <p className="mt-2 text-sm font-semibold text-violet-700" aria-live="polite">
+          {photoCount} distinct {photoCount === 1 ? "photo" : "photos"} added. At least {MIN_PROPERTY_PHOTOS} are required to publish a new listing.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Add clear property photos to the cover and gallery. Repeated URLs count once; videos and virtual tours do not count. You can save a private draft with fewer photos.
         </p>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <MediaUpload
@@ -452,11 +479,16 @@ export function OwnerListingEditor({
           {loadingAction === "draft" || loadingAction === "autosave" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {restricted ? "Save changes" : directPublication && savedStatus === "PUBLISHED" ? "Save Draft (hide from buyers)" : "Save Draft"}
         </Button>
-        <Button disabled={Boolean(loadingAction) || Boolean(uploading) || createUncertain || restricted} onClick={() => save(directPublication ? "PUBLISHED" : "PENDING_REVIEW", "submit")} size="lg">
+        <Button disabled={Boolean(loadingAction) || Boolean(uploading) || createUncertain || restricted || (directPublication && publicationNeedsPhotos)} onClick={() => save(directPublication ? "PUBLISHED" : "PENDING_REVIEW", "submit")} size="lg">
           {loadingAction === "submit" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           {directPublication ? savedStatus === "PUBLISHED" ? "Save published listing" : "Publish listing" : "Submit for Verification"}
         </Button>
       </div>
+      {directPublication && publicationNeedsPhotos ? <p className="mt-3 text-sm font-semibold text-muted-foreground">
+        {publicationPhotoMinimum === MIN_PROPERTY_PHOTOS
+          ? `Add ${MIN_PROPERTY_PHOTOS - photoCount} more distinct ${MIN_PROPERTY_PHOTOS - photoCount === 1 ? "photo" : "photos"} to publish. You can save your draft now.`
+          : "Restore the existing photos or add replacements before saving this published listing."}
+      </p> : null}
     </Card>
   );
 }

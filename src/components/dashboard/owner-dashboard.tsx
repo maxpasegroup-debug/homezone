@@ -10,6 +10,7 @@ import { PaymentButton } from "@/components/payments/payment-button";
 import { VerificationBadge } from "@/components/trust/verification-badge";
 import { OwnerLeadActions } from "@/components/properties/owner-lead-actions";
 import { OwnerListingActions } from "@/components/properties/owner-listing-actions";
+import { countPropertyPhotos } from "@/lib/properties/photos";
 
 type OwnerDashboardData = Awaited<ReturnType<typeof getOwnerDashboardData>>;
 
@@ -129,6 +130,7 @@ export function OwnerDashboard({ data }: { data: OwnerDashboardData }) {
                       <Link href={`/dashboard/listings/${property.id}/documents` as Route}>Documents</Link>
                     </Button>
                     <OwnerListingActions directPublication={directPublication} propertyId={property.id}
+                      photoCount={countPropertyPhotos(property)}
                       status={property.status} verificationStatus={property.verificationStatus} />
                   </div>
                 </div>

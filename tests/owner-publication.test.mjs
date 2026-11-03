@@ -9,9 +9,12 @@ import ts from "typescript";
 // AI and logging boundaries are fixtures; no database or network is contacted.
 const state = {};
 globalThis.__ownerPublicationFixture = state;
+const photoUrls = [1, 2, 3, 4].map(id => `https://images.fixture.invalid/photo-${id}.jpg`);
 const snapshot = () => ({
   id: "property-0001", ownerId: "owner-0001", status: "DRAFT",
-  verificationStatus: "PENDING", verified: false, publishedAt: null
+  verificationStatus: "PENDING", verified: false, publishedAt: null,
+  coverImageUrl: photoUrls[0], mediaUrls: [...photoUrls],
+  videoUrl: null, virtualTourUrl: null, updatedAt: new Date("2026-01-01T00:00:00Z")
 });
 function reset(overrides = {}) {
   Object.assign(state, {
@@ -64,16 +67,20 @@ const hooks = registerHooks({
 });
 const create = await import("../backend/api/properties/route.ts");
 const edit = await import("../backend/api/properties/[id]/route.ts");
+const media = await import("../backend/api/properties/[id]/media/route.ts");
 const policy = await import("../src/lib/properties/publication.ts");
+const photos = await import("../src/lib/properties/photos.ts");
 hooks.deregister();
 const body = {
   title: "Synthetic publication fixture", description: "An isolated test property with no real listing.",
-  intent: "BUY", propertyType: "House", city: "Fixture City", status: "PUBLISHED"
+  intent: "BUY", propertyType: "House", city: "Fixture City", status: "PUBLISHED",
+  coverImageUrl: photoUrls[0], mediaUrls: [...photoUrls]
 };
 const request = (method, value) => new Request("https://fixture.invalid/api/properties/property-0001", {
   method, headers: { "content-type": "application/json" }, body: JSON.stringify(value)
 });
 const patch = value => edit.PATCH(request("PATCH", value), { params: Promise.resolve({ id: "property-0001" }) });
+const patchMedia = value => media.PATCH(request("PATCH", value), { params: Promise.resolve({ id: "property-0001" }) });
 
 test("Owner direct publication uses existing routes without granting verification", async t => {
   await t.test("new Owner publication sets public status/time and leaves verification pending", async () => {
@@ -180,5 +187,77 @@ test("Owner direct publication uses existing routes without granting verificatio
     assert.equal((await patch({ status: "ARCHIVED" })).status, 200);
     assert.equal(state.writes[1].data.verificationStatus, undefined);
     assert.deepEqual(policy.updatePublication("OWNER", snapshot(), undefined, new Date()), { data: {} });
+  });
+});
+
+test("publication requires four distinct public photo references under the existing locks", async t => {
+  await t.test("cover/gallery duplicates, canonical URL variants and media fields do not inflate photo count", () => {
+    assert.equal(photos.MIN_PROPERTY_PHOTOS, 4);
+    assert.equal(photos.countPropertyPhotos({
+      coverImageUrl: "https://IMAGES.fixture.invalid:443/photo-1.jpg#cover",
+      mediaUrls: [photoUrls[0], `${photoUrls[0]}#gallery`, photoUrls[1], photoUrls[2]]
+    }), 3);
+    assert.equal(photos.countPropertyPhotos({ mediaUrls: [
+      "not-a-url", "http://images.fixture.invalid/image.jpg", "https://user:password@images.fixture.invalid/photo.jpg",
+      "https://images.fixture.invalid:8443/photo.jpg", "https://fixture.invalid/api/private-files/1234",
+      "https://fixture.invalid/api/%6dobIle/documents/file"
+    ] }), 0);
+  });
+  await t.test("new publication with fewer than four rejects without writes and permits a private draft", async () => {
+    reset();
+    const value = { ...body, mediaUrls: photoUrls.slice(0, 3), videoUrl: "https://fixture.invalid/tour.mp4", virtualTourUrl: "https://fixture.invalid/tour" };
+    const response = await create.POST(request("POST", value));
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /at least 4 different property photos/);
+    assert.equal(state.writes.length, 0);
+    assert.equal((await create.POST(request("POST", { ...value, status: "DRAFT" }))).status, 200);
+  });
+  await t.test("a distinct cover and three gallery photos satisfy the rule", async () => {
+    reset();
+    assert.equal((await create.POST(request("POST", { ...body, mediaUrls: photoUrls.slice(1) }))).status, 200);
+    assert.equal(state.writes[0].data.status, "PUBLISHED");
+    assert.equal(state.writes[0].data.verified, false);
+  });
+  await t.test("publication checks the locked final gallery rather than an earlier complete snapshot", async () => {
+    reset(); state.currentProperty.mediaUrls = photoUrls.slice(0, 3);
+    assert.equal((await patch({ status: "PUBLISHED" })).status, 400);
+    assert.equal(state.writes.length, 0);
+    assert.deepEqual(state.locks.map(x => /Profile/.test(x) ? "profile" : "property"), ["profile", "property"]);
+    assert.equal((await patch({ status: "PUBLISHED", mediaUrls: photoUrls })).status, 200);
+  });
+  await t.test("published general edits cannot reduce below four but can replace photos or become private", async () => {
+    reset(); state.currentProperty.status = "PUBLISHED";
+    assert.equal((await patch({ mediaUrls: photoUrls.slice(0, 3) })).status, 400);
+    assert.equal(state.writes.length, 0);
+    assert.equal((await patch({ mediaUrls: [photoUrls[0], photoUrls[1], photoUrls[2], "https://fixture.invalid/replacement.jpg"] })).status, 200);
+    assert.equal((await patch({ status: "DRAFT", mediaUrls: [] })).status, 200);
+  });
+  await t.test("legacy sub-four published listings can stay or improve but cannot lose photographs", async () => {
+    reset(); state.currentProperty = { ...snapshot(), status: "PUBLISHED", mediaUrls: [photoUrls[0]] };
+    assert.equal((await patch({ title: "Legacy listing corrected title" })).status, 200);
+    assert.equal((await patch({ status: "PUBLISHED" })).status, 200);
+    assert.equal((await patch({ mediaUrls: photoUrls.slice(0, 2) })).status, 200);
+    assert.equal((await patch({ coverImageUrl: "https://fixture.invalid/replacement.jpg", mediaUrls: [] })).status, 200);
+    assert.equal((await patchMedia({ action: "remove", mediaUrl: photoUrls[0] })).status, 400);
+  });
+  await t.test("media remove and reorder cannot bypass the published minimum", async () => {
+    reset(); state.currentProperty.status = "PUBLISHED";
+    assert.equal((await patchMedia({ action: "remove", mediaUrl: photoUrls[3] })).status, 400);
+    assert.equal((await patchMedia({ action: "reorder", mediaUrls: photoUrls.slice(0, 3) })).status, 400);
+    assert.equal(state.writes.length, 0);
+    assert.equal((await patchMedia({ action: "reorder", mediaUrls: [...photoUrls].reverse() })).status, 200);
+    assert.equal((await patchMedia({ action: "replace-video", videoUrl: "https://fixture.invalid/video.mp4" })).status, 200);
+    assert.equal((await patchMedia({ action: "add", mediaType: "image", mediaUrl: "https://fixture.invalid/extra.jpg" })).status, 200);
+    assert.match(state.locks[0], /Profile.*FOR UPDATE/);
+    assert.match(state.locks[1], /Property.*FOR UPDATE/);
+  });
+  await t.test("private gallery editing and authorized admin publication retain their normal boundaries", async () => {
+    reset();
+    assert.equal((await patchMedia({ action: "remove", mediaUrl: photoUrls[3] })).status, 200);
+    reset({ role: "ADMIN", currentRole: "ADMIN" }); state.currentProperty.mediaUrls = [photoUrls[0]];
+    assert.equal((await patch({ status: "PUBLISHED" })).status, 400);
+    assert.equal(state.writes.length, 0);
+    reset(); state.currentProperty.ownerId = "foreign-owner";
+    assert.equal((await patchMedia({ action: "remove", mediaUrl: photoUrls[3] })).status, 403);
   });
 });

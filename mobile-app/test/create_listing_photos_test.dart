@@ -220,6 +220,24 @@ void _success(Fixture fixture) {
             'https://media.example.invalid/photo-${_uploads(fixture).length}.png',
       });
     }
+    if (request.uri.path == '/api/properties/$_propertyId/media') {
+      return json({
+        'property': {
+          'id': _propertyId,
+          'coverImageUrl': 'https://media.example.invalid/photo-1.png',
+          'mediaUrls': List.generate(
+            _uploads(fixture).length,
+            (index) => 'https://media.example.invalid/photo-${index + 1}.png',
+          ),
+        },
+      });
+    }
+    if (request.method == 'PATCH' &&
+        request.uri.path == '/api/properties/$_propertyId') {
+      return json({
+        'property': {'id': _propertyId, 'status': 'PUBLISHED'},
+      });
+    }
     throw StateError('Unexpected fixture endpoint');
   };
 }
@@ -285,7 +303,7 @@ void main() {
       expect(form.fixed['status'], role == 'OWNER' ? 'PUBLISHED' : 'DRAFT');
       if (role == 'OWNER') {
         expect(
-          find.textContaining('visible to Buyers when you publish'),
+          find.textContaining('Add at least 4 different property photos.'),
           findsOneWidget,
         );
       }
@@ -299,53 +317,79 @@ void main() {
     });
   }
 
-  photoTest('Owner publication is confirmed before sequential photo uploads', (
-    tester,
-  ) async {
-    final result = await _open(tester, fixture, publish: true);
-    picker.results.addAll([_picked(), _picked(1)]);
-    await _tap(tester, 'Add photo');
-    await _tap(tester, 'Add photo');
-    await _tap(tester, 'Publish listing');
-    expect(_body(_creates(fixture).single), {
-      'title': 'Local listing fixture',
-      'status': 'PUBLISHED',
+  photoTest(
+    'Owner creates privately and confirms four photos before publishing',
+    (tester) async {
+      final result = await _open(tester, fixture, publish: true);
+      picker.results.addAll(List.generate(4, _picked));
+      for (var index = 0; index < 4; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      await _tap(tester, 'Publish listing');
+      expect(_body(_creates(fixture).single), {
+        'title': 'Local listing fixture',
+        'status': 'DRAFT',
+      });
+      expect(
+        fixture.transport.requests.map((r) => '${r.method} ${r.uri.path}'),
+        [
+          'POST /api/properties',
+          'GET /api/auth/session',
+          'POST /api/mobile/upload',
+          'POST /api/mobile/upload',
+          'POST /api/mobile/upload',
+          'POST /api/mobile/upload',
+          'GET /api/properties/$_propertyId/media',
+          'PATCH /api/properties/$_propertyId',
+        ],
+      );
+      expect(
+        _uploads(fixture).map(_body),
+        List.generate(
+          4,
+          (index) => {
+            'propertyId': _propertyId,
+            'base64': _picked(index)['base64'],
+          },
+        ),
+      );
+      expect(_body(fixture.transport.requests.last), {'status': 'PUBLISHED'});
+      expect(await result.future, true);
+      expect(find.text('Listing published with 4 photos.'), findsOneWidget);
+    },
+  );
+
+  for (final count in [0, 3]) {
+    photoTest('Owner cannot publish with $count selected photos', (
+      tester,
+    ) async {
+      final result = await _open(tester, fixture, publish: true);
+      picker.results.addAll(List.generate(count, _picked));
+      for (var index = 0; index < count; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      await _tap(tester, 'Publish listing');
+      expect(_creates(fixture), isEmpty);
+      expect(_uploads(fixture), isEmpty);
+      expect(result.isCompleted, false);
+      expect(
+        find.text(
+          'Add at least 4 different property photos before publishing.',
+        ),
+        findsOneWidget,
+      );
     });
-    expect(fixture.transport.requests.map((r) => '${r.method} ${r.uri.path}'), [
-      'POST /api/properties',
-      'GET /api/auth/session',
-      'POST /api/mobile/upload',
-      'POST /api/mobile/upload',
-    ]);
-    expect(_uploads(fixture).map(_body), [
-      {'propertyId': _propertyId, 'base64': _pngs[0]},
-      {'propertyId': _propertyId, 'base64': _pngs[1]},
-    ]);
-    expect(await result.future, true);
-    expect(find.text('Listing published with 2 photos.'), findsOneWidget);
-  });
+  }
 
-  photoTest('Owner no-photo publication reports the actual server status', (
-    tester,
-  ) async {
-    final result = await _open(tester, fixture, publish: true);
-    await _tap(tester, 'Publish listing');
-    expect(_body(_creates(fixture).single)['status'], 'PUBLISHED');
-    expect(_uploads(fixture), isEmpty);
-    expect(await result.future, true);
-    expect(
-      find.text('Listing published. Buyers can now see it.'),
-      findsOneWidget,
-    );
-  });
-
-  for (final returnedStatus in [null, 'DRAFT']) {
+  for (final returnedStatus in [null, 'PUBLISHED']) {
     photoTest(
-      'unconfirmed publication $returnedStatus is never reported as public',
+      'unconfirmed private draft $returnedStatus never starts photo uploads',
       (tester) async {
         final result = await _open(tester, fixture, publish: true);
-        picker.results.add(_picked());
-        await _tap(tester, 'Add photo');
+        picker.results.addAll(List.generate(4, _picked));
+        for (var index = 0; index < 4; index++) {
+          await _tap(tester, 'Add photo');
+        }
         fixture.transport.reply = (_) => json({
           'property': {
             'id': _propertyId,
@@ -372,27 +416,33 @@ void main() {
   }
 
   photoTest(
-    'photo failure after confirmed publication keeps the public listing',
+    'photo failure leaves one private draft and never starts publication',
     (tester) async {
       final result = await _open(tester, fixture, publish: true);
-      picker.results.add(_picked());
-      await _tap(tester, 'Add photo');
+      picker.results.addAll(List.generate(4, _picked));
+      for (var index = 0; index < 4; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      final success = fixture.transport.reply!;
       fixture.transport.reply = (request) =>
-          request.uri.path == '/api/properties'
-          ? json({
-              'property': {'id': _propertyId, 'status': 'PUBLISHED'},
-            })
-          : json({}, 503);
+          request.uri.path == '/api/mobile/upload' &&
+              _uploads(fixture).length == 2
+          ? json({}, 503)
+          : success(request);
       await _tap(tester, 'Publish listing');
       expect(_creates(fixture), hasLength(1));
-      expect(_uploads(fixture), hasLength(1));
+      expect(_uploads(fixture), hasLength(2));
       expect(
-        find.textContaining(
-          'Listing published, but photo upload could not be confirmed',
-        ),
+        find.textContaining('Draft saved. It has not been published.'),
         findsOneWidget,
       );
-      expect(find.textContaining('0 of 1 photos confirmed'), findsOneWidget);
+      expect(find.textContaining('1 of 4 photos confirmed'), findsOneWidget);
+      expect(
+        fixture.transport.requests.where(
+          (request) => request.method == 'PATCH',
+        ),
+        isEmpty,
+      );
       expect(
         tester.widget<ButtonStyleButton>(_button('Publish listing')).onPressed,
         isNull,
@@ -400,6 +450,204 @@ void main() {
       expect(result.isCompleted, false);
     },
   );
+
+  photoTest('fourth upload must finish before stored gallery and publication', (
+    tester,
+  ) async {
+    final result = await _open(tester, fixture, publish: true);
+    picker.results.addAll(List.generate(4, _picked));
+    for (var index = 0; index < 4; index++) {
+      await _tap(tester, 'Add photo');
+    }
+    final fourth = Completer<ApiResponse>();
+    final success = fixture.transport.reply!;
+    fixture.transport.reply = (request) =>
+        request.uri.path == '/api/mobile/upload' &&
+            _uploads(fixture).length == 4
+        ? fourth.future
+        : success(request);
+    await _reveal(tester, 'Publish listing');
+    final publish = tester
+        .widget<ButtonStyleButton>(_button('Publish listing'))
+        .onPressed!;
+    publish();
+    await tester.pump();
+    expect(_creates(fixture), hasLength(1));
+    expect(_uploads(fixture), hasLength(4));
+    expect(
+      fixture.transport.requests.where(
+        (request) => request.uri.path.endsWith('/media'),
+      ),
+      isEmpty,
+    );
+    expect(
+      fixture.transport.requests.where((request) => request.method == 'PATCH'),
+      isEmpty,
+    );
+    publish();
+    await tester.pump();
+    expect(_creates(fixture), hasLength(1));
+    fourth.complete(json({'url': 'https://media.example.invalid/photo-4.png'}));
+    await tester.pumpAndSettle();
+    expect(
+      fixture.transport.requests.where((request) => request.method == 'PATCH'),
+      hasLength(1),
+    );
+    expect(await result.future, true);
+  });
+
+  photoTest(
+    'duplicate stored gallery URLs cannot satisfy the four-photo requirement',
+    (tester) async {
+      final result = await _open(tester, fixture, publish: true);
+      picker.results.addAll(List.generate(4, _picked));
+      for (var index = 0; index < 4; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      final success = fixture.transport.reply!;
+      fixture.transport.reply = (request) => request.uri.path.endsWith('/media')
+          ? json({
+              'property': {
+                'id': _propertyId,
+                'coverImageUrl': 'https://media.example.invalid/same.png',
+                'mediaUrls': List.filled(
+                  4,
+                  'https://media.example.invalid/same.png',
+                ),
+              },
+            })
+          : success(request);
+      await _tap(tester, 'Publish listing');
+      expect(_creates(fixture), hasLength(1));
+      expect(_uploads(fixture), hasLength(4));
+      expect(
+        fixture.transport.requests.where(
+          (request) => request.method == 'PATCH',
+        ),
+        isEmpty,
+      );
+      expect(
+        find.textContaining('Draft saved. It has not been published.'),
+        findsOneWidget,
+      );
+      expect(result.isCompleted, false);
+    },
+  );
+
+  for (final failure in ['timeout', 'wrong id', 'wrong status']) {
+    photoTest('uncertain publication $failure never repeats listing creation', (
+      tester,
+    ) async {
+      final result = await _open(tester, fixture, publish: true);
+      picker.results.addAll(List.generate(4, _picked));
+      for (var index = 0; index < 4; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      final success = fixture.transport.reply!;
+      fixture.transport.reply = (request) {
+        if (request.method == 'PATCH') {
+          if (failure == 'timeout') throw TimeoutException('Local fixture');
+          return json({
+            'property': {
+              'id': failure == 'wrong id' ? 'property-other' : _propertyId,
+              'status': failure == 'wrong status' ? 'DRAFT' : 'PUBLISHED',
+            },
+          });
+        }
+        return success(request);
+      };
+      await _reveal(tester, 'Publish listing');
+      final publish = tester
+          .widget<ButtonStyleButton>(_button('Publish listing'))
+          .onPressed!;
+      publish();
+      await tester.pumpAndSettle();
+      expect(_creates(fixture), hasLength(1));
+      expect(_uploads(fixture), hasLength(4));
+      expect(
+        fixture.transport.requests.where(
+          (request) => request.method == 'PATCH',
+        ),
+        hasLength(1),
+      );
+      expect(
+        find.textContaining('publication could not be confirmed'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('It has not been published'), findsNothing);
+      expect(result.isCompleted, false);
+      publish();
+      await tester.pumpAndSettle();
+      expect(_creates(fixture), hasLength(1));
+      expect(
+        fixture.transport.requests.where(
+          (request) => request.method == 'PATCH',
+        ),
+        hasLength(1),
+      );
+    });
+  }
+
+  for (final stage in ['gallery confirmation', 'publication']) {
+    photoTest(
+      'session change during $stage cannot confirm or repeat publication',
+      (tester) async {
+        final result = await _open(tester, fixture, publish: true);
+        picker.results.addAll(List.generate(4, _picked));
+        for (var index = 0; index < 4; index++) {
+          await _tap(tester, 'Add photo');
+        }
+        final pending = Completer<ApiResponse>();
+        final success = fixture.transport.reply!;
+        fixture.transport.reply = (request) {
+          final pause = stage == 'gallery confirmation'
+              ? request.uri.path.endsWith('/media')
+              : request.method == 'PATCH';
+          return pause ? pending.future : success(request);
+        };
+        await _reveal(tester, 'Publish listing');
+        final publish = tester
+            .widget<ButtonStyleButton>(_button('Publish listing'))
+            .onPressed!;
+        publish();
+        await tester.pump();
+        expect(_creates(fixture), hasLength(1));
+        expect(_uploads(fixture), hasLength(4));
+        fixture.controller.clearLocalSession();
+        pending.complete(
+          json({
+            'property': {
+              'id': _propertyId,
+              'status': 'PUBLISHED',
+              'coverImageUrl': null,
+              'mediaUrls': List.generate(
+                4,
+                (index) => 'https://media.example.invalid/photo-$index.png',
+              ),
+            },
+          }),
+        );
+        await tester.pumpAndSettle();
+        expect(result.isCompleted, false);
+        expect(find.text('Listing published with 4 photos.'), findsNothing);
+        expect(
+          fixture.transport.requests.where(
+            (request) => request.method == 'PATCH',
+          ),
+          hasLength(stage == 'publication' ? 1 : 0),
+        );
+        publish();
+        await tester.pumpAndSettle();
+        expect(_creates(fixture), hasLength(1));
+        expect(
+          fixture.transport.requests.where(
+            (request) => request.method == 'PATCH',
+          ),
+          hasLength(stage == 'publication' ? 1 : 0),
+        );
+      },
+    );
+  }
 
   test('public visibility does not claim independent verification', () {
     expect(
@@ -539,6 +787,41 @@ void main() {
       },
     );
   }
+
+  photoTest(
+    'existing draft publication rejection explains the four-photo requirement',
+    (tester) async {
+      await fixture.signIn(tester);
+      fixture.transport.reply = (request) =>
+          json({}, request.method == 'PATCH' ? 400 : 404);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkspaceDetail(
+            repository: fixture.repository,
+            module: 'properties',
+            item: const {
+              'id': _propertyId,
+              'title': 'Local listing fixture',
+              'status': 'DRAFT',
+              'verificationStatus': 'PENDING',
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _tap(tester, 'Publish listing');
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining(
+          'Publishing requires at least 4 different property photos.',
+        ),
+        findsOneWidget,
+      );
+      expect(_creates(fixture), isEmpty);
+      expect(find.byType(WorkspaceDetail), findsOneWidget);
+    },
+  );
 
   test('selected photo preserves raw canonical PNG bytes', () {
     final photo = SelectedListingPhoto.fromPicker(_picked());

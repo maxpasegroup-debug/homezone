@@ -3,6 +3,133 @@
 Date: 2026-11-03. Source baseline: main,
 `f023f42a07d0ac7f0f2ec82221b7e49fdb6ba5a9`, with preserved working-tree changes.
 
+## Minimum four photographs - source update - 2026-11-03
+
+The founder now requires at least four property images before publication. This
+section supersedes the earlier create-first/upload-after-publication sequence
+for new Owner listings. Direct publication still needs no approval.
+
+- New publication requires four distinct public HTTPS image references across
+  cover and gallery. Repeating the cover in the gallery counts once; equivalent
+  host/default-port/fragment URL variants do not inflate the count. Video and
+  virtual-tour fields never count. This is reference validation, not a remote
+  image-content/availability inspection or byte-level duplicate detector.
+- Mobile Owner creation requires at least four distinct selected photos. The
+  existing ten-photo picker, 6 MiB per-photo and 24 MiB batch limits remain.
+  Identical selected file bytes are rejected locally. The app creates one private
+  DRAFT, uploads all selected photos sequentially, independently reads the stored
+  gallery and then PATCHes PUBLISHED. Exact property ID/status acknowledgment is
+  required before claiming publication. Upload failure leaves the draft private;
+  uncertain creation/publication never blindly repeats creation.
+- Web creation/edit forms show the distinct-photo count and minimum guidance.
+  New Publish is disabled below four; private draft saving remains possible.
+  Existing content-only autosave and gallery preservation remain. Publish actions
+  in Owner listings/dashboard receive a server-derived photo count.
+- The server checks new creation, locked property updates and media removals or
+  reorders. It validates the final merged gallery under Profile -> Property locks.
+  Both administrator moderation and verification publication entry points apply
+  the same minimum, without removing existing authorization or review powers.
+- Existing published records with fewer photos remain visible and may improve;
+  edits cannot further reduce their count. Once four are present they cannot drop
+  below four while published. Saving privately permits gallery changes; later
+  republication requires four. The prior one-image staging test was not changed.
+
+No schema, migration, authentication or environment-variable change is needed.
+The photo upload provider and exact-host/TLS restrictions are unchanged. The
+last known missing Cloudinary configuration remains a separate native-upload
+prerequisite; this source change does not provision storage.
+
+Local checks: 105 Flutter fixture/regression tests and 42 backend tests passed;
+TypeScript checking passed. The new minimum-message fixture caught an off-screen
+error after an existing-draft Publish rejection; the app now also shows that
+guidance in a visible snackbar. Focused Flutter analysis reported zero errors or
+warnings and 39 informational lints (nonzero command exit for those infos).
+No full Next.js production build or browser runtime test is claimed. No live property/account
+mutation, deployment, migration, Railway change or production operation was
+performed for this minimum-photo source slice.
+
+Files changed for this rule: `src/lib/properties/photos.ts` (new), existing
+property create/update/media routes, admin property moderate/verify routes,
+`owner-listing-editor.tsx`, `owner-listing-actions.tsx`, web Owner dashboard and
+listings pages, mobile `workspace_screen.dart`, `listing_photo_picker.dart`,
+`create_listing_photos_test.dart`, `tests/owner-publication.test.mjs`, new
+`tests/property-photo-admin.test.mjs` and these three integration documents.
+
+Release the backend and matching new APK together under separate staging release
+approval: an old mobile client tries to publish before attaching photos and will
+be rejected by the new server. Railway predeploy still runs all pending
+migrations; this change adds none but does not authorize an unknown pending set.
+The installed, previously verified app remains unchanged until that release.
+The new four-upload publication workflow is not yet verified against staging.
+
+Candidate build PASSED using the explicit staging configuration:
+`node scripts/build-android.mjs --mode service --config config/staging.local.json`.
+Build record:
+`mobile-app/build/android-source-builds/2026-11-03T11-51-04-206Z-25992/build-record.json`.
+The APK is `mobile-app/build/app/outputs/apk/debug/app-debug.apk`, 184939163 bytes,
+SHA256 `ccc221340bd197caf8c7fcc447981640be7208ebb00de3d545b2a3f49ebc9b64`.
+The previous working APK is preserved in that record directory as
+`previous-app-debug.apk`. The candidate was not installed or launched; this build
+does not establish live four-file upload/publication success. Independent source
+review found no additional blocking issue in the private-upload-then-publish,
+web autosave or locked administrator checks. Git diff whitespace check passed.
+
+## Live acceptance - 2026-11-03
+
+RUNTIME VERIFIED for **Owner website publication to already-open Android Buyer
+public discovery**. The user supplied the Owner credentials and explicitly
+authorized one property creation and Buyer update verification. Credentials were
+used only for the existing staging sign-in UI and were not saved in project
+files or included in evidence.
+
+The supplied account reached the Owner dashboard. Exactly one labelled property,
+`STAGING TEST - Owner live update 20261103`, was published through the existing
+Owner form. The single observed `POST /api/properties` returned HTTP 200 and
+property `cmw0jtf930003nw0x97xdmy4n`, status PUBLISHED, verified false,
+verificationStatus PENDING and publishedAt. The UI opened that exact record's
+Owner edit page with its saved title, price, cover URL and other values. There
+was no admin approval action or review submission.
+
+The matching staging APK (`25b8d899...`) was installed on emulator-5554 without
+clearing app data. Buyer public discovery was opened and showed the genuine empty
+catalogue before publication. It remained open during the Owner Publish click.
+Without the agent sending Refresh, reopening discovery or touching Android after
+publication, the catalogue displayed the new title, actual house photograph,
+INR 50 lakh price, Kochi, three beds, two baths and 1500 sqft. The normal Android
+screenshot proves actual display presentation, not just internal Flutter render.
+The corresponding detail page opened with the matching title/fields and the
+explicit staging-test description. The app was returned to discovery afterward.
+
+Process-scoped sanitized Flutter logs show repeated staging catalogue HTTP 200
+responses at about 5.25-second intervals. Independent public catalogue and detail
+GETs both returned HTTP 200, database source and the same PUBLISHED property ID,
+title and cover reference; the catalogue contained exactly one record. Request
+IDs: `aiin_cNbTlGRNqm3ss7a6g`, `-pe-Fuv3Sga4A4emN8N_Fg`.
+
+Evidence in ignored `mobile-app/build/staging-auth-verification/`:
+`direct-publication-buyer-before.png`, `direct-publication-buyer-after.png`,
+`direct-publication-buyer-detail.png`, `direct-publication-catalogue.log` and
+`direct-publication-verification.json`. Host and server/device clocks differ by
+about 16 minutes; timestamps retain their source labels. An exact cross-system
+delivery latency is not claimed. This is foreground polling, not WebSocket push.
+
+The first Android attempt had a confirmed DNS failure: the emulator could not
+resolve staging while the host browser could. Wi-Fi cycling did not recover it.
+The same Pixel_6 AVD was cold-booted with the documented emulator startup option
+`-dns-server 8.8.8.8,8.8.4.4` and `-no-snapshot-load`. App/user data was retained;
+no wipe, renderer, TLS, backend or Railway configuration change was made.
+Hostname resolution and actual Flutter HTTP requests then recovered.
+
+Scope limits: this proves the web Owner-to-Android public Buyer flow, not native
+Owner form creation or authenticated Buyer saved/enquiry actions. The image was
+an approved hosted Pexels URL reference, not a device-file/Cloudinary upload.
+Those upload prerequisites remain separate. Exactly one synthetic, clearly
+labelled staging test property remains published; old drafts were not changed.
+No application source change, direct database command, migration, Railway
+variable change, deployment, new account, commit, push or production operation
+was performed. Normal staging authentication/property/view/audit API writes were
+part of the authorized workflow.
+
 ## Verification update - 2026-11-03, 09:15 UTC
 
 The implementation is now committed on clean `main` at

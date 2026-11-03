@@ -1,12 +1,13 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { forbidden, handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { propertyCreateSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { generateOpenAIText } from "@/lib/ai/homezone-ai";
 import { db } from "@/lib/db";
 import { createPublication } from "@/lib/properties/publication";
+import { propertyPhotoTransitionError } from "@/lib/properties/photos";
 import { getMarketplaceProperties, parseMarketplaceFilters } from "@/lib/properties/queries";
 
 export async function GET(request: Request) {
@@ -46,6 +47,8 @@ export async function POST(request: Request) {
     const data = parsed.data;
     const publication = createPublication(profile.role, data.status, new Date());
     if ("error" in publication) return forbidden(publication.error);
+    const photoError = propertyPhotoTransitionError(null, data);
+    if (photoError) return apiError(photoError, 400);
     const aiSummary =
       (await generateOpenAIText({
         system:
@@ -66,6 +69,8 @@ export async function POST(request: Request) {
       }
       const currentPublication = createPublication(current.role, data.status, new Date());
       if ("error" in currentPublication) return { error: forbidden(currentPublication.error) } as const;
+      const currentPhotoError = propertyPhotoTransitionError(null, data);
+      if (currentPhotoError) return { error: apiError(currentPhotoError, 400) } as const;
       const created = await tx.property.create({
         data: {
           ownerId: profile.id,

@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import {
+  apiError,
   forbidden,
   handleApiError,
   notFound,
@@ -15,6 +16,7 @@ import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { updatePublication } from "@/lib/properties/publication";
+import { propertyPhotoTransitionError } from "@/lib/properties/photos";
 
 type RouteContext = {
   params: Promise<{
@@ -100,7 +102,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       await tx.$queryRaw`SELECT id FROM "Property" WHERE id=${id} FOR UPDATE`;
       const currentProperty = await tx.property.findUnique({
         where: { id },
-        select: { id: true, ownerId: true, status: true, verificationStatus: true, publishedAt: true }
+        select: { id: true, ownerId: true, status: true, verificationStatus: true, publishedAt: true,
+          coverImageUrl: true, mediaUrls: true }
       });
       if (!currentProperty) return { error: notFound("Property not found") } as const;
       const admin = isAdminRole(currentProfile.role);
@@ -109,6 +112,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
       const publication = updatePublication(currentProfile.role, currentProperty, data.status, new Date());
       if ("error" in publication) return { error: forbidden(publication.error) } as const;
+      const photoError = propertyPhotoTransitionError(currentProperty, {
+        status: data.status ?? currentProperty.status,
+        coverImageUrl: data.coverImageUrl ?? currentProperty.coverImageUrl,
+        mediaUrls: data.mediaUrls ?? currentProperty.mediaUrls
+      });
+      if (photoError) return { error: apiError(photoError, 400) } as const;
 
       const property = await tx.property.update({
         data: { ...data, ...publication.data },

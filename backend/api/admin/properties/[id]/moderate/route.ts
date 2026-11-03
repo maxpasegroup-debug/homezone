@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { forbidden, handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, notFound, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { moderationSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { propertyPhotoTransitionError } from "@/lib/properties/photos";
 
 type RouteContext = {
   params: Promise<{
@@ -43,23 +44,43 @@ export async function PATCH(request: Request, context: RouteContext) {
       return parsed.error;
     }
 
-    const property = await db.property.update({
-      where: { id },
-      data: {
-        status: parsed.data.status === "NEEDS_CHANGES" ? "REJECTED" : parsed.data.status,
-        verificationNotes: parsed.data.note,
-        verificationStatus:
-          parsed.data.status === "PUBLISHED"
-            ? "VERIFIED"
-            : parsed.data.status === "NEEDS_CHANGES"
-              ? "NEEDS_CHANGES"
-              : parsed.data.status === "REJECTED"
-                ? "REJECTED"
-                : undefined,
-        verified: parsed.data.status === "PUBLISHED",
-        publishedAt: parsed.data.status === "PUBLISHED" ? new Date() : undefined
+    const result = await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Profile" WHERE id=${profile.id} FOR UPDATE`;
+      const actor = await tx.profile.findUnique({
+        where: { id: profile.id }, select: { role: true, verificationStatus: true }
+      });
+      if (!actor || !isAdminRole(actor.role) || actor.verificationStatus === "SUSPENDED") {
+        return { error: forbidden() } as const;
       }
+      await tx.$queryRaw`SELECT id FROM "Property" WHERE id=${id} FOR UPDATE`;
+      const current = await tx.property.findUnique({
+        where: { id }, select: { status: true, coverImageUrl: true, mediaUrls: true }
+      });
+      if (!current) return { error: notFound("Property not found") } as const;
+      const nextStatus = parsed.data.status === "NEEDS_CHANGES" ? "REJECTED" : parsed.data.status;
+      const photoError = propertyPhotoTransitionError(current, { ...current, status: nextStatus });
+      if (photoError) return { error: apiError(photoError, 400) } as const;
+      const property = await tx.property.update({
+        where: { id },
+        data: {
+          status: nextStatus,
+          verificationNotes: parsed.data.note,
+          verificationStatus:
+            parsed.data.status === "PUBLISHED"
+              ? "VERIFIED"
+              : parsed.data.status === "NEEDS_CHANGES"
+                ? "NEEDS_CHANGES"
+                : parsed.data.status === "REJECTED"
+                  ? "REJECTED"
+                  : undefined,
+          verified: parsed.data.status === "PUBLISHED",
+          publishedAt: parsed.data.status === "PUBLISHED" ? new Date() : undefined
+        }
+      });
+      return { property } as const;
     });
+    if ("error" in result) return result.error;
+    const property = result.property;
 
     await db.auditLog.create({
       data: {

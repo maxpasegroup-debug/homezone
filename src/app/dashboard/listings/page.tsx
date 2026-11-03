@@ -11,6 +11,7 @@ import { VerificationBadge } from "@/components/trust/verification-badge";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { countPropertyPhotos } from "@/lib/properties/photos";
 
 export const dynamic = "force-dynamic";
 
@@ -154,6 +155,7 @@ export default async function ListingsPage() {
               </div>
               <div className="mt-4">
                 <OwnerListingActions directPublication={profile.role === "OWNER"} propertyId={property.id}
+                  photoCount={countPropertyPhotos(property)}
                   status={property.status} verificationStatus={property.verificationStatus} />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">

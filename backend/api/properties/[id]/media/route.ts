@@ -7,6 +7,7 @@ import { propertyMediaSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
+import { propertyPhotoTransitionError } from "@/lib/properties/photos";
 
 type RouteContext = {
   params: Promise<{
@@ -104,6 +105,8 @@ export async function PATCH(request: Request, context: RouteContext) {
                   virtualTourUrl: action.virtualTourUrl ?? null
                 };
 
+    const photoError = propertyPhotoTransitionError(property, { ...property, ...nextData });
+    if (photoError) return { error: apiError(photoError, 400) } as const;
     const updated = await tx.property.update({
       where: {
         id

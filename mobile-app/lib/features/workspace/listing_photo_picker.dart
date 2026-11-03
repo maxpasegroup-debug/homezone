@@ -51,15 +51,18 @@ class ListingPhotoPicker extends StatefulWidget {
     required this.isCurrent,
     required this.onChanged,
     required this.onPickingChanged,
+    this.minimumPhotos = 0,
   });
 
   static const maxPhotos = 10;
+  static const minimumPublicationPhotos = 4;
   static const maxTotalBytes = 24 * 1024 * 1024;
   final List<SelectedListingPhoto> photos;
   final bool enabled;
   final bool Function() isCurrent;
   final ValueChanged<List<SelectedListingPhoto>> onChanged;
   final ValueChanged<bool> onPickingChanged;
+  final int minimumPhotos;
 
   @override
   State<ListingPhotoPicker> createState() => _ListingPhotoPickerState();
@@ -154,6 +157,10 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
               ],
             ),
             const SizedBox(height: 8),
+            if (widget.minimumPhotos > 0)
+              Text(
+                'At least ${widget.minimumPhotos} different property photos are required to publish (${widget.photos.length} selected).',
+              ),
             const Text(
               'Choose photos before saving. JPEG, PNG or WebP, up to 6 MB each and 24 MB in total.',
             ),

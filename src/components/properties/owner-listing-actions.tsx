@@ -4,16 +4,19 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, Loader2, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MIN_PROPERTY_PHOTOS } from "@/lib/properties/photos";
 
 export function OwnerListingActions({
   propertyId,
   status,
   verificationStatus,
+  photoCount,
   directPublication = false
 }: {
   propertyId: string;
   status: string;
   verificationStatus?: string;
+  photoCount: number;
   directPublication?: boolean;
 }) {
   const router = useRouter();
@@ -22,9 +25,16 @@ export function OwnerListingActions({
   const busy = useRef(false);
   const restricted = directPublication && (["REJECTED", "ARCHIVED"].includes(status) ||
     ["REJECTED", "NEEDS_CHANGES", "EXPIRED"].includes(verificationStatus ?? ""));
+  const needsPhotos = photoCount < MIN_PROPERTY_PHOTOS;
+  const offersPublication = !restricted && ((directPublication &&
+    (status === "DRAFT" || status === "PENDING_REVIEW")) || status === "ARCHIVED");
 
   async function update(statusValue: "PENDING_REVIEW" | "ARCHIVED" | "PUBLISHED") {
     if (busy.current || (restricted && statusValue !== "ARCHIVED")) return;
+    if (statusValue === "PUBLISHED" && needsPhotos) {
+      setMessage(`Add at least ${MIN_PROPERTY_PHOTOS} distinct property photos before publishing. This listing has ${photoCount}.`);
+      return;
+    }
     busy.current = true;
     setLoading(statusValue);
     setMessage("");
@@ -81,13 +91,13 @@ export function OwnerListingActions({
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         {(directPublication ? !restricted && (status === "DRAFT" || status === "PENDING_REVIEW") : status === "DRAFT" || status === "REJECTED") ? (
-          <Button disabled={Boolean(loading)} onClick={() => update(directPublication ? "PUBLISHED" : "PENDING_REVIEW")} size="sm">
+          <Button disabled={Boolean(loading) || (directPublication && needsPhotos)} onClick={() => update(directPublication ? "PUBLISHED" : "PENDING_REVIEW")} size="sm">
             {loading === "PENDING_REVIEW" || loading === "PUBLISHED" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {directPublication ? "Publish listing" : "Submit"}
           </Button>
         ) : null}
         {status === "ARCHIVED" ? !restricted ? (
-          <Button disabled={Boolean(loading)} onClick={() => update("PUBLISHED")} size="sm">
+          <Button disabled={Boolean(loading) || needsPhotos} onClick={() => update("PUBLISHED")} size="sm">
             Republish
           </Button>
         ) : null : (
@@ -102,6 +112,7 @@ export function OwnerListingActions({
         </Button>
       </div>
       {restricted ? <p className="text-xs font-semibold text-muted-foreground">Publishing is restricted. Contact HomeZone support before republishing.</p> : null}
+      {offersPublication && needsPhotos ? <p className="text-xs font-semibold text-muted-foreground">Add at least {MIN_PROPERTY_PHOTOS} distinct property photos to publish ({photoCount}/{MIN_PROPERTY_PHOTOS} added). Use Edit or Upload Media.</p> : null}
       {message ? <p className="text-xs font-semibold text-muted-foreground">{message}</p> : null}
     </div>
   );

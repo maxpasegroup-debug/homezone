@@ -1,5 +1,51 @@
 # HOMEZONE remaining integration blockers
 
+## Minimum-four-photo release and acceptance - 2026-11-03
+
+SOURCE IMPLEMENTED: new Owner publication requires four distinct photos in the
+mobile/web UI and backend. Mobile now saves privately, uploads/confirms photos,
+then publishes; there is still no approval step. 105 focused Flutter and 42
+backend tests plus TypeScript checking passed. No live records were changed.
+The explicit staging APK build passed and is ready as a candidate; it was not
+installed. Build record/hash and the previous-APK recovery path are in
+`OWNER_DIRECT_PUBLICATION.md`.
+
+Remaining: approve and coordinate the matching staging backend/APK release, with
+the existing predeploy migration gate checked separately; verify compliant
+Cloudinary configuration and one authorized real four-file upload/publication.
+The new backend rejects the old mobile create-before-upload request, so both
+artifacts must be coordinated. This source slice adds no migration/environment
+requirement and does not deploy, install, provision storage or touch production.
+Existing one-photo published data is retained as legacy data, not automatically
+hidden or filled with invented photos. Its earlier Buyer auto-update evidence
+does not prove the new four-upload flow. See `OWNER_DIRECT_PUBLICATION.md`.
+
+## Direct Owner publication acceptance closed for public Buyer discovery - 2026-11-03
+
+RUNTIME VERIFIED: one explicitly authorized staging property was created through
+the supplied Owner account's website form with PUBLISHED status and no approval.
+The updated Android APK was installed, Buyer discovery was left open before the
+create, and the same listing and actual hosted house photo appeared automatically
+without an agent Refresh or reopening discovery. Public catalogue/detail API
+reads independently returned database source, HTTP 200 and the matching property.
+Record ID: `cmw0jtf930003nw0x97xdmy4n`. Evidence and scope are documented in
+`OWNER_DIRECT_PUBLICATION.md`.
+
+The emulator's DNS failure was recovered through a same-AVD cold boot with
+explicit DNS, preserving user/app data and TLS/renderer configuration. No backend
+deployment, Railway change, migration or direct database operation was performed
+in this test. The earlier old-APK/empty-catalogue acceptance blocker below is
+historical and superseded for this workflow.
+
+Remaining separate checks: native Owner form publication; authenticated Buyer
+saved/enquiry workflows; actual device-file photo upload after approved staging
+Cloudinary provisioning; multi-page/live filtering cases. Local fixture tests
+cover the latter but are not live cross-client evidence. This test used an
+approved hosted Pexels image reference. The one clearly labelled synthetic test
+listing remains published in staging; no existing drafts were published, no new
+user account was created and production was untouched. No instantaneous push
+delivery or exact cross-system latency is claimed.
+
 ## Current direct-publication acceptance blocker - 2026-11-03, 09:15 UTC
 
 The backend release gate below is now closed by fresh read-only evidence:
