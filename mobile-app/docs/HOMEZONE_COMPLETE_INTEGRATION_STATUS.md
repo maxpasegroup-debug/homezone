@@ -1,5 +1,23 @@
 # HOMEZONE integration implementation status
 
+## Direct-publication verification update - 2026-11-03, 09:15 UTC
+
+The direct-publication implementation is now committed at
+`a357eee327c8597d43ed8352c84b67562fc10b20`. Fresh read-only Railway evidence
+confirms staging's active/latest deployment `5246bf68-f4bb-4079-ac12-cb4c86420d20`
+is SUCCESS and uses that exact source SHA. Its service domain is
+`homezone-staging.up.railway.app`. This supersedes the earlier pending-backend
+release statement; no deployment was triggered during this verification.
+
+Current checks passed again: 24 backend tests, 96 Flutter tests and TypeScript
+typechecking. A fresh Node catalogue GET returned HTTP 200, database source and
+zero published results at 09:13:55 UTC. This is not Flutter publication evidence.
+Read-only ADB checksum confirms the running emulator still has the previous
+`58cbdf9f...` APK; the direct-publication candidate is `25b8d899...`. No install,
+launch or property creation/publication was performed. The matching APK and one
+authorized real Owner-to-Buyer publication test remain necessary. Full hashes,
+deployment identity and request ID are in `OWNER_DIRECT_PUBLICATION.md`.
+
 ## Owner direct publication and automatic Buyer discovery - 2026-11-03
 
 The founder approved direct publication for new Owner properties, without a

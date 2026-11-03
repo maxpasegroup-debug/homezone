@@ -1,5 +1,23 @@
 # HOMEZONE remaining integration blockers
 
+## Current direct-publication acceptance blocker - 2026-11-03, 09:15 UTC
+
+The backend release gate below is now closed by fresh read-only evidence:
+staging's active deployment `5246bf68-f4bb-4079-ac12-cb4c86420d20` is SUCCESS
+and uses current source `a357eee327c8597d43ed8352c84b67562fc10b20`. No release
+or migration was initiated by this verification. Current local checks passed
+24 backend tests, 96 Flutter tests and TypeScript typechecking.
+
+The emulator is running the OLD APK, confirmed by its exact on-device SHA256
+matching the preserved previous build. It therefore does not contain Owner
+direct-publication creation. Install the matching staging candidate under the
+device approval boundary, then verify one explicitly authorized genuine Owner
+publication and automatic Buyer display on another session. The fresh staging
+catalogue GET returned 200/database/empty; this cannot prove that workflow.
+No properties, accounts, secrets, settings or production were changed. Detailed
+metadata, hashes and remaining Cloudinary limitation are in
+`OWNER_DIRECT_PUBLICATION.md`. Earlier sections retain historical observations.
+
 ## Direct Owner publication release gate - 2026-11-03
 
 SOURCE IMPLEMENTED: New Owner creation now publishes directly through the existing
