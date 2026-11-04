@@ -236,7 +236,7 @@ test("public-property writes emit only transaction-bound, anonymous invalidation
         reset(overrides); assert.equal((await create.POST(request("POST", createBody))).status, expected);
         assert.equal(state.committedWrites.length, 0); assert.equal(state.committedEvents.length, 0);
       }
-      reset(); assert.equal((await create.POST(request("POST", { ...createBody, mediaUrls: photos.slice(0, 3) }))).status, 400);
+      reset(); assert.equal((await create.POST(request("POST", { ...createBody, mediaUrls: photos.slice(0, 1) }))).status, 400);
       assert.equal(state.committedEvents.length, 0);
       reset(); assert.equal((await patch({ status: "invalid" })).status, 400);
       assert.equal(state.committedEvents.length, 0);
