@@ -21,7 +21,7 @@
     "db:migrate": "prisma migrate deploy",
     "start:realtime": "node server.mjs",
     "test:realtime": "node --test --test-isolation=none tests/property-realtime-server.test.mjs && node --test --test-isolation=none tests/property-realtime-writes.test.mjs && node --test --test-isolation=none tests/property-realtime-web.test.mjs",
-    "test:property-photos": "node --test --test-isolation=none tests/owner-publication.test.mjs && node --test --test-isolation=none tests/property-photo-admin.test.mjs && node --test --test-isolation=none tests/property-photo-storage.test.mjs"
+    "test:property-photos": "node --test --test-isolation=none tests/owner-publication.test.mjs && node --test --test-isolation=none tests/property-photo-admin.test.mjs && node --test --test-isolation=none tests/property-photo-storage.test.mjs && node --test --test-isolation=none tests/property-photo-volume.test.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

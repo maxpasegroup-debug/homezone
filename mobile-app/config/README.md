@@ -1,6 +1,18 @@
 ﻿# Local build configuration
 
-No real origin or secrets are supplied in this repository. Runtime service mode
+## Staging property-photo volume
+
+The staging property-photo volume serves public images from the exact host
+`homezone-staging.up.railway.app`. When packaging that approved staging client,
+include this hostname in `HOMEZONE_IMAGE_HOSTS` alongside any existing approved
+CDN hosts. Keep `HOMEZONE_API_BASE_URL` origin-only and keep media/video hosts
+separate. Editing the ignored JSON does not update an already installed APK;
+a new explicit staging build is required for volume images to display.
+No API cookies or credentials are sent by the image transport. Production can
+retain the existing `res.cloudinary.com` allowlist and Cloudinary provider.
+See `../docs/PROPERTY_PHOTO_VOLUME_STORAGE.md` for staging activation and migration.
+
+Server secrets must never be supplied through these build files. Runtime service mode
 requires an explicitly approved origin and backend. Creating a config file is
 not authorization to connect to that environment.
 

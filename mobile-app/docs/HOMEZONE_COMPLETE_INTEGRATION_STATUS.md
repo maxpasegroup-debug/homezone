@@ -1,5 +1,118 @@
 # HOMEZONE integration implementation status
 
+## Staging volume photo storage - SOURCE IMPLEMENTED / LOCAL TESTED - 2026-11-04
+
+The founder selected a Railway photo volume for staging and Cloudinary for
+production. The existing uploader now supports explicit
+`PROPERTY_PHOTO_STORAGE=railway-volume` for property photographs, with a new
+staging-only mounted-volume adapter and public immutable image GET/HEAD route.
+Cloudinary remains the default, production is gated out of volume mode, and
+existing auth/ownership, two-photo publication/readback and media limits remain.
+No schema/migration is added. The client image allowlist includes the exact
+staging host; a new APK is required for this nonsecret build setting.
+
+Local property-photo checks passed **66 tests**, and TypeScript checking passed.
+Real temporary files, strict mount/origin/path/MIME guards, atomic write/readback,
+sanitized errors and Cloudinary compatibility are covered. Synthetic mount
+evidence does not prove Linux/Railway persistence or a successful device upload.
+
+NOT ACTIVATED: the live backend still needs a dedicated photo volume, the new
+provider selector and this backend release. Source work did not attach a volume,
+set Railway variables, deploy, restart or change database/production data. Existing
+`railway.json` pre-deploy can run all pending migrations and must be reconciled
+before an approved release. End-to-end publication/Buyer auto-update remains
+BLOCKED until activation and a controlled native acceptance run.
+See `PROPERTY_PHOTO_VOLUME_STORAGE.md` for exact files, target, rollout and
+Cloudinary transition/rollback requirements.
+
+New staging APK COMPILED: `build/app/outputs/apk/debug/app-debug.apk`,
+184,939,163 bytes, SHA-256
+`911f6941883db901324c6977defee73e917bfaf7b5a12dfeb35a288d8e1893d8`.
+Build record: `build/android-source-builds/2026-11-04T12-00-50-579Z-32676/build-record.json`.
+Explicit `--mode service --config config/staging.local.json`, offline compilation;
+previous artifact preserved. No installation, launch or live acceptance by this
+slice. The installed earlier APK remains unchanged and cannot display the new
+staging-host photo URLs until this candidate is installed after backend activation.
+
+## Authorized Owner-to-Buyer emulator check - BLOCKED - 2026-11-04
+
+Executed on `emulator-5554` against staging only, baseline
+`8eec2030534300a850c3009f823d3ed5e42931fd`. Installed the existing explicitly
+staging-configured debug APK (SHA-256
+`d61f1a89674a91c2aba4626db2fb9962f994c85963aa75c759cc596bbf26d168`)
+with `adb install -r`, preserving app data and the previous installed APK locally.
+No build or automated test was run in this check.
+
+DEVICE VERIFIED: Android presentation worked; the restored Buyer dashboard
+displayed a real listing and its image. Buyer sign-out received a server
+acknowledgment. The authorized existing Owner account then signed in through the
+native form and reached the Owner dashboard with the server-confirmed role.
+Whitelisted process-scoped Flutter diagnostics recorded catalogue requests to
+the staging host returning HTTP 200.
+
+Owner creation was exercised through all six steps using a clearly labelled test
+title, Sell/Residential/Apartment, description, city, INR price and two distinct
+nonpersonal test photos. Retained purpose/category/details and both selected
+photo previews were visible on Review. One tap on **Publish listing** produced:
+
+> Photo uploads are unavailable. Please contact HomeZone support. Your details
+> and selected photos are kept on this screen. No listing was created.
+
+This exact message follows `propertyPhotoUploadConfigured:false` from the
+authenticated capabilities request (`workspace_screen.dart:2619-2627`). The
+guard runs before the property POST (`:2631-2641`). The current backend flag
+uses `getCloudinaryConfig()` (`src/app/api/mobile/capabilities/route.ts:13`),
+which requires `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and
+`CLOUDINARY_API_SECRET` (`src/lib/media/cloudinary.ts:4-9`). The runtime evidence
+confirms unavailable photo configuration; it does not identify which individual
+variable is absent or validate any secret value. A Railway volume alone is not
+connected to this upload implementation.
+
+An independent read-only staging catalogue check at `2026-11-04T11:15:23.321Z`
+returned HTTP 200, source `database`, one property and no matching test listing.
+No new listing was created/published by the attempted flow. Automatic appearance
+of a newly published property on an already-open Buyer screen remains BLOCKED,
+not runtime verified. The form remains open with its inputs/photos retained;
+submission was not retried. The error required scrolling down in Review to see.
+
+Local ignored evidence: `build/owner-buyer-device-check-20261104/` contains
+`publish-storage-error.png`, `public-catalogue-after.json` and
+`sanitized-app-log.txt`. Do not publish unrelated account/profile screenshots.
+No application source, Railway configuration, migration, direct database,
+production, deployment, commit or push operation was performed. Native sign-in
+and sign-out used their existing session APIs. Next: separately approve private
+staging photo-provider configuration and its service effects, then repeat the
+single-publication/stored-photo/Buyer-auto-update acceptance check.
+
+### Follow-up of the displayed error: live configuration confirmed
+
+Read-only Railway CLI inspection matched project
+`1f8c9007-2993-426c-bbd0-b8dd0a0b17da`, environment
+`2181eadf-21a0-4ca3-8269-b6b6f28af9f4`, backend service
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00` and the exact staging public domain.
+The active successful deployment is `8979038d-85e1-4e69-81d6-c224ed21b0f4`,
+created `2026-11-04T10:57:14.207Z`, commit
+`8eec2030534300a850c3009f823d3ed5e42931fd`, matching local HEAD. This rules
+out an older source commit as the cause of this particular missing-storage flag.
+
+All three Cloudinary variable names are absent from that staging backend's
+effective variable list. No secret values were displayed or saved. Its backend
+has no attached volume or volume-mount variable; the environment's existing
+volume belongs to PostgreSQL and must not be used for property photos. No object
+storage bucket was reported. The local ignored `.env.local` also has no nonempty
+values for the three Cloudinary requirements. Apparent entries alone are not
+valid configuration: values were parsed privately rather than counted by name.
+
+The smallest correction is to provision genuine approved staging Cloudinary
+credentials, then activate them through a separately approved service action.
+`config/staging.local.json` already allows the exact `res.cloudinary.com` image
+host, so no speculative Flutter host bypass or new storage architecture is
+needed. Browser access to an existing storage account was unavailable. The
+founder was asked to populate the three existing entries privately in ignored
+`.env.local`, not paste secret values into chat. No variable change, restart,
+release, upload or repeat publication was attempted while credentials were
+missing. Any release must still review `railway.json`'s migration predeploy.
+
 ## Five-role workflow repairs - SOURCE IMPLEMENTED / COMPILED / LOCAL CHECKED - 2026-11-04
 
 Baseline `main` / `4994a03589b80acbfc1fce535d61319e1af98374` was clean before

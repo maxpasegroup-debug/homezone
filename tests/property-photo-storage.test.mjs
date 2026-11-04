@@ -7,10 +7,10 @@ import ts from "typescript";
 
 // Execute the real upload/configuration contracts with in-process auth, audit,
 // logging and HTTP fixtures. No Railway, provider or database is contacted.
-const state = { authenticated: true, suspended: false, allowed: true, logs: [], audits: [], fetches: [] };
+const state = { authenticated: true, suspended: false, allowed: true, logs: [], audits: [], fetches: [], volumeReady: false, volumeWrites: [], volumeFailure: false };
 globalThis.__photoStorageFixture = state;
 const keys = ["CLOUDINARY_CLOUD_NAME", "CLOUDINARY_API_KEY", "CLOUDINARY_API_SECRET"];
-const originalEnvironment = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+const originalEnvironment = Object.fromEntries([...keys, "PROPERTY_PHOTO_STORAGE"].map(key => [key, process.env[key]]));
 const originalFetch = globalThis.fetch;
 const mocks = {
   "@/auth": "export const auth=async()=>globalThis.__photoStorageFixture.authenticated?{user:{id:'synthetic-user'}}:null;",
@@ -19,6 +19,10 @@ const mocks = {
   "@/lib/audit": "export const auditLog=async value=>globalThis.__photoStorageFixture.audits.push(value);",
   "@/lib/env": "export const env={UPLOAD_MAX_BYTES:25000000};",
   "@/lib/documents/private-files": "export const requirePrivateFiles=()=>{throw new Error('SYNTHETIC_UNAVAILABLE');};",
+  "@/lib/media/property-photo-storage": `
+    export const propertyPhotoStorageProvider=()=>{const p=process.env.PROPERTY_PHOTO_STORAGE||'cloudinary';if(!['cloudinary','railway-volume'].includes(p))throw Error('SYNTHETIC_PRIVATE_CONFIG');return p;};
+    export const propertyPhotoVolumeReady=async()=>globalThis.__photoStorageFixture.volumeReady;
+    export const storeVolumePropertyPhoto=async(bytes,mime)=>{const s=globalThis.__photoStorageFixture;s.volumeWrites.push({size:bytes.length,mime});if(s.volumeFailure)throw Error('SYNTHETIC_PRIVATE_VOLUME_PATH');return {url:'https://homezone-staging.up.railway.app/api/property-photos/00000000-0000-4000-8000-000000000000.jpg',publicId:'synthetic-volume-photo',resourceType:'image'};};`,
   "@/lib/api/rate-limit": "export const checkRateLimit=()=>({allowed:globalThis.__photoStorageFixture.allowed,resetAt:new Date(Date.now()+60000)});export const rateLimitKey=()=> 'synthetic';",
   "@/lib/logging/logger": "export const captureException=()=>{globalThis.__photoStorageFixture.logs.push({unexpected:true});};export const logger={warn:(message,context)=>globalThis.__photoStorageFixture.logs.push({message,context})};"
 };
@@ -44,7 +48,8 @@ const capabilities = await import("../src/app/api/mobile/capabilities/route.ts")
 hooks.deregister();
 
 function reset(configured = false) {
-  Object.assign(state, { authenticated: true, suspended: false, allowed: true, logs: [], audits: [], fetches: [] });
+  Object.assign(state, { authenticated: true, suspended: false, allowed: true, logs: [], audits: [], fetches: [], volumeReady: false, volumeWrites: [], volumeFailure: false });
+  delete process.env.PROPERTY_PHOTO_STORAGE;
   for (const key of keys) {
     if (configured) process.env[key] = `SYNTHETIC_PRIVATE_${key}`;
     else delete process.env[key];
@@ -93,6 +98,66 @@ test("property photo storage configuration and provider failures stay explicit a
       assertSanitized(body);
       assert.equal(state.fetches.length, 0);
       assert.equal(state.audits.length, 0);
+    });
+    await t.test("explicit ready volume works without Cloudinary credentials and keeps the upload contract", async () => {
+      reset();process.env.PROPERTY_PHOTO_STORAGE = "railway-volume";state.volumeReady = true;
+      assert.equal((await (await capabilities.GET()).json()).propertyPhotoUploadConfigured, true);
+      assert.equal(state.volumeWrites.length, 0, "capability does not write photos");
+      const response = await upload.POST(request());
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.url, "https://homezone-staging.up.railway.app/api/property-photos/00000000-0000-4000-8000-000000000000.jpg");
+      assert.equal(result.resourceType, "image");
+      assert.deepEqual(state.volumeWrites, [{size:4,mime:"image/jpeg"}]);
+      assert.equal(state.fetches.length, 0);assert.equal(state.audits.length, 1);
+    });
+    await t.test("unavailable volume and unknown provider fail closed without using Cloudinary", async () => {
+      for (const provider of ["railway-volume", "unknown"]) {
+        reset(true);process.env.PROPERTY_PHOTO_STORAGE = provider;
+        assert.equal((await (await capabilities.GET()).json()).propertyPhotoUploadConfigured, false);
+        const response = await upload.POST(request());
+        assert.equal(response.status, 503);
+        const result = await response.json();
+        assert.equal(result.code, "PROPERTY_PHOTO_STORAGE_UNAVAILABLE");
+        assert.equal(state.fetches.length, 0);assert.equal(state.volumeWrites.length, 0);
+        assert.equal(state.audits.length, 0);assertSanitized([result,state.logs]);
+      }
+    });
+    await t.test("volume errors are sanitized and cancelled callers do not write", async () => {
+      for (const cancelled of [false, true]) {
+        reset();process.env.PROPERTY_PHOTO_STORAGE = "railway-volume";
+        state.volumeReady = true;state.volumeFailure = true;
+        const caller = new AbortController();if(cancelled) caller.abort();
+        const response = await upload.POST(request(caller.signal));
+        const result = await response.json();
+        assert.equal(response.status, 502);assert.equal(result.code, "PROPERTY_PHOTO_UPLOAD_FAILED");
+        assert.equal(state.volumeWrites.length, cancelled ? 0 : 1);
+        assert.equal(state.fetches.length, 0);assert.equal(state.audits.length, 0);
+        assertSanitized([result,state.logs]);
+      }
+    });
+    await t.test("volume storage rejects documents, unsupported photos and invalid sizes", async () => {
+      for (const [folder,mime,size] of [
+        ["homezone/property-documents","application/pdf",4],
+        ["homezone/property-media","image/gif",4],
+        ["homezone/property-media","image/jpeg",0],
+        ["homezone/property-media","image/jpeg",6*1024*1024+1]
+      ]) {
+        reset();process.env.PROPERTY_PHOTO_STORAGE="railway-volume";state.volumeReady=true;
+        const form=new FormData();form.append("folder",folder);
+        form.append("file",new File([new Uint8Array(size)],"synthetic",{type:mime}));
+        const response=await upload.POST(new Request("https://fixture.invalid/api/media/upload",{method:"POST",body:form}));
+        assert.equal(response.status,400);assert.equal(state.fetches.length,0);assert.equal(state.volumeWrites.length,0);
+      }
+    });
+    await t.test("volume photo selection preserves the separate Cloudinary reel upload contract", async () => {
+      reset(true);process.env.PROPERTY_PHOTO_STORAGE="railway-volume";
+      globalThis.fetch=async(...args)=>{state.fetches.push(args);return Response.json({secure_url:"https://images.fixture.invalid/reel.mp4",public_id:"synthetic-reel",resource_type:"video"});};
+      const form=new FormData();form.append("folder","homezone/property-reels");
+      form.append("file",new File([new Uint8Array(4)],"synthetic.mp4",{type:"video/mp4"}));
+      const response=await upload.POST(new Request("https://fixture.invalid/api/media/upload",{method:"POST",body:form}));
+      assert.equal(response.status,200);assert.equal((await response.json()).resourceType,"video");
+      assert.equal(state.volumeWrites.length,0);assert.equal(state.fetches.length,1);
     });
     await t.test("unauthenticated and suspended callers cannot read capability information or upload", async () => {
       for (const [key, status] of [["authenticated", 401], ["suspended", 403]]) {
@@ -324,7 +389,7 @@ test("property photo storage configuration and provider failures stay explicit a
     });
   } finally {
     globalThis.fetch = originalFetch;
-    for (const key of keys) {
+    for (const key of Object.keys(originalEnvironment)) {
       if (originalEnvironment[key] === undefined) delete process.env[key];
       else process.env[key] = originalEnvironment[key];
     }

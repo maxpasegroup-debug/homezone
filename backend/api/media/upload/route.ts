@@ -5,6 +5,7 @@ import { apiError, forbidden, handleApiError, ok, rateLimited, unauthorized } fr
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { env } from "@/lib/env";
 import { getCloudinaryConfig, signCloudinaryParams } from "@/lib/media/cloudinary";
+import { propertyPhotoStorageProvider, propertyPhotoVolumeReady, storeVolumePropertyPhoto } from "@/lib/media/property-photo-storage";
 import { logger } from "@/lib/logging/logger";
 
 export const runtime = "nodejs";
@@ -34,7 +35,7 @@ const allowedFolders = new Set([
 
 function uploadUnavailable(
   code: "PROPERTY_PHOTO_STORAGE_UNAVAILABLE" | "PROPERTY_PHOTO_UPLOAD_FAILED" | "PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE",
-  stage: "configuration" | "provider-request" | "provider-response" | "provider-confirmation" | "provider-timeout" | "provider-cancelled"
+  stage: "configuration" | "volume-write" | "provider-request" | "provider-response" | "provider-confirmation" | "provider-timeout" | "provider-cancelled"
 ) {
   // Fixed categories only. Never record provider responses, URLs or credentials.
   logger.warn("Media upload unavailable", { stage, category: code });
@@ -89,6 +90,43 @@ export async function POST(request: Request) {
 
     if (file.size > env.UPLOAD_MAX_BYTES) {
       return apiError("File is too large", 400);
+    }
+
+    let provider: ReturnType<typeof propertyPhotoStorageProvider>;
+    try {
+      provider = propertyPhotoStorageProvider();
+    } catch {
+      return uploadUnavailable("PROPERTY_PHOTO_STORAGE_UNAVAILABLE", "configuration");
+    }
+    if (provider === "railway-volume" && folder === "homezone/property-media") {
+      // The staging volume is for public property photographs only. Private
+      // documents and reels retain their existing, separate storage contracts.
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        return apiError("Use JPEG, PNG or WebP property photographs with volume storage.", 400);
+      }
+      if (file.size === 0 || file.size > 6 * 1024 * 1024) {
+        return apiError("Property photographs must be nonempty and at most 6 MiB.", 400);
+      }
+      if (!await propertyPhotoVolumeReady()) {
+        return uploadUnavailable("PROPERTY_PHOTO_STORAGE_UNAVAILABLE", "configuration");
+      }
+      if (request.signal.aborted) {
+        return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "provider-cancelled");
+      }
+      let result: Awaited<ReturnType<typeof storeVolumePropertyPhoto>>;
+      try {
+        result = await storeVolumePropertyPhoto(new Uint8Array(await file.arrayBuffer()), file.type);
+      } catch {
+        return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "volume-write");
+      }
+      await auditLog({
+        action: "media_uploaded",
+        actorId: profile.id,
+        entityType: "media",
+        entityId: result.publicId,
+        metadata: { bytes: file.size, folder, mimeType: file.type, resourceType: result.resourceType }
+      });
+      return ok(result);
     }
 
     let config: ReturnType<typeof getCloudinaryConfig>;

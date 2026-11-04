@@ -1,5 +1,66 @@
 # HOMEZONE remaining integration blockers
 
+## Volume-storage decision: staging activation pending - 2026-11-04
+
+Source now supports the founder's Railway-volume staging choice. Cloudinary
+credentials are no longer required for property-photo writes **once this volume
+adapter is actually activated**. Until then, the current live missing-storage
+error remains valid. No guard was removed and no success was fabricated.
+
+Required release: attach a separate photo volume at `/app/property-media` to the
+explicitly identified staging backend, set
+`PROPERTY_PHOTO_STORAGE=railway-volume`, verify injected mount identity, release
+this backend and use the updated exact-host staging APK. Preserve the PostgreSQL
+volume and production. Existing pre-deploy migrations and service interruption
+require the established separate release approval. No new migration is needed.
+
+Local checks: 66 photo tests and TypeScript passed. Still unverified: actual
+Railway Linux mount/fsync and persistence, capacity/backups, two real photo
+uploads, same-record publication, Owner/Buyer rendered images and automatic
+appearance on an already-open Buyer screen. Old volume image URLs must be kept
+reachable or migrated when switching to Cloudinary; changing the provider alone
+does not move files. Full activation/rollback: `PROPERTY_PHOTO_VOLUME_STORAGE.md`.
+
+## Current emulator-confirmed Owner publication blocker - 2026-11-04
+
+The authorized native staging check reached Owner Review with all required
+fields and two distinct selected photos. Tapping **Publish listing** returned
+the explicit storage-unavailable message and retained the form: **No listing
+was created.** This is now device evidence, not only a historical variable
+inventory. The client's authenticated capabilities guard rejected
+`propertyPhotoUploadConfigured:false` before sending the property creation POST.
+
+Current source derives that flag from the presence of all three Cloudinary
+requirements: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
+`CLOUDINARY_API_SECRET`. The exact absent variable(s) were not inspected in this
+device check; no values were retrieved or changed. The existing upload route
+uses Cloudinary, and a mounted Railway volume has no property-photo adapter.
+
+Follow-up read-only CLI evidence now confirms **all three names absent** from
+the matched staging backend. Its active successful deployment
+`8979038d-85e1-4e69-81d6-c224ed21b0f4` (created
+`2026-11-04T10:57:14.207Z`) runs local HEAD
+`8eec2030534300a850c3009f823d3ed5e42931fd`. There is no backend photo volume
+attached; the existing PostgreSQL volume is unrelated and must remain untouched.
+Local ignored configuration has no nonempty Cloudinary credentials either.
+The app already permits the exact Cloudinary image host. Genuine privately
+supplied storage credentials, not a form rewrite or removed guard, are required.
+
+Owner native sign-in/role dashboard, Buyer catalogue HTTP 200 and an existing
+listing image were device verified. New Owner publication, stored-photo
+readback and automatic Buyer appearance remain BLOCKED by photo-storage setup.
+The subsequent public catalogue returned source `database`, one property and no
+test listing. Do not describe the Owner-to-Buyer workflow as working end to end.
+
+Next operation requiring separate approval: privately provision/verify the
+staging photo-provider variables and any resulting service release effects.
+Then authorize/repeat one controlled native publication with 2-6 photos and
+observe the matching Buyer record without manual refresh. Verify WebSocket
+101/ready independently; HTTP fallback success does not prove socket activation.
+Full device evidence and artifact identity are in the current first section of
+`HOMEZONE_COMPLETE_INTEGRATION_STATUS.md`. No infrastructure/source change,
+direct database operation, migration or deployment was made during this check.
+
 ## After role-workflow source repairs - 2026-11-04
 
 The four high-priority findings from the role cross-check have source fixes and
