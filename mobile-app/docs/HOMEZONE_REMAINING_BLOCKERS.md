@@ -1,5 +1,14 @@
 # HOMEZONE remaining integration blockers
 
+## Two-photo Owner policy release - 2026-11-04
+
+Owner publication now requires two distinct stored photos; the mobile new-listing
+picker permits up to six. This supersedes four-photo statements in historical
+sections below. A matching backend release and updated APK are required before
+claiming the deployed flow accepts two photos. Existing larger galleries, photo
+storage/host requirements, upload confirmation and authorization remain unchanged.
+No live property was created or modified by this policy change.
+
 ## Five-role dashboard release acceptance - 2026-11-04
 
 SOURCE IMPLEMENTED: focused role navigation/homes, actual scoped record previews,

@@ -54,8 +54,8 @@ class ListingPhotoPicker extends StatefulWidget {
     this.minimumPhotos = 0,
   });
 
-  static const maxPhotos = 10;
-  static const minimumPublicationPhotos = 4;
+  static const maxPhotos = 6;
+  static const minimumPublicationPhotos = 2;
   static const maxTotalBytes = 24 * 1024 * 1024;
   final List<SelectedListingPhoto> photos;
   final bool enabled;
@@ -162,7 +162,7 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
                 'At least ${widget.minimumPhotos} different property photos are required to publish (${widget.photos.length} selected).',
               ),
             const Text(
-              'Choose photos before saving. JPEG, PNG or WebP, up to 6 MB each and 24 MB in total.',
+              'Choose up to 6 photos before saving. JPEG, PNG or WebP, up to 6 MB each and 24 MB in total.',
             ),
             const SizedBox(height: 12),
             if (widget.photos.isEmpty)

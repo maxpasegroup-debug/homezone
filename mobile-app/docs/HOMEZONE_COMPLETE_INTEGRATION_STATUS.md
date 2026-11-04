@@ -1,5 +1,52 @@
 # HOMEZONE integration implementation status
 
+## Owner photo policy update - SOURCE IMPLEMENTED / COMPILED - 2026-11-04
+
+This supersedes the earlier four-photo requirement below. Owner publication now
+requires at least **two distinct stored property photos**. The mobile Create
+listing picker accepts at most **six selected photos**; 2, 3, 4, 5 and 6 are valid
+counts. Existing 6 MB-per-photo and 24 MB-total safeguards remain.
+
+The shared backend publication minimum and browser labels use the same two-photo
+policy. The existing server gallery capacity remains unchanged so larger stored
+galleries are not deleted or rejected on read. The new six-photo cap applies to
+the mobile creation picker, not a destructive truncation of existing records.
+
+The draft/upload/readback/publication sequence is preserved: every selected photo
+must finish uploading, and the independently read stored gallery must satisfy the
+minimum before publication. Duplicate images/URLs do not satisfy the minimum.
+No schema, migration, environment, infrastructure or account change is needed.
+
+This source policy requires a matching backend release and updated mobile APK to
+be effective together. No deployment, installation or live property write was
+performed. Earlier APK/test evidence below belongs to the four-photo candidate.
+
+Local verification for this update: 94 focused Flutter tests passed
+(`create_listing_photos_test.dart`, `listing_wizard_test.dart`,
+`owner_property_photos_test.dart`); backend Owner publication 24/24 and
+administrator publication 11/11 passed; `npm run typecheck` passed. Targeted
+Flutter analysis passed with no errors/warnings and 33 existing informational
+lints. Checks cover 0/1-photo rejection, exactly 2-photo publication, 4/6-photo
+publication, duplicate stored references, seventh-selection rejection, and
+waiting for every selected upload rather than publishing after the first two.
+
+Changed source: `lib/features/workspace/listing_photo_picker.dart`,
+`lib/features/workspace/workspace_screen.dart`, `../src/lib/properties/photos.ts`.
+Changed fixtures: the two Flutter creation/wizard files above and
+`../tests/owner-publication.test.mjs`, `../tests/property-photo-admin.test.mjs`.
+Updated documents: this status, `HOMEZONE_REMAINING_BLOCKERS.md` and
+`ROLE_DASHBOARD_RELEASE_CHECKLIST.md`. Existing data and authentication are untouched.
+
+Updated staging debug APK built successfully with
+`node scripts/build-android.mjs --mode service --config config/staging.local.json`.
+Artifact: `build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes.
+SHA-256: `c1c7b6757d4144410a78818be21b472eb66a8cec6569367e24c69a9b6349da0f`,
+independently verified with `Get-FileHash`. Build record:
+`build/android-source-builds/2026-11-04T06-56-11-689Z-19652/build-record.json`.
+Explicit staging origin: `https://homezone-staging.up.railway.app`;
+`freshlyWritten: true`, runtime/live-service flags false. Previous APK preserved.
+Not installed or launched; backend deployment and live acceptance remain pending.
+
 ## Five-role dashboard and property journey improvements - SOURCE IMPLEMENTED - 2026-11-04
 
 Role selection now opens existing email/password Sign In directly. Create a new

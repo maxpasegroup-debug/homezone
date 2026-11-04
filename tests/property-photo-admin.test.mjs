@@ -63,20 +63,31 @@ function call(route, status) {
   }), { params: Promise.resolve({ id: "property-0001" }) });
 }
 
-test("all administrator publication entry points enforce four photos under locks", async t => {
+test("all administrator publication entry points enforce two photos under locks", async t => {
   for (const [name, route, publication] of [["moderate", moderate, "PUBLISHED"], ["verify", verify, "VERIFIED"]]) {
-    await t.test(`${name}: three photos cannot be published or audited as successful`, async () => {
-      reset(); state.property.mediaUrls = photos(3);
-      const response = await call(route, publication);
-      assert.equal(response.status, 400); assert.match((await response.json()).error, /at least 4/);
-      assert.equal(state.writes.length, 0); assert.equal(state.audits, 0);
-      assert.deepEqual(state.locks.map(s => /Profile/.test(s) ? "profile" : "property"), ["profile", "property"]);
+    await t.test(`${name}: zero or one photo cannot be published or audited as successful`, async () => {
+      for (const count of [0, 1]) {
+        reset(); state.property.mediaUrls = photos(count);
+        const response = await call(route, publication);
+        assert.equal(response.status, 400); assert.match((await response.json()).error, /at least 2/);
+        assert.equal(state.writes.length, 0); assert.equal(state.audits, 0);
+        assert.deepEqual(state.locks.map(s => /Profile/.test(s) ? "profile" : "property"), ["profile", "property"]);
+      }
     });
-    await t.test(`${name}: four distinct photos permit authorized publication`, async () => {
-      reset(); state.property.coverImageUrl = state.property.mediaUrls[0];
-      const response = await call(route, publication);
-      assert.equal(response.status, 200); assert.equal(state.writes[0].data.status, "PUBLISHED");
-      assert.equal(state.audits, 1);
+    await t.test(`${name}: two, four or six distinct photos permit authorized publication`, async () => {
+      for (const count of [2, 4, 6]) {
+        reset(); state.property.mediaUrls = photos(count); state.property.coverImageUrl = state.property.mediaUrls[0];
+        const response = await call(route, publication);
+        assert.equal(response.status, 200); assert.equal(state.writes[0].data.status, "PUBLISHED");
+        assert.equal(state.audits, 1);
+      }
+    });
+    await t.test(`${name}: repeated cover and gallery photos count once`, async () => {
+      reset(); const photo = photos(1)[0];
+      state.property.coverImageUrl = `${photo}#cover`;
+      state.property.mediaUrls = [photo, `${photo}#gallery`, "https://PHOTOS.example.invalid:443/0.jpg"];
+      assert.equal((await call(route, publication)).status, 400);
+      assert.equal(state.writes.length, 0); assert.equal(state.audits, 0);
     });
     await t.test(`${name}: legacy publication stays visible and private moderation remains possible`, async () => {
       reset(); state.property.status = "PUBLISHED"; state.property.mediaUrls = photos(1);

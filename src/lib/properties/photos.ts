@@ -1,4 +1,4 @@
-export const MIN_PROPERTY_PHOTOS = 4;
+export const MIN_PROPERTY_PHOTOS = 2;
 
 type PropertyPhotos = {
   coverImageUrl?: string | null;

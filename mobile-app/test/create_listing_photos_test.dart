@@ -565,50 +565,52 @@ void main() {
     );
   }
 
-  photoTest(
-    'Owner creates privately and confirms four photos before publishing',
-    (tester) async {
-      final result = await _open(tester, fixture, publish: true);
-      picker.results.addAll(List.generate(4, _picked));
-      for (var index = 0; index < 4; index++) {
-        await _tap(tester, 'Add photo');
-      }
-      await _tap(tester, 'Publish listing');
-      expect(_body(_creates(fixture).single), {
-        'title': 'Local listing fixture',
-        'status': 'DRAFT',
-      });
-      expect(
-        fixture.transport.requests.map((r) => '${r.method} ${r.uri.path}'),
-        [
-          'GET /api/mobile/capabilities',
-          'POST /api/properties',
-          'GET /api/auth/session',
-          'POST /api/mobile/upload',
-          'POST /api/mobile/upload',
-          'POST /api/mobile/upload',
-          'POST /api/mobile/upload',
-          'GET /api/properties/$_propertyId/media',
-          'PATCH /api/properties/$_propertyId',
-        ],
-      );
-      expect(
-        _uploads(fixture).map(_body),
-        List.generate(
-          4,
-          (index) => {
-            'propertyId': _propertyId,
-            'base64': _picked(index)['base64'],
-          },
-        ),
-      );
-      expect(_body(fixture.transport.requests.last), {'status': 'PUBLISHED'});
-      expect(await result.future, true);
-      expect(find.text('Listing published with 4 photos.'), findsOneWidget);
-    },
-  );
+  for (final count in [2, 4, 6]) {
+    photoTest(
+      'Owner creates privately and confirms $count photos before publishing',
+      (tester) async {
+        final result = await _open(tester, fixture, publish: true);
+        picker.results.addAll(List.generate(count, _picked));
+        for (var index = 0; index < count; index++) {
+          await _tap(tester, 'Add photo');
+        }
+        await _tap(tester, 'Publish listing');
+        expect(_body(_creates(fixture).single), {
+          'title': 'Local listing fixture',
+          'status': 'DRAFT',
+        });
+        expect(
+          fixture.transport.requests.map((r) => '${r.method} ${r.uri.path}'),
+          [
+            'GET /api/mobile/capabilities',
+            'POST /api/properties',
+            'GET /api/auth/session',
+            ...List.filled(count, 'POST /api/mobile/upload'),
+            'GET /api/properties/$_propertyId/media',
+            'PATCH /api/properties/$_propertyId',
+          ],
+        );
+        expect(
+          _uploads(fixture).map(_body),
+          List.generate(
+            count,
+            (index) => {
+              'propertyId': _propertyId,
+              'base64': _picked(index)['base64'],
+            },
+          ),
+        );
+        expect(_body(fixture.transport.requests.last), {'status': 'PUBLISHED'});
+        expect(await result.future, true);
+        expect(
+          find.text('Listing published with $count photos.'),
+          findsOneWidget,
+        );
+      },
+    );
+  }
 
-  for (final count in [0, 3]) {
+  for (final count in [0, 1]) {
     photoTest('Owner cannot publish with $count selected photos', (
       tester,
     ) async {
@@ -623,7 +625,7 @@ void main() {
       expect(result.isCompleted, false);
       expect(
         find.text(
-          'Add at least 4 different property photos before publishing.',
+          'Add at least 2 different property photos before publishing.',
         ),
         findsOneWidget,
       );
@@ -746,11 +748,11 @@ void main() {
   });
 
   photoTest(
-    'duplicate stored gallery URLs cannot satisfy the four-photo requirement',
+    'duplicate stored gallery URLs cannot satisfy the two-photo requirement',
     (tester) async {
       final result = await _open(tester, fixture, publish: true);
-      picker.results.addAll(List.generate(4, _picked));
-      for (var index = 0; index < 4; index++) {
+      picker.results.addAll(List.generate(2, _picked));
+      for (var index = 0; index < 2; index++) {
         await _tap(tester, 'Add photo');
       }
       final success = fixture.transport.reply!;
@@ -760,7 +762,7 @@ void main() {
                 'id': _propertyId,
                 'coverImageUrl': 'https://media.example.invalid/same.png',
                 'mediaUrls': List.filled(
-                  4,
+                  2,
                   'https://media.example.invalid/same.png',
                 ),
               },
@@ -768,7 +770,7 @@ void main() {
           : success(request);
       await _tap(tester, 'Publish listing');
       expect(_creates(fixture), hasLength(1));
-      expect(_uploads(fixture), hasLength(4));
+      expect(_uploads(fixture), hasLength(2));
       expect(
         fixture.transport.requests.where(
           (request) => request.method == 'PATCH',
@@ -1038,7 +1040,7 @@ void main() {
   }
 
   photoTest(
-    'existing draft publication rejection explains the four-photo requirement',
+    'existing draft publication rejection explains the two-photo requirement',
     (tester) async {
       await fixture.signIn(tester);
       fixture.transport.reply = (request) =>
@@ -1063,7 +1065,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.textContaining(
-          'Publishing requires at least 4 different property photos.',
+          'Publishing requires at least 2 different property photos.',
         ),
         findsOneWidget,
       );
@@ -1077,7 +1079,8 @@ void main() {
     expect(photo.bytes, orderedEquals(base64Decode(_pngs.first)));
     expect(base64Encode(photo.bytes), _pngs.first);
     expect(SelectedListingPhoto.maxBytes, 6 * 1024 * 1024);
-    expect(ListingPhotoPicker.maxPhotos, 10);
+    expect(ListingPhotoPicker.maxPhotos, 6);
+    expect(ListingPhotoPicker.minimumPublicationPhotos, 2);
     expect(ListingPhotoPicker.maxTotalBytes, 24 * 1024 * 1024);
   });
 
@@ -1196,25 +1199,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  photoTest('selection is capped at ten photos without any API call', (
+  photoTest('selection is capped at six photos and rejects a seventh locally', (
     tester,
   ) async {
     await _open(tester, fixture);
-    picker.results.addAll(List.generate(11, _picked));
-    for (var index = 0; index < 10; index++) {
+    picker.results.addAll(List.generate(7, _picked));
+    final staleAdd = tester
+        .widget<ButtonStyleButton>(_button('Add photo'))
+        .onPressed!;
+    for (var index = 0; index < 6; index++) {
       await _tap(tester, 'Add photo');
     }
     expect(
       tester.widget<ListingPhotoPicker>(find.byType(ListingPhotoPicker)).photos,
-      hasLength(10),
+      hasLength(6),
     );
-    expect(find.text('10/10'), findsOneWidget);
-    expect(find.byTooltip('Remove photo 11'), findsNothing);
+    expect(find.text('6/6'), findsOneWidget);
+    expect(find.byTooltip('Remove photo 7'), findsNothing);
     expect(
       tester.widget<ButtonStyleButton>(_button('Add photo')).onPressed,
       isNull,
     );
-    expect(picker.calls, 10);
+    await tester.runAsync(() async {
+      await (staleAdd as Future<void> Function())();
+    });
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<ListingPhotoPicker>(find.byType(ListingPhotoPicker)).photos,
+      hasLength(6),
+    );
+    expect(picker.calls, 6);
+    expect(picker.results, hasLength(1));
     expect(fixture.transport.requests, isEmpty);
   });
 

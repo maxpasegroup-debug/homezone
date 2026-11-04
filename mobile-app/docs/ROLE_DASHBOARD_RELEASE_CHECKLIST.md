@@ -5,6 +5,10 @@ Date: 2026-11-04. Local baseline: `main`,
 deletion changes. This work implements app/source improvements; it does not
 activate services or establish staging acceptance.
 
+Photo-policy update, 2026-11-04: the current minimum is **two distinct photos**,
+with **six selected photos maximum** in mobile Create listing. This supersedes the
+earlier four-photo candidate. Existing larger stored galleries remain intact.
+
 ## Source changes
 
 | Area | Result |
@@ -33,7 +37,7 @@ Actual property creation from Listings and Owner Home now uses:
 2. Details: title, description, rooms, area and amenities.
 3. Location: city, locality/address and optional coordinates.
 4. Price: existing price/currency contract.
-5. Photos: existing in-memory picker, minimum four different photos for Owner publication.
+5. Photos: existing in-memory picker, minimum two and maximum six different photos for Owner creation/publication.
 6. Review: retained values and photo previews; editing returns to the relevant step.
 
 Step navigation does not send writes. Client title/description/location/type
@@ -42,7 +46,7 @@ submission. Back retains controllers/photos; losing a session permits a safe exi
 No wizard is forced onto unrelated forms or existing property edits.
 
 Owner submission checks storage readiness, creates one private draft, serially
-uploads photos, independently reads its stored gallery and only then requests
+uploads all selected photos, independently reads its stored gallery and only then requests
 publication. Success requires exact property ID/status acknowledgment. Unknown
 create/upload/publication outcomes require refreshed Listings rather than another
 creation request. Broker creation remains a draft under existing permissions.
@@ -54,10 +58,15 @@ The coordinated local checks and APK provenance are recorded in
 accounts/images and mocked external boundaries. They are not live registration,
 Cloudinary upload, Railway connectivity, Android Keystore or production evidence.
 
-Final checks: full Flutter suite 511/511 passed; backend `npm test` passed
+Prior candidate checks, before the two-photo policy update: full Flutter suite 511/511 passed; backend `npm test` passed
 TypeScript, six smoke checks and 232 Node fixtures. Full Flutter analysis passed
 with zero errors/warnings and 83 informational lints (`--no-fatal-infos`). Lint
 rules were not weakened. `git diff --check` passed.
+
+Latest two-photo policy checks: 94 focused Flutter tests passed, Owner backend
+24/24 and admin backend 11/11 passed, TypeScript passed, and targeted analysis had
+no errors/warnings (33 informational lints). A fresh staging debug APK was built
+without installation/launch; see the latest status entry for its new hash.
 
 The staging debug APK was built successfully with
 `node scripts/build-android.mjs --mode service --config config/staging.local.json`.
@@ -109,7 +118,7 @@ included in the candidate. Its live deletion acceptance remains separate.
 | Environment | Read-only target identity/config evidence. | Explicit staging origin, matching backend service/deployed version; no production traffic or offline/demo fallback. |
 | Five role authentication | Approved private test credentials or separately approved controlled accounts; session/quota writes authorized. | Actual role selection, sign-in/signup, independent session/profile response and correct Android dashboard. Wrong-role/suspended/foreign-account access is denied. No secrets in reports. |
 | Session and account | Authorized session/profile mutations. | Real process restart restores only a server-valid session; logout removes local credentials and rejects protected access; contact edit readback matches without role/login changes. |
-| Owner publication | Approved disposable listing, four approved local photos, configured provider, matching backend/client. | One draft, four confirmed stored photos, exact published acknowledgment; Owner and Buyer show the same records/images for Sell and Rent. |
+| Owner publication | Approved disposable listing, two to six approved local photos, configured provider, matching backend/client. | One draft, all selected photos confirmed stored, at least two distinct photos and exact published acknowledgment; Owner and Buyer show the same records/images for Sell and Rent. |
 | Live refresh | Matching client/backend and read-only public catalogue; explicit approval for the triggering mutation. | Buyer already open receives server readback and updates after publication/edit/removal. Record actual transport: existing polling versus separately activated WebSocket. |
 | Remaining business roles | Approved owned/assigned project/lead/provider fixtures and scoped write authorization. | Actual permitted action, server acknowledgment, readback and correct UI; other accounts' data unavailable. No fictitious fixtures inserted directly into a database. |
 | Failures | Approved device/network manipulation; controlled session scenarios. | Empty differs from failed; interrupted uploads preserve details; duplicate taps produce one write; uncertainty does not claim success or automatically retry. |

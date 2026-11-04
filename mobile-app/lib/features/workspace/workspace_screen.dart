@@ -1222,7 +1222,7 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
         final message = uncertainDeletion
             ? 'Deletion could not be confirmed. Return to Items and refresh before trying again; the listing may already have been deleted.'
             : needsPhotos
-            ? 'Publishing requires at least 4 different property photos. Add photos, then refresh this listing before publishing again.'
+            ? 'Publishing requires at least ${ListingPhotoPicker.minimumPublicationPhotos} different property photos. Add photos, then refresh this listing before publishing again.'
             : marketplaceError(failure, mutation: dispatched);
         setState(() {
           error = message;
@@ -2240,7 +2240,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
         _photos.length < ListingPhotoPicker.minimumPublicationPhotos) {
       setState(
         () => error =
-            'Add at least 4 different property photos before publishing.',
+            'Add at least ${ListingPhotoPicker.minimumPublicationPhotos} different property photos before publishing.',
       );
       return;
     }
@@ -2492,7 +2492,9 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                 url.hasFragment ||
                 url.port != 443;
           })) {
-        throw const FormatException('At least four stored photos are required');
+        throw const FormatException(
+          'At least ${ListingPhotoPicker.minimumPublicationPhotos} stored photos are required',
+        );
       }
       setState(() => _saveProgress = 'Publishing listing...');
       _publicationStarted = true;
@@ -2692,7 +2694,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
         _photos.length < ListingPhotoPicker.minimumPublicationPhotos) {
       setState(
         () => error =
-            'Add at least 4 different property photos before publishing.',
+            'Add at least ${ListingPhotoPicker.minimumPublicationPhotos} different property photos before publishing.',
       );
       return;
     }
@@ -2986,7 +2988,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                       const Padding(
                         padding: EdgeInsets.only(bottom: 16),
                         child: Text(
-                          'Add at least 4 different property photos. Your listing becomes visible to Buyers only after the photos are confirmed and publication succeeds.',
+                          'Add at least ${ListingPhotoPicker.minimumPublicationPhotos} different property photos. Your listing becomes visible to Buyers only after the photos are confirmed and publication succeeds.',
                         ),
                       ),
                     if (_supportsPhotos)

@@ -230,36 +230,36 @@ void main() {
     expect(_writes(fixture), isEmpty);
   });
 
-  wizardTest('Owner cannot reach review with fewer than four photos', (
+  wizardTest('Owner cannot reach review with fewer than two photos', (
     tester,
   ) async {
     await open(tester);
     await _toPhotos(tester);
-    await addPhotos(tester, 3);
+    await addPhotos(tester, 1);
     await _tap(tester, 'Continue');
     expect(find.byKey(const ValueKey('listing-step-4')), findsOneWidget);
     await tester.scrollUntilVisible(
       find.textContaining(
-        'Add at least 4 different property photos before publishing.',
+        'Add at least 2 different property photos before publishing.',
       ),
       150,
       scrollable: find.byType(Scrollable).first,
     );
     expect(
       find.textContaining(
-        'Add at least 4 different property photos before publishing.',
+        'Add at least 2 different property photos before publishing.',
       ),
       findsOneWidget,
     );
     expect(
       tester.widget<ListingPhotoPicker>(find.byType(ListingPhotoPicker)).photos,
-      hasLength(3),
+      hasLength(1),
     );
     expect(_writes(fixture), isEmpty);
   });
 
   wizardTest(
-    'review precedes one draft, four uploads, readback and publication',
+    'review precedes one draft, two uploads, readback and publication',
     (tester) async {
       var uploads = 0;
       Map<String, dynamic>? created;
@@ -295,7 +295,7 @@ void main() {
       };
       await open(tester);
       await _toPhotos(tester);
-      await addPhotos(tester);
+      await addPhotos(tester, 2);
       await _tap(tester, 'Continue');
       expect(find.text('Step 6 of 6'), findsOneWidget);
       expect(_writes(fixture), isEmpty);
@@ -313,7 +313,7 @@ void main() {
         _writes(fixture).map((request) => request.uri.path),
         [
           '/api/properties',
-          ...List.filled(4, '/api/mobile/upload'),
+          ...List.filled(2, '/api/mobile/upload'),
           '/api/properties/$_id',
         ],
         reason: tester
@@ -321,10 +321,10 @@ void main() {
             .map((text) => text.data)
             .join('\n'),
       );
-      expect(uploads, 4);
+      expect(uploads, 2);
       expect(created?['status'], 'DRAFT');
       expect(created?['intent'], 'BUY');
-      expect(find.text('Listing published with 4 photos.'), findsOneWidget);
+      expect(find.text('Listing published with 2 photos.'), findsOneWidget);
     },
   );
 
