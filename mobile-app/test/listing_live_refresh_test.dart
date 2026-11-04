@@ -8,8 +8,10 @@ import 'package:homezone_mobile/core/api/api_transport.dart';
 import 'package:homezone_mobile/core/api/cookie_request_coordinator.dart';
 import 'package:homezone_mobile/features/marketplace/marketplace_repository.dart';
 import 'package:homezone_mobile/features/marketplace/marketplace_screen.dart';
+import 'package:homezone_mobile/features/marketplace/listing_realtime.dart';
 
 import 'marketplace_test.dart' as fixture;
+import 'listing_realtime_test.dart' show FakeListingConnection;
 
 const _id = 'property-0001';
 const _detailPath = '/api/mobile/properties/$_id';
@@ -48,7 +50,12 @@ ApiResponse _catalog(List<Map<String, dynamic>> rows, int page) =>
       'properties': rows.skip((page - 1) * 12).take(12).toList(),
     });
 
-Future<void> _openCatalog(WidgetTester tester, fixture.Fixture f) async {
+Future<void> _openCatalog(
+  WidgetTester tester,
+  fixture.Fixture f, {
+  MarketplaceRepository? repository,
+  bool settle = true,
+}) async {
   tester.view.physicalSize = const Size(600, 1200);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -60,11 +67,15 @@ Future<void> _openCatalog(WidgetTester tester, fixture.Fixture f) async {
       routeObserver: observer,
       child: MaterialApp(
         navigatorObservers: [observer],
-        home: MarketplaceScreen(repository: f.repository),
+        home: MarketplaceScreen(repository: repository ?? f.repository),
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 Future<void> _loadMoreCatalog(WidgetTester tester) async {
@@ -80,8 +91,10 @@ Future<void> _loadMoreCatalog(WidgetTester tester) async {
 }
 
 class _ScreenFixture {
-  _ScreenFixture(this.f);
+  _ScreenFixture(this.f, {MarketplaceRepository? repository})
+    : repository = repository ?? f.repository;
   final fixture.Fixture f;
+  final MarketplaceRepository repository;
   final navigator = GlobalKey<NavigatorState>();
   final observer = SessionRouteObserver();
 
@@ -96,13 +109,13 @@ class _ScreenFixture {
           home: detail
               ? LivePropertyScreen(
                   id: _id,
-                  repository: f.repository,
+                  repository: repository,
                   saved: () => false,
                   onSave: () async {},
                 )
               : LiveGalleryScreen(
                   property: Listing.parse(_listing()),
-                  repository: f.repository,
+                  repository: repository,
                 ),
         ),
       ),
@@ -115,6 +128,222 @@ void main() {
   late fixture.Fixture f;
   setUp(() => f = fixture.Fixture());
   tearDown(() => f.controller.dispose());
+
+  testWidgets(
+    'a hint received during initial loading is not lost for 30 seconds',
+    (tester) async {
+      final connection = FakeListingConnection();
+      final live = ListingRealtime(
+        configuration: f.configuration,
+        connector: (_) async => connection,
+      );
+      final repository = MarketplaceRepository(
+        client: f.client,
+        coordinator: f.coordinator,
+        session: f.controller,
+        realtime: live,
+      );
+      final pending = Completer<ApiResponse>();
+      var reads = 0;
+      f.transport.reply = (_) =>
+          ++reads == 1 ? pending.future : _catalog([_catalogListing(25)], 1);
+      await _openCatalog(tester, f, repository: repository, settle: false);
+      connection.ready();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(reads, 1);
+      pending.complete(_catalog([], 1));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(reads, 2);
+      expect(find.text('Published home 25'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      repository.dispose();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'a WebSocket publication hint updates Buyer UI through a real HTTP read',
+    (tester) async {
+      final connection = FakeListingConnection();
+      final live = ListingRealtime(
+        configuration: f.configuration,
+        connector: (_) async => connection,
+      );
+      final repository = MarketplaceRepository(
+        client: f.client,
+        coordinator: f.coordinator,
+        session: f.controller,
+        realtime: live,
+      );
+      var rows = <Map<String, dynamic>>[];
+      f.transport.reply = (request) =>
+          _catalog(rows, int.parse(request.uri.queryParameters['page']!));
+      await _openCatalog(tester, f, repository: repository);
+      connection.ready();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      final baseline = _catalogReads(f).length;
+      rows = [_catalogListing(25)];
+      for (var index = 0; index < 20; index++) {
+        connection.changed();
+      }
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(_catalogReads(f).length, baseline + 1);
+      expect(find.text('Published home 25'), findsOneWidget);
+      expect(
+        _catalogReads(f).every(
+          (request) =>
+              request.method == 'GET' &&
+              request.uri.path == '/api/mobile/properties' &&
+              !request.headers.containsKey('cookie'),
+        ),
+        true,
+      );
+      await tester.pumpWidget(const SizedBox());
+      expect(connection.closed, true);
+      repository.dispose();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'healthy WebSocket uses periodic HTTP resync and disconnect retains fallback',
+    (tester) async {
+      final connection = FakeListingConnection();
+      var connections = 0;
+      final live = ListingRealtime(
+        configuration: f.configuration,
+        connector: (_) async {
+          if (++connections == 1) return connection;
+          throw StateError('Synthetic connection failure');
+        },
+      );
+      final repository = MarketplaceRepository(
+        client: f.client,
+        coordinator: f.coordinator,
+        session: f.controller,
+        realtime: live,
+      );
+      f.transport.reply = (request) => _catalog([], 1);
+      await _openCatalog(tester, f, repository: repository);
+      connection.ready();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      final baseline = _catalogReads(f).length;
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(_catalogReads(f).length, baseline);
+      await tester.pump(const Duration(seconds: 25));
+      await tester.pumpAndSettle();
+      expect(_catalogReads(f).length, baseline + 1);
+      unawaited(connection.frames.close());
+      await tester.pump();
+      expect(live.ready, false);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(_catalogReads(f).length, baseline + 2);
+      // Ending the visible route closes its lease and cannot reconnect in back.
+      await tester.pumpWidget(const SizedBox());
+      expect(connection.closed, true);
+      repository.dispose();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'public socket closes when covered or backgrounded and reconnects on return',
+    (tester) async {
+      final connections = <FakeListingConnection>[];
+      final live = ListingRealtime(
+        configuration: f.configuration,
+        connector: (_) async {
+          final connection = FakeListingConnection();
+          connections.add(connection);
+          return connection;
+        },
+      );
+      final repository = MarketplaceRepository(
+        client: f.client,
+        coordinator: f.coordinator,
+        session: f.controller,
+        realtime: live,
+      );
+      f.transport.reply = (_) => _detail(_listing());
+      final screen = _ScreenFixture(f, repository: repository);
+      await screen.open(tester);
+      expect(connections.length, 1);
+      connections.last.ready();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      screen.navigator.currentState!.push<void>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('Covered route')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(connections.single.closed, true);
+      await tester.pump(const Duration(seconds: 30));
+      expect(connections.length, 1);
+      screen.navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(connections.length, 2);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(connections.last.closed, true);
+      await tester.pump(const Duration(seconds: 30));
+      expect(connections.length, 2);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(connections.length, 3);
+      await tester.pumpWidget(const SizedBox());
+      expect(connections.last.closed, true);
+      repository.dispose();
+      await tester.pump();
+    },
+  );
+
+  testWidgets('WebSocket hints cannot bypass an HTTP Retry-After deadline', (
+    tester,
+  ) async {
+    final connection = FakeListingConnection();
+    final live = ListingRealtime(
+      configuration: f.configuration,
+      connector: (_) async => connection,
+    );
+    final repository = MarketplaceRepository(
+      client: f.client,
+      coordinator: f.coordinator,
+      session: f.controller,
+      realtime: live,
+    );
+    f.transport.reply = (_) => _catalog([], 1);
+    await _openCatalog(tester, f, repository: repository);
+    f.transport.reply = (_) => const ApiResponse(
+      429,
+      '{"error":"Synthetic rate limit"}',
+      retryAfter: '90',
+      headers: {
+        'retry-after': ['90'],
+      },
+    );
+    connection.ready();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    final baseline = _catalogReads(f).length;
+    connection.changed();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pumpAndSettle();
+    expect(_catalogReads(f).length, baseline);
+    expect(find.textContaining('Too many requests'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+    repository.dispose();
+    await tester.pump();
+  });
 
   testWidgets('a newly published home replaces the valid empty catalogue', (
     tester,

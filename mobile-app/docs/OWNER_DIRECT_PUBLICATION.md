@@ -1,5 +1,23 @@
 # Owner direct publication
 
+## WebSocket invalidation - source update - 2026-11-03
+
+The new opt-in WebSocket implementation supplements the foreground polling
+described in historical acceptance below. Public property publication, changes,
+photo attachment, unpublication and removal now issue a fixed anonymous hint
+inside the existing write transaction when `HOMEZONE_REALTIME_ENABLED=true`.
+Private draft uploads do not notify. The four-photo publication rule and current
+authorization remain unchanged. Flutter and website Buyer/property views fetch
+fresh records through their existing APIs after ready/change signals, with
+reconnect handling and HTTP fallback.
+
+This is source/local-fixture verification only. The custom server has not been
+deployed, no Railway variable/start command was changed and no new live property
+was created for this work. Earlier successful automatic Buyer updates used HTTP
+polling. Do not describe those captures as a WebSocket test. See
+[LISTING_WEBSOCKETS.md](LISTING_WEBSOCKETS.md) for implementation, configuration,
+limits, separately approved activation and rollback requirements.
+
 Date: 2026-11-03. Source baseline: main,
 `f023f42a07d0ac7f0f2ec82221b7e49fdb6ba5a9`, with preserved working-tree changes.
 

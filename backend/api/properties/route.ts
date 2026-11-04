@@ -7,6 +7,7 @@ import { getOrCreateProfile } from "@/lib/auth/profile";
 import { generateOpenAIText } from "@/lib/ai/homezone-ai";
 import { db } from "@/lib/db";
 import { createPublication } from "@/lib/properties/publication";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 import { propertyPhotoTransitionError } from "@/lib/properties/photos";
 import { getMarketplaceProperties, parseMarketplaceFilters } from "@/lib/properties/queries";
 
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
         });
       }
 
+      await notifyPublicPropertyChange(tx, null, created);
       return { property: created } as const;
     });
     if ("error" in result) return result.error;

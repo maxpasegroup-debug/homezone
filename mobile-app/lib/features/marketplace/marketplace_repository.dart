@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../core/api/api_client.dart';
+import '../../core/api/api_configuration.dart';
 import '../../core/api/api_transport.dart';
 import '../../core/api/cookie_request_coordinator.dart';
 import '../auth/sign_in_controller.dart';
+import 'listing_realtime.dart';
 
 typedef JsonObject = Map<String, dynamic>;
 
@@ -140,10 +142,29 @@ final class MarketplaceRepository {
     required this.client,
     required this.coordinator,
     required this.session,
-  });
+    this.realtime,
+  }) {
+    if (realtime != null &&
+        (realtime!.configuration.baseUri != client.configuration.baseUri ||
+            realtime!.configuration.environment !=
+                client.configuration.environment)) {
+      throw const ApiConfigurationException();
+    }
+    realtime?.changes.addListener(_realtimeChanged);
+  }
   final ApiClient client;
   final CookieRequestCoordinator coordinator;
   final SignInController session;
+  final ListingRealtime? realtime;
+
+  void _realtimeChanged() => listingChanges.value++;
+
+  /// Repository disposal does not close the auth protocol's borrowed client.
+  void dispose() {
+    realtime?.changes.removeListener(_realtimeChanged);
+    realtime?.dispose();
+    listingChanges.dispose();
+  }
 
   /// Invalidates visible listing reads after a confirmed local write. No
   /// account or listing data is retained here; screens re-read their own API.

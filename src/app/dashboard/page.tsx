@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { HomeZoneDashboard } from "@/components/dashboard/homezone-dashboard";
 import { OwnerDashboard } from "@/components/dashboard/owner-dashboard";
+import { PropertyLiveRefresh } from "@/components/properties/property-live-refresh";
 import { requireDashboardProfile } from "@/lib/auth/dashboard";
 import { isAdminRole } from "@/lib/auth/roles";
 import { getOwnerDashboardData, getUserDashboardData } from "@/lib/dashboard/queries";
@@ -21,6 +22,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
+      {profile.role === "USER" ? <PropertyLiveRefresh /> : null}
       <section className="container py-10 sm:py-16">
         <Link className="text-sm font-bold text-violet-700" href="/">
           HomeZone

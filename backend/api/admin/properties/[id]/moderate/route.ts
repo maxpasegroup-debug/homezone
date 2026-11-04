@@ -6,6 +6,7 @@ import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { propertyPhotoTransitionError } from "@/lib/properties/photos";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 
 type RouteContext = {
   params: Promise<{
@@ -77,6 +78,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           publishedAt: parsed.data.status === "PUBLISHED" ? new Date() : undefined
         }
       });
+      await notifyPublicPropertyChange(tx, current, property);
       return { property } as const;
     });
     if ("error" in result) return result.error;

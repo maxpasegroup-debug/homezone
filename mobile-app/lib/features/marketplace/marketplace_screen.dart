@@ -13,12 +13,15 @@ import '../../theme/design_tokens.dart';
 import '../workspace/workspace_screen.dart';
 
 /// Reuses the existing HTTP client while a service-backed screen is visible.
-/// Polling is read-only, single-flight, and waits after each completed request.
+/// Public socket hints trigger the same guarded HTTP reads. Polling remains as
+/// a fallback and periodic resync; neither path grants authentication authority.
 mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
     implements RouteAware {
   MarketplaceRepository? get listingRefreshRepository;
   bool get canRefreshListingData => true;
+  bool get observesListingRealtime => true;
   Future<void> refreshListingData();
+  void listingDataChanged() {}
 
   RouteObserver<ModalRoute<dynamic>>? _listingObserver;
   ModalRoute<dynamic>? _listingRoute;
@@ -30,7 +33,9 @@ mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
   bool _listingRouteVisible = true;
   bool _listingRefreshRunning = false;
   bool _listingRefreshAgain = false;
+  bool _listingHintPending = false;
   int _listingFailures = 0;
+  final Object _listingLiveLease = Object();
 
   bool get listingRefreshVisible =>
       mounted &&
@@ -56,11 +61,24 @@ mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
     final repository = listingRefreshRepository;
     if (identical(repository, _listeningRepository)) return;
     _listeningRepository?.listingChanges.removeListener(_listingChanged);
+    _listeningRepository?.realtime?.removeListener(_listingHealthChanged);
+    _listeningRepository?.realtime?.release(_listingLiveLease);
     _listeningRepository = repository;
     repository?.listingChanges.addListener(_listingChanged);
+    repository?.realtime?.addListener(_listingHealthChanged);
   }
 
-  void _listingChanged() => requestListingRefresh(immediate: true);
+  void _listingChanged() {
+    _listingHintPending = true;
+    listingDataChanged();
+    requestListingRefresh(immediate: true);
+  }
+
+  void _listingHealthChanged() {
+    _listingTimer?.cancel();
+    _listingTimer = null;
+    requestListingRefresh();
+  }
 
   @override
   void didUpdateWidget(covariant T oldWidget) {
@@ -93,6 +111,12 @@ mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
   /// Immediate means the next safe read, never a concurrent request or bypass of
   /// a server Retry-After deadline.
   void requestListingRefresh({bool immediate = false}) {
+    final realtime = listingRefreshRepository?.realtime;
+    if (listingRefreshVisible && observesListingRealtime) {
+      realtime?.acquire(_listingLiveLease);
+    } else {
+      realtime?.release(_listingLiveLease);
+    }
     if (!listingRefreshVisible || listingRefreshRepository == null) {
       _listingTimer?.cancel();
       _listingTimer = null;
@@ -104,7 +128,15 @@ mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
     }
     if (_listingTimer != null && !immediate) return;
     _listingTimer?.cancel();
-    var delay = immediate ? Duration.zero : const Duration(seconds: 5);
+    var delay = immediate
+        ? Duration.zero
+        : Duration(
+            seconds: _listingHintPending && observesListingRealtime
+                ? 1
+                : realtime?.ready == true
+                ? 30
+                : 5,
+          );
     final deadline = _listingRetryAt;
     if (deadline != null && deadline.isAfter(DateTime.now())) {
       final remaining = deadline.difference(DateTime.now());
@@ -121,6 +153,7 @@ mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
       return;
     }
     if (_listingRefreshRunning) return;
+    _listingHintPending = false;
     _listingRefreshRunning = true;
     try {
       await refreshListingData();
@@ -174,6 +207,8 @@ mixin _ForegroundListingRefresh<T extends StatefulWidget> on State<T>
     _listingTimer?.cancel();
     _listingObserver?.unsubscribe(this);
     _listeningRepository?.listingChanges.removeListener(_listingChanged);
+    _listeningRepository?.realtime?.removeListener(_listingHealthChanged);
+    _listeningRepository?.realtime?.release(_listingLiveLease);
     WidgetsBinding.instance.removeObserver(_listingLifecycle);
     super.dispose();
   }
@@ -233,6 +268,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
   MarketplaceRepository get listingRefreshRepository => widget.repository;
   @override
   bool get canRefreshListingData => tab < 2 && !loading && !mutating;
+  @override
+  bool get observesListingRealtime => tab < 2;
+
+  @override
+  void listingDataChanged() {
+    // A public hint may represent a newly published first-page item. Do not
+    // spend that immediate read on a later page of the existing catalogue.
+    _catalogRefreshPage = 1;
+  }
 
   @override
   Future<void> refreshListingData() async {
@@ -1508,6 +1552,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
       tab = value;
       error = null;
     });
+    requestListingRefresh();
     load();
   }
 

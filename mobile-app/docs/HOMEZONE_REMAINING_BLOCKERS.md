@@ -1,5 +1,33 @@
 # HOMEZONE remaining integration blockers
 
+## WebSocket staging activation and acceptance - 2026-11-04
+
+SOURCE IMPLEMENTED and local-fixture checked: transaction-bound public property
+notifications, same-port WebSocket gateway, Flutter listing subscriptions and
+website Buyer/property subscriptions. No private records are sent over the
+socket; existing APIs remain authoritative. No schema or migration is added.
+
+Still required: separately approve the reviewed staging artifact, flag
+`HOMEZONE_REALTIME_ENABLED=true` and selection of the unselected
+`railway.staging-realtime.json` template (`npm run start:realtime`). Default
+`railway.json` remains unchanged; its config-file command overrides dashboard
+command fields, so verify the effective deployment configuration explicitly.
+Confirm direct/session-pooled PostgreSQL connectivity, one extra connection per
+replica, canonical staging origin and proxy/connection-limit capacity. Reconcile
+Railway config-file start-command precedence and the full predeploy pending
+migration set before any release. These actions were not performed.
+
+Then verify a real staging WSS 101/ready, matching updated client and one separately
+authorized Owner publication/photo change -> hint -> HTTP readback -> visible
+Buyer result. Earlier five-second polling evidence is not WebSocket acceptance.
+The updated staging debug APK has compiled (`2026-11-04T02-43-22-860Z-27896`)
+and the previous APK is preserved; installation and actual device acceptance
+remain pending. Artifact/hash are documented in `LISTING_WEBSOCKETS.md`.
+Keep four-photo client/backend compatibility and Cloudinary prerequisites from
+the existing release gate; this transport does not provision upload storage.
+Fallback HTTP remains available if the socket is absent or disconnected.
+Exact staged activation and rollback: [LISTING_WEBSOCKETS.md](LISTING_WEBSOCKETS.md).
+
 ## Minimum-four-photo release and acceptance - 2026-11-03
 
 SOURCE IMPLEMENTED: new Owner publication requires four distinct photos in the

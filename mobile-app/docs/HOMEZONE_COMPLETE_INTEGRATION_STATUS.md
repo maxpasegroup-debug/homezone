@@ -1,5 +1,50 @@
 # HOMEZONE integration implementation status
 
+## Listing WebSockets - SOURCE IMPLEMENTED - 2026-11-04
+
+Added an opt-in same-origin WebSocket gateway at
+`/api/mobile/properties/live`, using one dedicated PostgreSQL LISTEN connection
+per replica and transaction-bound NOTIFY from existing publication/photo writes.
+Only anonymous change hints are broadcast; clients still retrieve records through
+the existing public/authorized APIs. Private drafts do not notify. No new schema,
+migration, authentication mechanism or image-host policy is introduced.
+
+Flutter discovery/detail/gallery share a visible-screen socket with reconnect,
+debounced invalidation and independent HTTP readback. Website catalogue/detail
+and the server-confirmed USER dashboard also subscribe. HTTP fallback remains
+about five seconds disconnected and 30 seconds connected; existing error and
+Retry-After protections remain. The fictional preview stays separate.
+
+Local realtime fixtures passed: 23 server/listener checks, 10 write-transaction
+checks and eight website lifecycle checks. Existing 22 authentication-origin,
+20 session-security and 41 registration checks passed in separate fixture
+processes. The existing Owner/admin photo suites passed 31 checks. TypeScript and
+runtime JavaScript syntax checking passed. The final focused Flutter run passed
+all 80 tests. Analysis: zero errors/warnings, 15 existing informational lints,
+exit 0 with `--no-fatal-infos`. An initial combined authentication fixture
+invocation mixed module hooks; separate invocations passed without source fixes.
+The final actual-module startup check caught an `@next/env` export mismatch;
+the corrected default-import loader now has real-module and sanitized-logger
+regressions using an empty temporary directory, without application/DB startup.
+
+Updated staging debug APK build PASSED through the existing explicit service
+configuration. Build record `2026-11-04T02-43-22-860Z-27896`; artifact SHA256
+`ea60d7dc18ef7e430112f6420c4544a288894f6fefb6d8865b946553a2171026`.
+Previous APK preserved. This candidate contains the Flutter listener but has not
+been installed or launched; its build is not live WebSocket acceptance.
+
+Live status: NOT ACTIVATED OR VERIFIED. `npm start` and `railway.json` remain
+unchanged. An unselected `railway.staging-realtime.json` template provides the
+opt-in command without altering default deployment behavior. Separately approve
+staging `HOMEZONE_REALTIME_ENABLED=true`, selection of this staging-only template
+(`npm run start:realtime`) and reviewed deployment/client release
+after checking the direct/session-pooled DATABASE_URL, canonical origin,
+connection capacity and existing pending-migration gate. No Railway, database,
+deployment, device or production action was performed for this implementation.
+See [LISTING_WEBSOCKETS.md](LISTING_WEBSOCKETS.md) for exact files, limits,
+activation evidence and rollback. Earlier HTTP-polling acceptance below remains
+historical evidence, not proof of this new WebSocket transport.
+
 ## Four required property photographs - SOURCE IMPLEMENTED - 2026-11-03
 
 New Owner publication now requires at least four distinct photos. Mobile creates

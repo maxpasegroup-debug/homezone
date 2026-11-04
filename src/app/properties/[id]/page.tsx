@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ListingBadges } from "@/components/payments/listing-badges";
 import { PropertyViewTracker } from "@/components/properties/property-view-tracker";
+import { PropertyLiveRefresh } from "@/components/properties/property-live-refresh";
 import { VerificationBadge } from "@/components/trust/verification-badge";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
@@ -58,6 +59,7 @@ export default async function PropertyDetailPage({ params }: PageProps) {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
+      <PropertyLiveRefresh />
       <PropertyViewTracker propertyId={property.id} />
       <section className="container py-10 sm:py-16">
         <Link className="text-sm font-bold text-violet-700" href="/properties">

@@ -5,6 +5,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { rateLimited } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import { POST as upload } from "@/../backend/api/media/upload/route";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 export const runtime="nodejs";
 const maximum=6*1024*1024;
 export async function POST(request:Request){
@@ -40,9 +41,11 @@ export async function POST(request:Request){
       const actor=await tx.profile.findUnique({where:{id:profile.id},select:{verificationStatus:true}});
       if(!actor||actor.verificationStatus==="SUSPENDED")return false;
       await tx.$queryRaw`SELECT id FROM "Property" WHERE id=${property.id} FOR UPDATE`;
-      const current=await tx.property.findFirst({where:{id:property.id,ownerId:profile.id},select:{mediaUrls:true}});
+      const current=await tx.property.findFirst({where:{id:property.id,ownerId:profile.id},select:{mediaUrls:true,status:true}});
       if(!current||current.mediaUrls.length>=40)return false;
-      await tx.property.update({where:{id:property.id},data:{mediaUrls:{push:result.url}}});return true;
+      await tx.property.update({where:{id:property.id},data:{mediaUrls:{push:result.url}}});
+      await notifyPublicPropertyChange(tx,current,current);
+      return true;
     });
     if(!attached)return apiError("Provider upload completed but listing attachment could not be confirmed. Refresh before retrying; no provider file was deleted.",409);
     return ok({url:result.url},{headers:{"Cache-Control":"no-store"}});

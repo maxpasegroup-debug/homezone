@@ -16,6 +16,7 @@ import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { updatePublication } from "@/lib/properties/publication";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 import { propertyPhotoTransitionError } from "@/lib/properties/photos";
 
 type RouteContext = {
@@ -123,6 +124,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         data: { ...data, ...publication.data },
         where: { id, ...(!admin ? { ownerId: ownership.profile.id } : {}) }
       });
+      await notifyPublicPropertyChange(tx, currentProperty, property);
       return { property } as const;
     });
     if ("error" in result) return result.error;
@@ -161,11 +163,26 @@ export async function DELETE(request: Request, context: RouteContext) {
       return ownership.error;
     }
 
-    await db.property.delete({
-      where: {
-        id
+    const result = await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Profile" WHERE id=${ownership.profile.id} FOR UPDATE`;
+      const actor = await tx.profile.findUnique({
+        where: { id: ownership.profile.id }, select: { role: true, verificationStatus: true }
+      });
+      if (!actor || actor.verificationStatus === "SUSPENDED" || actor.role !== ownership.profile.role) {
+        return { error: forbidden("Listing account changed. Refresh before continuing.") } as const;
       }
+      await tx.$queryRaw`SELECT id FROM "Property" WHERE id=${id} FOR UPDATE`;
+      const property = await tx.property.findUnique({
+        where: { id }, select: { id: true, ownerId: true, status: true }
+      });
+      if (!property) return { error: notFound("Property not found") } as const;
+      const admin = isAdminRole(actor.role);
+      if (!admin && property.ownerId !== ownership.profile.id) return { error: forbidden() } as const;
+      await tx.property.delete({ where: { id, ...(!admin ? { ownerId: ownership.profile.id } : {}) } });
+      await notifyPublicPropertyChange(tx, property, null);
+      return { deleted: true } as const;
     });
+    if ("error" in result) return result.error;
 
     await auditLog({
       action: "property_deleted",

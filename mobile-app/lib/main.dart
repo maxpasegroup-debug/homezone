@@ -9,6 +9,7 @@ import 'core/api/password_auth_protocol.dart';
 import 'core/api/session_vault.dart';
 import 'features/auth/sign_in_controller.dart';
 import 'features/marketplace/marketplace_repository.dart';
+import 'features/marketplace/listing_realtime.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +46,7 @@ Future<void> main() async {
           client: client,
           coordinator: coordinator,
           session: controller,
+          realtime: ListingRealtime(configuration: configuration),
         ),
       ),
     );
@@ -83,6 +85,7 @@ class _ServiceStartupState extends State<_ServiceStartup> {
   late final Future<void> restoration = widget.controller.restoreSession();
   @override
   void dispose() {
+    widget.repository.dispose();
     widget.controller.dispose();
     super.dispose();
   }

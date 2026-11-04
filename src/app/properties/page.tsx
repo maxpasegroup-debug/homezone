@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PropertyCard } from "@/components/properties/property-card";
+import { PropertyLiveRefresh } from "@/components/properties/property-live-refresh";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { getSessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -50,6 +51,7 @@ export default async function PropertiesPage({ searchParams }: PageProps) {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.14),_transparent_36%),linear-gradient(180deg,#fff_0%,#faf7ff_58%,#fff_100%)]">
+      <PropertyLiveRefresh />
       <section className="container py-10 sm:py-16">
         <Link className="text-sm font-bold text-violet-700" href="/">
           HomeZone
