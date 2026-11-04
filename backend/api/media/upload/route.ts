@@ -9,6 +9,10 @@ import { logger } from "@/lib/logging/logger";
 
 export const runtime = "nodejs";
 
+// Leave time for the mobile adapter to attach the confirmed upload before the
+// client's 20-second deadline. The same deadline covers response-body reads.
+const providerUploadTimeoutMs = 15_000;
+
 const allowedMimeTypes = new Set([
   "image/gif",
   "image/jpeg",
@@ -30,7 +34,7 @@ const allowedFolders = new Set([
 
 function uploadUnavailable(
   code: "PROPERTY_PHOTO_STORAGE_UNAVAILABLE" | "PROPERTY_PHOTO_UPLOAD_FAILED" | "PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE",
-  stage: "configuration" | "provider-request" | "provider-response" | "provider-confirmation"
+  stage: "configuration" | "provider-request" | "provider-response" | "provider-confirmation" | "provider-timeout" | "provider-cancelled"
 ) {
   // Fixed categories only. Never record provider responses, URLs or credentials.
   logger.warn("Media upload unavailable", { stage, category: code });
@@ -104,36 +108,59 @@ export async function POST(request: Request) {
     uploadForm.append("folder", folder);
     uploadForm.append("signature", signature);
 
-    let response: Response;
-    try {
-      response = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
-        {
-          method: "POST",
-          body: uploadForm
-        }
-      );
-    } catch {
-      return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "provider-request");
-    }
-
-    if (!response.ok) {
-      return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "provider-response");
-    }
-
+    const uploadController = new AbortController();
+    let deadlineExceeded = false;
+    // Cancellation cannot prove the provider did not save a file. Keep the
+    // existing refresh-before-retry acknowledgment; never resend automatically.
+    const cancelUpload = () => uploadController.abort();
+    request.signal.addEventListener("abort", cancelUpload, { once: true });
+    const uploadTimer = setTimeout(() => {
+      deadlineExceeded = true;
+      uploadController.abort();
+    }, providerUploadTimeoutMs);
+    const failureStage = (fallback: "provider-request" | "provider-confirmation") =>
+      deadlineExceeded ? "provider-timeout" : request.signal.aborted ? "provider-cancelled" : fallback;
     let data;
     try {
-      data = await response.json();
-      if (!data || typeof data !== "object" || typeof data.secure_url !== "string") {
-        throw new Error("Invalid upload acknowledgment");
+      if (request.signal.aborted) {
+        return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "provider-cancelled");
       }
-      const uploaded = new URL(data.secure_url);
-      if (uploaded.protocol !== "https:" || uploaded.username || uploaded.password ||
-          uploaded.hash || (uploaded.port && uploaded.port !== "443")) {
-        throw new Error("Invalid upload acknowledgment");
+      let response: Response;
+      try {
+        response = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+          {
+            method: "POST",
+            body: uploadForm,
+            signal: uploadController.signal
+          }
+        );
+        uploadController.signal.throwIfAborted();
+      } catch {
+        return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", failureStage("provider-request"));
       }
-    } catch {
-      return uploadUnavailable("PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE", "provider-confirmation");
+
+      if (!response.ok) {
+        return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "provider-response");
+      }
+
+      try {
+        data = await response.json();
+        uploadController.signal.throwIfAborted();
+        if (!data || typeof data !== "object" || typeof data.secure_url !== "string") {
+          throw new Error("Invalid upload acknowledgment");
+        }
+        const uploaded = new URL(data.secure_url);
+        if (uploaded.protocol !== "https:" || uploaded.username || uploaded.password ||
+            uploaded.hash || (uploaded.port && uploaded.port !== "443")) {
+          throw new Error("Invalid upload acknowledgment");
+        }
+      } catch {
+        return uploadUnavailable("PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE", failureStage("provider-confirmation"));
+      }
+    } finally {
+      clearTimeout(uploadTimer);
+      request.signal.removeEventListener("abort", cancelUpload);
     }
 
     await auditLog({

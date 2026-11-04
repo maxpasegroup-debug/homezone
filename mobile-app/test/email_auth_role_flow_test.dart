@@ -11,6 +11,7 @@ import 'package:homezone_mobile/features/auth/sign_in_controller.dart';
 import 'package:homezone_mobile/features/marketplace/marketplace_repository.dart';
 import 'package:homezone_mobile/features/marketplace/marketplace_screen.dart';
 import 'package:homezone_mobile/features/workspace/workspace_screen.dart';
+import 'package:homezone_mobile/features/workspace/workspace_dashboard.dart';
 import 'widget_test.dart' as helpers;
 
 // Local contract fixtures only. These tests do not establish staging acceptance.
@@ -154,7 +155,8 @@ void main() {
       ),
     );
     await helpers.tapText(tester, labels[selectedRole]!);
-    await helpers.tapText(tester, 'Already have an account? Sign In');
+    await helpers.tapText(tester, 'Continue');
+    expect(find.text('Welcome Back'), findsOneWidget);
     await helpers.fill(tester, 'Email address', 'fixture@example.com');
     await helpers.fill(tester, 'Password', 'Synthetic123');
     FocusManager.instance.primaryFocus?.unfocus();
@@ -201,8 +203,10 @@ void main() {
       final (controller, transport) = await signIn(tester, 'OWNER', 'OWNER');
       final navigation = find.byKey(const ValueKey('owner-bottom-navigation'));
       expect(
-        transport.requests.where((r) => r.uri.path == '/api/mobile/workspace'),
-        isEmpty,
+        transport.requests
+            .where((r) => r.uri.path == '/api/mobile/workspace')
+            .map((r) => r.uri.queryParameters['module']),
+        ['properties'],
       );
 
       await tester.tap(
@@ -224,13 +228,21 @@ void main() {
         transport.requests
             .where((r) => r.uri.path == '/api/mobile/workspace')
             .map((r) => r.uri.queryParameters['module']),
-        ['properties', 'ownerEnquiries'],
+        ['properties', 'properties', 'ownerEnquiries'],
       );
 
       await tester.tap(
         find.descendant(of: navigation, matching: find.text('More')),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Sign out'),
+        250,
+        scrollable: find.descendant(
+          of: find.byType(WorkspaceMore),
+          matching: find.byType(Scrollable),
+        ),
+      );
       expect(find.text('Sign out'), findsOneWidget);
       expect(find.text('Request account-deletion review'), findsOneWidget);
       expect(find.text('Owner enquiry fixture'), findsNothing);
@@ -241,7 +253,26 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('HOMEZONE'), findsOneWidget);
-      expect(find.text('My listings'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is WorkspaceMenuTile && widget.title == 'My listings',
+        ),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byType(WorkspaceHome),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(WorkspaceMenuTile),
+          matching: find.text('My listings'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(
         find.descendant(of: navigation, matching: find.text('Listings')),
       );

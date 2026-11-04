@@ -1,5 +1,118 @@
 # HOMEZONE integration implementation status
 
+## Five-role dashboard and property journey improvements - SOURCE IMPLEMENTED - 2026-11-04
+
+Role selection now opens existing email/password Sign In directly. Create a new
+account retains the selected role and underlying sign-in draft. Name/email/
+password/Terms registration, five permitted roles, independent session/profile
+confirmation, website/admin authentication and separate PIN infrastructure remain.
+
+Owner Home/Listings/Enquiries/More is joined by Broker Home/Leads/Listings/
+Follow-ups/More, Builder Home/Projects/More, and Provider Home/Requests/Bookings/
+Profile/More. Buyer navigation and fictional preview are preserved. Home shows
+only existing server totals plus up to three actual scoped records. Owner cards
+use stored photo URLs through existing host restrictions. Overview and records
+have separate loading/error/empty/retry states and reject late account responses.
+Project inventory/team/bookings remain inside their authorized project.
+
+More groups Services, Activity, Finance and Account. Header notifications, common
+My profile/contact editing, and account controls are available without placing
+sign-out/deletion ahead of core work. Contact edits require independent profile
+readback before success; they cannot change roles or login identities.
+The reusable contact editor also hides previous-account fields and ignores stale
+Save actions after logout, account changes or session-generation changes.
+
+New property creation uses Purpose -> Details -> Location -> Price -> Photos ->
+Review. Retained controls/photos survive Back; step and final validation mirror
+supported server fields. Owner publication still checks storage readiness, creates
+one private draft, confirms four distinct stored photos, then publishes. Unknown
+writes never restart creation. A lost session permits a safe exit. Existing
+listing editing, photo management and the prior Delete slice are preserved.
+
+Shared provider uploads now have one 15-second dispatch/acknowledgment deadline
+and forwarded cancellation with fixed sanitized diagnostics. Cancellation does
+not prove that an external file was not saved. No provider/storage replacement,
+schema, migration, required variable or role-policy change is introduced.
+
+Backend `npm test` passed: TypeScript, six smoke checks and 232 Node fixture
+checks across the existing authentication, authorization, registration, sessions,
+PIN, mobile API, realtime and property-photo suites. The final full Flutter
+`test --no-pub --reporter expanded` run passed all 511 tests, including narrow
+320-pixel/2x-text wizard review and logout/account-switch contact-editor isolation.
+Local fixtures are not device, native-storage, live authentication,
+provider-upload or Railway deployment proof.
+
+Full `flutter analyze --no-pub --no-fatal-infos` completed successfully: no errors
+or warnings; 83 informational lints remain across the project and a local build
+diagnostic script. These include style/null-aware suggestions and context lints;
+this is not a claim of zero analyzer findings. No lint rules were disabled.
+
+Staging debug build succeeded using the existing offline Android wrapper:
+
+```cmd
+cd /d C:\Users\kkyad\OneDrive\Desktop\homezone\homezone\mobile-app
+node scripts/build-android.mjs --mode service --config config/staging.local.json
+```
+
+- Artifact: `build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes.
+- SHA-256: `e8b00604f8c9357a32f7c7f8a13f111f73340d5646b2ed85ddff5514cdbac413`;
+  independently matched with Windows `Get-FileHash`.
+- Build record: `build/android-source-builds/2026-11-04T06-42-10-056Z-19164/build-record.json`.
+- Explicit service mode, staging environment, exact origin
+  `https://homezone-staging.up.railway.app`, debug variant; ARMv7/ARM64/x86_64.
+- `freshlyWritten: true`; `runtimeVerified: false`; `liveServiceVerified: false`.
+  The prior APK was preserved as `previous-app-debug.apk` beside the build record.
+- Not installed or launched. The backend timeout/cancellation source also needs a
+  separately approved matching backend release; building an APK does not deploy it.
+
+Full changed-file inventory, source behavior, acceptance criteria and external
+approval gates: [ROLE_DASHBOARD_RELEASE_CHECKLIST.md](ROLE_DASHBOARD_RELEASE_CHECKLIST.md).
+No staging/production/database/variable/deployment/account/device operation was
+performed for these source changes. Missing photo-storage provisioning and
+matching backend/APK release remain separate gates.
+
+## Owner listing deletion - SOURCE IMPLEMENTED - 2026-11-04
+
+Owner navigation: Items / My listings -> open the listing -> Delete listing ->
+confirm Delete. Flutter previously exposed Archive but had no Delete control.
+The new action reuses existing `DELETE /api/properties/[id]`; it creates no new
+endpoint, schema or authentication mechanism. Backend ownership, suspension and
+transactional rechecks remain authoritative.
+
+The dialog describes permanent removal and offers Archive as the alternative.
+Only exact `{ "deleted": true }` acknowledges success. Confirmed deletion returns
+to Items, whose existing backend read refreshes the list; repository listing-change
+listeners are also invalidated. Duplicate taps and changed sessions cannot queue
+deletions. Unknown network/server/acknowledgment outcomes stay on details, explain
+uncertainty and require returning to Items and refreshing before retrying.
+
+Existing limitation: retained `PrivateFile` relations use `ON DELETE RESTRICT`.
+Such a listing may reject deletion; no document retention policy is bypassed.
+Deleting a listing does not delete externally stored image files or enquiry history.
+Archive remains available when permanent deletion is unsuitable.
+
+Source: `lib/features/workspace/workspace_screen.dart`,
+`lib/features/marketplace/marketplace_repository.dart`.
+Local fixture coverage: `test/owner_delete_listing_test.dart`. No live property
+was deleted and device/staging deletion is not runtime verified.
+
+Local checks passed: 11 deletion fixtures, 106 existing targeted Flutter
+regressions and 10 backend write/notification fixtures. The final confirmation
+double-tap guard was rechecked with all 79 deletion/creation/publication fixtures.
+Focused analysis reported zero errors/warnings and 36 informational lints.
+Changed files for this slice: the two Dart source files above, the new deletion
+test, this status document and `HOMEZONE_REMAINING_BLOCKERS.md`. No backend,
+schema, Railway, account or database change was made.
+
+Updated staging debug APK build passed using
+`node scripts/build-android.mjs --mode service --config config/staging.local.json`.
+Artifact: `build/app/outputs/apk/debug/app-debug.apk`, 184939163 bytes,
+SHA256 `d970bf53ac90e0c42d504cd119688f94e7208e4e9c5f4a7f11f7dcb9f5391135`.
+Provenance: `build/android-source-builds/2026-11-04T03-49-00-869Z-20248/build-record.json`.
+Previous APK is preserved in that directory. This APK includes Sell/Rent wording
+and the new Delete listing action. It was not installed or launched; deletion
+against staging still needs a separately authorized disposable listing test.
+
 ## Owner purpose wording - SOURCE UPDATED - 2026-11-04
 
 Owner mobile create/edit forms and the active website listing editor now display

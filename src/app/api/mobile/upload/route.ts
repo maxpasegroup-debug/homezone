@@ -32,7 +32,7 @@ export async function POST(request:Request){
     const form=new FormData();form.append("folder","homezone/property-media");
     form.append("file",new File([bytes],`property.${mime==="image/jpeg"?"jpg":mime.split("/")[1]}`,{type:mime}));
     const headers=new Headers(request.headers);headers.delete("content-type");headers.delete("content-length");
-    const response=await upload(new Request(request.url,{method:"POST",headers,body:form}));
+    const response=await upload(new Request(request.url,{method:"POST",headers,body:form,signal:request.signal}));
     if(!response.ok)return response;
     const result=await response.json();if(typeof result.url!=="string"||new URL(result.url).protocol!=="https:")return apiError("Upload confirmation unavailable",502);
     const uploaded=new URL(result.url);if(uploaded.username||uploaded.password||uploaded.hash)return apiError("Upload confirmation unavailable",502);

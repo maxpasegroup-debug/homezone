@@ -2708,6 +2708,15 @@ class ProfileEditScreen extends StatefulWidget {
 }
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
+  late final actor = widget.repository.session.identity?.id;
+  late final role = widget.repository.session.identity?.role;
+  late final generation = widget.repository.coordinator.generation;
+  bool get current =>
+      mounted &&
+      widget.repository.session.verified &&
+      widget.repository.session.identity?.id == actor &&
+      widget.repository.session.identity?.role == role &&
+      widget.repository.coordinator.generation == generation;
   late final city = TextEditingController(
     text: textValue(widget.profile['city'], ''),
   );
@@ -2727,7 +2736,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     appBar: AppBar(title: const Text('Edit profile')),
     body: AnimatedBuilder(
       animation: widget.repository.session,
-      builder: (context, _) => !widget.repository.session.verified
+      builder: (context, _) => !current
           ? const Center(
               child: Text(
                 'Your session ended. Sign in again to edit your profile.',
@@ -2763,7 +2772,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   ),
                   FilledButton(
                     onPressed: () {
-                      if (form.currentState!.validate()) {
+                      if (current && form.currentState?.validate() == true) {
                         Navigator.pop(context, (city.text, phone.text));
                       }
                     },

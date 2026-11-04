@@ -1,5 +1,43 @@
 # HOMEZONE remaining integration blockers
 
+## Five-role dashboard release acceptance - 2026-11-04
+
+SOURCE IMPLEMENTED: focused role navigation/homes, actual scoped record previews,
+grouped shared services, common profile/contact editing, direct role->Sign In/
+Create account navigation, guided six-step listing creation and bounded provider
+uploads. Existing Buyer/preview, roles, ownership, session security, four-photo
+publication and prior Delete changes remain. Backend checks passed locally.
+The new staging debug APK is COMPILED: 511 Flutter tests passed, full analysis
+has no errors/warnings (83 infos), and backend TypeScript/smoke/232 fixtures passed.
+APK provenance and SHA-256 are in `HOMEZONE_COMPLETE_INTEGRATION_STATUS.md`.
+
+NOT RUNTIME VERIFIED by this slice: the new Android presentation, all five live
+role journeys, native secure-storage persistence, actual provider uploads and
+post-publication Buyer/Owner readback. The latest candidate must not be mistaken
+for the older installed artifact. Exact acceptance/approval sequence is in
+`ROLE_DASHBOARD_RELEASE_CHECKLIST.md`.
+
+External gates remain: privately configured photo provider and approved exact
+image hosts; reviewed matching staging backend/APK release; predeploy pending-set
+and rollback review; authorized controlled accounts/records/mutations. Earlier
+WebSocket implementation still needs separate activation and acceptance. Legal
+policy/versioned-consent, native recovery and external payment/push capabilities
+remain documented limitations; no new menu implies those are complete.
+
+## Owner permanent deletion acceptance - 2026-11-04
+
+Flutter now provides Owner Items -> listing -> Delete listing, using the existing
+ownership-protected backend DELETE and requiring exact deletion acknowledgment.
+No live deletion has been performed. A controlled disposable staging listing and
+separate authorization are needed for device/backend deletion acceptance.
+
+Existing retained private documents can prevent deletion: `PrivateFile.property`
+uses `onDelete: Restrict` (`prisma/schema.prisma`). The current backend reports a
+generic server error for that constraint; Flutter preserves an uncertain result
+and requests refreshed Items before retrying. Do not delete retained documents or
+change their foreign-key policy just to make the action succeed. Archive can hide
+the listing instead. Externally stored photo files are not removed by this endpoint.
+
 ## Current native photo-upload blocker and Owner form correction - 2026-11-04
 
 CONFIRMED: current saved-variable metadata for the explicitly matched staging

@@ -10,10 +10,11 @@ class RoleFirstAuthScreen extends StatelessWidget {
   void _open(BuildContext context, String role) => Navigator.push(
     context,
     MaterialPageRoute<void>(
-      builder: (_) => SignUpScreen(
+      builder: (_) => SignInScreen(
         selectedRole: role,
         serviceMode: true,
         repository: repository,
+        controller: repository.session,
       ),
     ),
   );

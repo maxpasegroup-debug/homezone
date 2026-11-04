@@ -22,6 +22,7 @@ function reset(overrides = {}) {
     authenticated: true, allowed: true, role: "OWNER", currentRole: "OWNER", actorStatus: "PENDING",
     currentActorStatus: "PENDING", property: snapshot(), currentProperty: snapshot(),
     committedWrites: [], committedEvents: [], order: [], failWrite: false, failNotify: false,
+    uploadRequests: [], uploadReply: undefined,
     ...overrides
   });
 }
@@ -84,7 +85,7 @@ const mocks = {
   "@/lib/logging/logger": "export const captureException=()=>{};",
   "@/lib/trust/verification": "export const propertyVerificationEvent=status=>'fixture_'+status;",
   "@/lib/api/rate-limit": "export const checkRateLimit=()=>({allowed:globalThis.__propertyRealtimeFixture.allowed,resetAt:new Date()});export const rateLimitKey=()=> 'fixture';",
-  "@/../backend/api/media/upload/route": "export const POST=async()=>Response.json({url:'https://images.fixture.invalid/uploaded.jpg'});"
+  "@/../backend/api/media/upload/route": "export const POST=async request=>{const fixture=globalThis.__propertyRealtimeFixture;fixture.uploadRequests.push(request);return fixture.uploadReply?fixture.uploadReply(request):Response.json({url:'https://images.fixture.invalid/uploaded.jpg'});};"
 };
 const hooks = registerHooks({
   resolve(specifier, context, next) {
@@ -172,6 +173,36 @@ test("public-property writes emit only transaction-bound, anonymous invalidation
         if (status === "PUBLISHED") expectOneCommit("update"); else assert.equal(state.committedEvents.length, 0);
         assert.ok(state.order.indexOf("lock-profile") < state.order.indexOf("lock-property"));
       }
+    });
+    await t.test("native caller cancellation reaches the shared upload without attaching or notifying", async () => {
+      reset();
+      const caller = new AbortController();
+      let entered;
+      const ready = new Promise(resolve => { entered = resolve; });
+      state.uploadReply = request => new Promise(resolve => {
+        request.signal.addEventListener("abort", () => resolve(Response.json({
+          success: false, code: "PROPERTY_PHOTO_UPLOAD_FAILED",
+          error: "Property photo upload could not be completed. Refresh the listing before retrying."
+        }, { status: 502 })), { once: true });
+        entered();
+      });
+      const original = new Request("https://fixture.invalid/api/mobile/upload", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ propertyId: "property-0001", base64: Buffer.from([255, 216, 255, 0]).toString("base64") }),
+        signal: caller.signal
+      });
+      const pending = upload.POST(original);
+      await ready;
+      assert.equal(state.uploadRequests.length, 1);
+      assert.equal(state.uploadRequests[0].signal.aborted, false);
+      caller.abort();
+      const response = await pending;
+      assert.equal(response.status, 502);
+      assert.equal((await response.json()).code, "PROPERTY_PHOTO_UPLOAD_FAILED");
+      assert.equal(state.uploadRequests[0].signal.aborted, true);
+      assert.equal(state.uploadRequests.length, 1);
+      assert.equal(state.committedWrites.length, 0);
+      assert.equal(state.committedEvents.length, 0);
     });
     await t.test("delete rechecks locked ownership and notifies only the deleted public row", async () => {
       for (const status of ["PUBLISHED", "DRAFT"]) {

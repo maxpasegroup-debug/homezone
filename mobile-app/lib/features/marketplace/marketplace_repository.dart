@@ -211,7 +211,9 @@ final class MarketplaceRepository {
       (method == 'PATCH' &&
           RegExp(
             r'^/api/properties/[A-Za-z0-9_-]{8,128}(?:/media)?$',
-          ).hasMatch(path));
+          ).hasMatch(path)) ||
+      (method == 'DELETE' &&
+          RegExp(r'^/api/properties/[A-Za-z0-9_-]{8,128}$').hasMatch(path));
 
   Future<JsonObject> call(
     String method,
@@ -290,6 +292,7 @@ final class MarketplaceRepository {
           coordinator.generation == generation &&
           result.isNotEmpty &&
           result['ok'] != false &&
+          (method != 'DELETE' || result['deleted'] == true) &&
           _changesListings(method, path)) {
         listingChanges.value++;
       }

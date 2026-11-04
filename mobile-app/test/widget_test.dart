@@ -120,7 +120,7 @@ void main() {
       expect(find.text('Enter at least 2 characters.'), findsOneWidget);
       expect(find.text('Use at least 8 characters.'), findsOneWidget);
       expect(
-        find.text('Please agree to the preview terms and privacy consent.'),
+        find.text('Please agree to Terms & Privacy Policy.'),
         findsOneWidget,
       );
       await fill(tester, 'Full name', 'Test User');

@@ -17,12 +17,16 @@ class AuthFormScreen extends StatefulWidget {
     this.serviceMode = false,
     this.selectedRole,
     this.repository,
+    this.returnToSignIn = false,
   });
   final AuthFormMode mode;
   final SignInController? signInController;
   final bool serviceMode;
   final String? selectedRole;
   final MarketplaceRepository? repository;
+
+  /// The sign-in route remains underneath this signup form, preserving its draft.
+  final bool returnToSignIn;
   @override
   State<AuthFormScreen> createState() => _AuthFormScreenState();
 }
@@ -378,6 +382,38 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
     );
   }
 
+  void switchAuthenticationForm() {
+    if (loading) return;
+    if (widget.mode == AuthFormMode.signIn) {
+      final role = selectedRole;
+      if (!widget.serviceMode || role == null) {
+        Navigator.pushNamed(context, '/roles');
+        return;
+      }
+      // Keep the existing sign-in screen and its controllers on the stack.
+      // The role is journey context; the backend validates it on registration
+      // and independently confirms the stored profile after authentication.
+      Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => AuthFormScreen(
+            mode: AuthFormMode.signUp,
+            serviceMode: true,
+            repository: widget.repository,
+            selectedRole: role,
+            returnToSignIn: true,
+          ),
+        ),
+      );
+      return;
+    }
+    if (widget.mode == AuthFormMode.signUp && widget.returnToSignIn) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.pushNamed(context, '/sign-in', arguments: selectedRole);
+  }
+
   @override
   Widget build(BuildContext context) {
     final mode = widget.mode;
@@ -614,18 +650,12 @@ class _AuthFormScreenState extends State<AuthFormScreen> with RouteAware {
           const SizedBox(height: Space.md),
           Center(
             child: TextButton(
-              onPressed: loading
-                  ? null
-                  : () => mode == AuthFormMode.signIn
-                        ? Navigator.pushNamed(context, '/roles')
-                        : Navigator.pushNamed(
-                            context,
-                            '/sign-in',
-                            arguments: selectedRole,
-                          ),
+              onPressed: loading ? null : switchAuthenticationForm,
               child: Text(
                 mode == AuthFormMode.signIn
-                    ? "Don't have an account? Sign Up"
+                    ? widget.serviceMode && role != null
+                          ? 'Create a new account'
+                          : "Don't have an account? Sign Up"
                     : signup
                     ? _submitted
                           ? 'Continue to Sign In'

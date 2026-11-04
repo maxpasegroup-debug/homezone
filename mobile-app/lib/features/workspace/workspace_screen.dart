@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'workspace_record_picker.dart';
+import 'workspace_dashboard.dart';
+import 'workspace_profile_screen.dart';
 import 'listing_photographs_screen.dart';
 import 'listing_photo_picker.dart';
 import 'owner_property_photos.dart';
@@ -32,6 +34,7 @@ class FieldSpec {
     this.integer = false,
     this.stringList = false,
     this.maxLength,
+    this.minLength,
   });
   final String key, label;
   final bool required, number, date;
@@ -40,7 +43,7 @@ class FieldSpec {
   final num? minimum, maximum;
   final bool integer;
   final bool stringList;
-  final int? maxLength;
+  final int? maxLength, minLength;
 }
 
 // Stored intent remains buyer-facing BUY; Owners are offering it for sale.
@@ -72,19 +75,26 @@ const _description = FieldSpec(
   lines: 4,
 );
 const _propertyFields = [
-  FieldSpec('title', 'Property title', required: true),
+  FieldSpec(
+    'title',
+    'Property title',
+    required: true,
+    minLength: 3,
+    maxLength: 160,
+  ),
   FieldSpec(
     'description',
     'Description',
     required: true,
     lines: 4,
+    minLength: 10,
     maxLength: 3000,
   ),
-  _city,
-  FieldSpec('locality', 'Locality'),
-  FieldSpec('country', 'Country'),
-  FieldSpec('state', 'State / region'),
-  FieldSpec('address', 'Address'),
+  FieldSpec('city', 'City', required: true, minLength: 2, maxLength: 120),
+  FieldSpec('locality', 'Locality', minLength: 2, maxLength: 160),
+  FieldSpec('country', 'Country', minLength: 2, maxLength: 120),
+  FieldSpec('state', 'State / region', minLength: 2, maxLength: 120),
+  FieldSpec('address', 'Address', maxLength: 240),
   FieldSpec('latitude', 'Latitude', number: true, minimum: -90, maximum: 90),
   FieldSpec(
     'longitude',
@@ -114,7 +124,13 @@ const _propertyFields = [
     ],
     required: true,
   ),
-  FieldSpec('propertyType', 'Property type', required: true),
+  FieldSpec(
+    'propertyType',
+    'Property type',
+    required: true,
+    minLength: 2,
+    maxLength: 80,
+  ),
   FieldSpec(
     'currency',
     'Currency',
@@ -168,19 +184,208 @@ class WorkspaceScreen extends StatefulWidget {
 }
 
 class _WorkspaceScreenState extends State<WorkspaceScreen> {
-  static const _ownerPrimaryModules = {'properties', 'ownerEnquiries'};
   MarketplaceRepository get repository => widget.repository;
-  String? _ownerScope;
-  int _ownerTab = 0;
+  String? _selectedScope, _accountBusyScope;
+  int _tab = 0, _homeRevision = 0;
 
-  void _selectOwnerTab(String scope, int index) => setState(() {
-    _ownerScope = scope;
-    _ownerTab = index;
-  });
+  String? get _scope {
+    final identity = repository.session.identity;
+    return identity == null
+        ? null
+        : '${identityHashCode(repository)}:${repository.coordinator.generation}:${identity.id}:${identity.role}';
+  }
 
-  Widget _ownerNavigation(BuildContext context, String scope, int tab) {
+  bool _current(String scope) => mounted && _scope == scope;
+
+  void _selectTab(String scope, int index) {
+    if (!_current(scope)) return;
+    setState(() {
+      _selectedScope = scope;
+      _tab = index;
+    });
+  }
+
+  Future<void> _push(String scope, WidgetBuilder builder) async {
+    if (!_current(scope)) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ListenableBuilder(
+          listenable: repository.session,
+          builder: (context, _) => _current(scope)
+              ? builder(context)
+              : Scaffold(
+                  appBar: AppBar(title: const Text('Session ended')),
+                  body: const Center(child: Text('Sign in again to continue.')),
+                ),
+        ),
+      ),
+    );
+    if (_current(scope)) setState(() => _homeRevision++);
+  }
+
+  void _openModule(String scope, String module, String title) {
+    if (!_current(scope)) return;
+    final destinations = workspaceDestinations(
+      repository.session.identity!.role,
+    );
+    final index = destinations.indexWhere((item) => item.module == module);
+    if (index >= 0) {
+      _selectTab(scope, index);
+    } else {
+      _push(
+        scope,
+        (_) => WorkspaceRecords(
+          repository: repository,
+          module: module,
+          title: title,
+        ),
+      );
+    }
+  }
+
+  void _browse(String scope) {
+    if (_current(scope)) Navigator.pushNamed(context, '/discovery');
+  }
+
+  void _primaryAction(String scope, String role) {
+    if (!_current(scope)) return;
+    if (role == 'SERVICE_PROVIDER') {
+      _openModule(scope, 'providerRequests', 'Incoming service requests');
+      return;
+    }
+    if (role == 'USER') {
+      _browse(scope);
+      return;
+    }
+    final isProperty = role == 'OWNER';
+    _push(
+      scope,
+      (_) => WorkspaceForm(
+        repository: repository,
+        title: isProperty
+            ? 'Create listing'
+            : role == 'BUILDER'
+            ? 'Create project'
+            : 'Create lead',
+        path: isProperty
+            ? '/api/properties'
+            : role == 'BUILDER'
+            ? '/api/builder/projects'
+            : '/api/pro/leads',
+        fields: isProperty
+            ? _propertyFields
+            : role == 'BUILDER'
+            ? _projectFields
+            : const [
+                _name,
+                FieldSpec('phone', 'Phone', required: true),
+                FieldSpec('message', 'Requirement', required: true, lines: 4),
+              ],
+        fixed: isProperty ? const {'status': 'PUBLISHED'} : const {},
+        guidedListing: isProperty,
+      ),
+    );
+  }
+
+  Future<void> _signOut(String scope) async {
+    if (!_current(scope) || _accountBusyScope == scope) return;
+    final generation = repository.coordinator.generation;
+    setState(() => _accountBusyScope = scope);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final acknowledged = await repository.session.signOut();
+    if (!mounted || !navigator.mounted) return;
+    if (_accountBusyScope == scope) setState(() => _accountBusyScope = null);
+    if (repository.session.verified) {
+      if (_current(scope)) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'An account operation is still active. Please try again.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    // A newer account switch must never be redirected by an older logout.
+    if (repository.coordinator.generation != generation + 1) return;
+    navigator.pushNamedAndRemoveUntil('/sign-in', (_) => false);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          !repository.session.credentialRemovalConfirmed
+              ? 'In-memory access was cleared. Device credential removal could not be confirmed; use the website account controls before sharing this device.'
+              : acknowledged
+              ? 'The server acknowledged sign-out. Local credentials were cleared.'
+              : 'Local credentials were cleared. Server revocation could not be confirmed.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _requestDeletionReview(String scope) async {
+    if (!_current(scope) || _accountBusyScope == scope) return;
+    setState(() => _accountBusyScope = scope);
+    try {
+      final yes = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          scrollable: true,
+          title: const Text('Request account-deletion review?'),
+          content: const Text(
+            'This records a request for human review. It does not delete your account or data. Retention and deletion rules must be approved before deletion can occur.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Record review request'),
+            ),
+          ],
+        ),
+      );
+      if (yes != true || !_current(scope)) return;
+      final result = await repository.call(
+        'POST',
+        '/api/mobile/account-requests',
+        body: {'kind': 'DELETION_REVIEW'},
+      );
+      if (!_current(scope)) return;
+      if (result['request'] is! Map) throw const FormatException();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Review request status: ${(result['request'] as Map)['status']}. No account data was deleted.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (_current(scope)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(marketplaceError(error, mutation: true))),
+        );
+      }
+    } finally {
+      if (mounted && _accountBusyScope == scope) {
+        setState(() => _accountBusyScope = null);
+      }
+    }
+  }
+
+  Widget _navigation(
+    String scope,
+    String role,
+    int tab,
+    List<WorkspaceDestination> destinations,
+  ) {
     final colors = Theme.of(context).colorScheme;
     final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.4;
+    final compact = MediaQuery.sizeOf(context).width < 380;
     return NavigationBarTheme(
       data: NavigationBarThemeData(
         backgroundColor: colors.surfaceContainerLowest,
@@ -199,30 +404,19 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         ),
       ),
       child: NavigationBar(
-        key: const ValueKey('owner-bottom-navigation'),
-        height: largeText ? 92 : 76,
-        labelBehavior: largeText
+        key: ValueKey('${role.toLowerCase()}-bottom-navigation'),
+        height: largeText ? 96 : 76,
+        labelBehavior: largeText || compact
             ? NavigationDestinationLabelBehavior.onlyShowSelected
             : NavigationDestinationLabelBehavior.alwaysShow,
         selectedIndex: tab,
-        onDestinationSelected: (index) => _selectOwnerTab(scope, index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.home_work_outlined),
-            selectedIcon: Icon(Icons.home_work_rounded),
-            label: 'Listings',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble_rounded),
-            label: 'Enquiries',
-          ),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
+        onDestinationSelected: (index) => _selectTab(scope, index),
+        destinations: [
+          for (final destination in destinations)
+            NavigationDestination(
+              icon: Icon(destination.icon),
+              label: destination.label,
+            ),
         ],
       ),
     );
@@ -233,7 +427,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     listenable: repository.session,
     builder: (context, _) {
       final identity = repository.session.identity;
-      if (identity == null)
+      if (identity == null) {
         return Scaffold(
           appBar: AppBar(title: const Text('My workspace')),
           body: Center(
@@ -243,231 +437,90 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ),
           ),
         );
-      if (['ADMIN', 'SUPER_ADMIN'].contains(identity.role))
+      }
+      if (['ADMIN', 'SUPER_ADMIN'].contains(identity.role)) {
         return Scaffold(
           appBar: AppBar(title: const Text('Administration')),
-          body: Padding(
+          body: ListView(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const Text(
-                  'Use the existing HOMEZONE web administration interface. Administrative tools are not duplicated in this app.',
-                ),
-                SelectableText(
-                  '${repository.client.configuration.baseUri.origin}/admin',
-                ),
-              ],
-            ),
+            children: [
+              const Text(
+                'Use the existing HOMEZONE web administration interface. Administrative tools are not duplicated in this app.',
+              ),
+              SelectableText(
+                '${repository.client.configuration.baseUri.origin}/admin',
+              ),
+            ],
           ),
         );
-      final generationAtBuild = repository.coordinator.generation;
-      final isOwner = identity.role == 'OWNER';
-      final ownerScope = '$generationAtBuild:${identity.id}';
-      final ownerTab = _ownerScope == ownerScope ? _ownerTab : 0;
-      final ownerMore = isOwner && ownerTab == 3;
-      final showAccountActions = !isOwner || ownerMore;
-      final navigation = isOwner
-          ? _ownerNavigation(context, ownerScope, ownerTab)
-          : null;
-      if (isOwner && (ownerTab == 1 || ownerTab == 2)) {
-        final module = ownerTab == 1 ? 'properties' : 'ownerEnquiries';
+      }
+      final scope = _scope!;
+      final destinations = workspaceDestinations(identity.role);
+      final tab = _selectedScope == scope && _tab < destinations.length
+          ? _tab
+          : 0;
+      final destination = destinations[tab];
+      final module = destination.module;
+      final navigation = _navigation(scope, identity.role, tab, destinations);
+      if (module != null) {
         return Scaffold(
           body: WorkspaceRecords(
-            key: ValueKey('$ownerScope:$module'),
+            key: ValueKey('$scope:$module'),
             repository: repository,
             module: module,
-            title: ownerTab == 1 ? 'My listings' : 'Listing enquiries',
+            title: destination.title!,
           ),
           bottomNavigationBar: navigation,
         );
       }
-      final modules = <String, String>{
-        if (['USER', 'OWNER', 'BROKER'].contains(identity.role))
-          'properties': 'My listings',
-        if (['OWNER', 'BROKER'].contains(identity.role))
-          'ownerEnquiries': 'Listing enquiries',
-        if (identity.role == 'BROKER') ...{
-          'crm': 'Leads & pipeline',
-          'calendar': 'Follow-up calendar',
-          'team': 'My team',
-          'commissions': 'Commissions',
-        },
-        if (identity.role == 'BUILDER') 'projects': 'Projects & inventory',
-        if (identity.role == 'SERVICE_PROVIDER') ...{
-          'providerProfile': 'Provider profile',
-          'providerRequests': 'Incoming service requests',
-        },
-        'requests': 'My service requests',
-        'serviceBookings': 'Service bookings',
-        'studio': 'HOMEZONE Studio',
-        'notifications': 'Notifications',
-        'payments': 'Payment history',
-        'accountRequests': 'Account and refund requests',
-        'visits': 'Property visits',
-        'history': 'Recently viewed',
-      };
+      final home = tab == 0;
       return Scaffold(
         appBar: AppBar(
-          title: Text(
-            isOwner
-                ? ownerMore
-                      ? 'More'
-                      : 'HOMEZONE'
-                : 'My workspace',
-          ),
-        ),
-        body: ListView(
-          key: isOwner ? PageStorageKey('owner-$ownerScope-$ownerTab') : null,
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text(
-              'Account role: ${identity.role}',
-              style: Theme.of(context).textTheme.titleMedium,
+          title: Text(home ? 'HOMEZONE' : 'More'),
+          actions: [
+            IconButton(
+              tooltip: 'Notifications',
+              onPressed: () =>
+                  _openModule(scope, 'notifications', 'Notifications'),
+              icon: const Icon(Icons.notifications_none_outlined),
             ),
-            if (!ownerMore)
-              OutlinedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, '/discovery'),
-                icon: const Icon(Icons.home_work_outlined),
-                label: const Text('Browse properties'),
-              ),
-            if (showAccountActions)
-              TextButton(
-                onPressed: () async {
-                  final navigator = Navigator.of(context);
-                  final messenger = ScaffoldMessenger.of(context);
-                  final acknowledged = await repository.session.signOut();
-                  if (!navigator.mounted) return;
-                  if (repository.session.verified) {
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'An account operation is still active. Please try again.',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                  navigator.pushNamedAndRemoveUntil('/sign-in', (_) => false);
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        !repository.session.credentialRemovalConfirmed
-                            ? 'In-memory access was cleared. Device credential removal could not be confirmed; use the website account controls before sharing this device.'
-                            : acknowledged
-                            ? 'The server acknowledged sign-out. Local credentials were cleared.'
-                            : 'Local credentials were cleared. Server revocation could not be confirmed.',
-                      ),
-                    ),
-                  );
-                },
-                child: const Text('Sign out'),
-              ),
-            const Text(
-              'Records are loaded from your HOMEZONE account. Availability and actions depend on server permissions.',
-            ),
-            if (!ownerMore)
-              Card(
-                child: ListTile(
-                  title: const Text('Account summary'),
-                  trailing: const Icon(Icons.insights_outlined),
-                  onTap: () => Navigator.push<void>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => WorkspaceSummary(repository: repository),
-                    ),
-                  ),
-                ),
-              ),
-            if (showAccountActions)
-              OutlinedButton(
-                onPressed: () async {
-                  final yes = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      scrollable: true,
-                      title: const Text('Request account-deletion review?'),
-                      content: const Text(
-                        'This records a request for human review. It does not delete your account or data. Retention and deletion rules must be approved before deletion can occur.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Record review request'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (yes != true ||
-                      !context.mounted ||
-                      repository.session.identity?.id != identity.id ||
-                      repository.coordinator.generation != generationAtBuild)
-                    return;
-                  try {
-                    final result = await repository.call(
-                      'POST',
-                      '/api/mobile/account-requests',
-                      body: {'kind': 'DELETION_REVIEW'},
-                    );
-                    if (result['request'] is! Map)
-                      throw const FormatException();
-                    if (context.mounted &&
-                        repository.session.identity?.id == identity.id &&
-                        repository.coordinator.generation == generationAtBuild)
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Review request status: ${(result['request'] as Map)['status']}. No account data was deleted.',
-                          ),
-                        ),
-                      );
-                  } catch (e) {
-                    if (context.mounted &&
-                        repository.session.identity?.id == identity.id &&
-                        repository.coordinator.generation == generationAtBuild)
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(marketplaceError(e, mutation: true)),
-                        ),
-                      );
-                  }
-                },
-                child: const Text('Request account-deletion review'),
-              ),
-            for (final entry in modules.entries)
-              if (!isOwner ||
-                  (ownerMore
-                      ? !_ownerPrimaryModules.contains(entry.key)
-                      : _ownerPrimaryModules.contains(entry.key)))
-                Card(
-                  child: ListTile(
-                    title: Text(entry.value),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      if (isOwner && entry.key == 'properties') {
-                        _selectOwnerTab(ownerScope, 1);
-                      } else if (isOwner && entry.key == 'ownerEnquiries') {
-                        _selectOwnerTab(ownerScope, 2);
-                      } else {
-                        Navigator.push<void>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => WorkspaceRecords(
-                              repository: repository,
-                              module: entry.key,
-                              title: entry.value,
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ),
           ],
         ),
+        body: home
+            ? WorkspaceHome(
+                key: ValueKey('$scope:home:$_homeRevision'),
+                repository: repository,
+                role: identity.role,
+                onOpenModule: (module, title) =>
+                    _openModule(scope, module, title),
+                onOpenRecord: (module, record) => _push(
+                  scope,
+                  (_) => WorkspaceDetail(
+                    repository: repository,
+                    module: module,
+                    item: record,
+                  ),
+                ),
+                onPrimaryAction: () => _primaryAction(scope, identity.role),
+                onBrowse: () => _browse(scope),
+              )
+            : WorkspaceMore(
+                key: ValueKey('$scope:more'),
+                role: identity.role,
+                onOpenModule: (module, title) =>
+                    _openModule(scope, module, title),
+                onSummary: () => _push(
+                  scope,
+                  (_) => WorkspaceSummary(repository: repository),
+                ),
+                onProfile: () => _push(
+                  scope,
+                  (_) => WorkspaceProfileScreen(repository: repository),
+                ),
+                onSignOut: () => _signOut(scope),
+                onDeletionReview: () => _requestDeletionReview(scope),
+                accountBusy: _accountBusyScope == scope,
+              ),
         bottomNavigationBar: navigation,
       );
     },
@@ -612,6 +665,7 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
           fields: fields,
           initial: initial,
           fixed: fixed,
+          guidedListing: path == '/api/properties' && method == 'POST',
         ),
       ),
     );
@@ -1001,6 +1055,7 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
   late final String? owner = widget.repository.session.identity?.id;
   late final int ownerGeneration = widget.repository.coordinator.generation;
   bool busy = false;
+  bool _deleteNeedsRefresh = false;
   String? error;
   bool get current =>
       mounted &&
@@ -1064,6 +1119,15 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
     String method = 'PATCH',
   }) async {
     if (busy || !current) return;
+    final deleting =
+        widget.module == 'properties' &&
+        method == 'DELETE' &&
+        path == '/api/properties/$id';
+    if (deleting &&
+        (_deleteNeedsRefresh ||
+            widget.repository.session.identity?.role != 'OWNER')) {
+      return;
+    }
     final publishing =
         widget.module == 'properties' &&
         method == 'PATCH' &&
@@ -1076,41 +1140,62 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
     });
     var dispatched = false;
     try {
+      var confirmationClosed = false;
       final yes = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: Text(label),
           content: Text(
-            publishing
+            deleting
+                ? 'Permanently delete "${recordTitle(widget.item)}"? It will be removed from your Items and Buyer discovery. This cannot be undone. Use Archive instead if you only want to hide the listing.'
+                : publishing
                 ? 'This makes your listing visible to Buyers. Publish now?'
                 : 'This changes your HOMEZONE account record. Continue?',
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () {
+                if (confirmationClosed) return;
+                confirmationClosed = true;
+                Navigator.pop(context, false);
+              },
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Continue'),
+              onPressed: () {
+                if (confirmationClosed) return;
+                confirmationClosed = true;
+                Navigator.pop(context, true);
+              },
+              child: Text(deleting ? 'Delete' : 'Continue'),
             ),
           ],
         ),
       );
+      confirmationClosed = true;
       if (yes != true || !current) return;
       dispatched = true;
-      final response = await widget.repository.call(method, path, body: body);
+      final response = await widget.repository.call(
+        method,
+        path,
+        body: deleting ? null : body,
+      );
       if (response.isEmpty || response['ok'] == false) {
         throw const FormatException();
       }
       if (publishing && object(response['property'])['status'] != 'PUBLISHED') {
         throw const FormatException('Publication confirmation unavailable');
       }
+      if (deleting && response['deleted'] != true) {
+        throw const FormatException('Deletion confirmation unavailable');
+      }
       if (current) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              publishing
+              deleting
+                  ? 'Listing deleted.'
+                  : publishing
                   ? 'Listing published. Buyers can now see it.'
                   : 'Server confirmed the change.',
             ),
@@ -1124,13 +1209,28 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
             publishing &&
             failure is ApiException &&
             failure.failure == ApiFailure.validation;
-        final message = needsPhotos
+        final uncertainDeletion =
+            deleting &&
+            dispatched &&
+            (failure is! ApiException ||
+                !const {
+                  ApiFailure.unauthorized,
+                  ApiFailure.forbidden,
+                  ApiFailure.validation,
+                  ApiFailure.rateLimited,
+                }.contains(failure.failure));
+        final message = uncertainDeletion
+            ? 'Deletion could not be confirmed. Return to Items and refresh before trying again; the listing may already have been deleted.'
+            : needsPhotos
             ? 'Publishing requires at least 4 different property photos. Add photos, then refresh this listing before publishing again.'
             : marketplaceError(failure, mutation: dispatched);
-        setState(() => error = message);
+        setState(() {
+          error = message;
+          if (uncertainDeletion) _deleteNeedsRefresh = true;
+        });
         // Publish controls can be below the fold. Keep the minimum-photo
         // feedback visible without requiring a scroll back to the error text.
-        if (needsPhotos) {
+        if (needsPhotos || deleting) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(message)));
@@ -1320,6 +1420,25 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                             : 'Change listing status',
                         '/api/properties/$id',
                         {'status': status},
+                      ),
+                    ),
+                  if (widget.repository.session.identity?.role == 'OWNER')
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: OutlinedButton.icon(
+                        onPressed: busy || _deleteNeedsRefresh
+                            ? null
+                            : () => action(
+                                'Delete listing',
+                                '/api/properties/$id',
+                                const {},
+                                method: 'DELETE',
+                              ),
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Delete listing'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ),
                   button(
@@ -1997,11 +2116,13 @@ class WorkspaceForm extends StatefulWidget {
     this.method = 'POST',
     this.fixed = const {},
     this.initial = const {},
+    this.guidedListing = false,
   });
   final MarketplaceRepository repository;
   final String title, path, method;
   final List<FieldSpec> fields;
   final JsonObject fixed, initial;
+  final bool guidedListing;
   @override
   State<WorkspaceForm> createState() => _WorkspaceFormState();
 }
@@ -2022,6 +2143,28 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   String? _createdListingId, _saveProgress;
   bool _confirmingStoredPhotos = false;
   int _confirmedPhotos = 0, _plannedPhotos = 0;
+  int _listingStep = 0;
+  static const _listingSteps = [
+    'Purpose',
+    'Details',
+    'Location',
+    'Price',
+    'Photos',
+    'Review',
+  ];
+  bool get _guided => widget.guidedListing && _isListingCreate;
+  int _fieldStep(FieldSpec field) => switch (field.key) {
+    'intent' || 'category' || 'propertyType' => 0,
+    'city' ||
+    'locality' ||
+    'country' ||
+    'state' ||
+    'address' ||
+    'latitude' ||
+    'longitude' => 2,
+    'price' || 'currency' => 3,
+    _ => 1,
+  };
   bool get _isListingCreate =>
       widget.method == 'POST' && widget.path == '/api/properties';
   bool get _publishesListing =>
@@ -2070,11 +2213,23 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     if (!current || busy || _pickingPhoto || _listingCreateStarted) {
       return;
     }
+    // A captured submit callback cannot skip the guided review step.
+    if (_guided && _listingStep != _listingSteps.length - 1) return;
     final validation = _firstFieldValidationError;
     final mountedFieldsValid = key.currentState!.validate();
     if (validation != null || !mountedFieldsValid) {
       if (validation != null) {
-        setState(() => error = validation);
+        setState(() {
+          error = validation;
+          if (_guided) {
+            final invalid = widget.fields.firstWhere(
+              (field) =>
+                  _fieldValidationError(field, controls[field.key]!.text) !=
+                  null,
+            );
+            _listingStep = _fieldStep(invalid);
+          }
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(validation)));
@@ -2406,6 +2561,12 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     if (value.isEmpty) {
       return field.required ? 'This field is required' : null;
     }
+    if (field.minLength != null && value.length < field.minLength!) {
+      return 'Use at least ${field.minLength} characters';
+    }
+    if (field.maxLength != null && value.length > field.maxLength!) {
+      return 'Use no more than ${field.maxLength} characters';
+    }
     if (field.stringList) {
       final values = value
           .split(RegExp(r'\r?\n'))
@@ -2455,11 +2616,333 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     return null;
   }
 
+  Widget _fieldInput(FieldSpec field) => Padding(
+    key: ValueKey(field.key),
+    padding: const EdgeInsets.only(bottom: 16),
+    child: field.options != null
+        ? DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: field.options!.contains(controls[field.key]!.text)
+                ? controls[field.key]!.text
+                : null,
+            decoration: InputDecoration(labelText: field.label),
+            items: [
+              for (final value in field.options!)
+                DropdownMenuItem(
+                  value: value,
+                  child: Text(_workspaceOptionLabel(field, value)),
+                ),
+            ],
+            onChanged: busy || _listingCreateStarted
+                ? null
+                : (value) =>
+                      setState(() => controls[field.key]!.text = value ?? ''),
+            validator: (value) => _fieldValidationError(field, value),
+          )
+        : TextFormField(
+            controller: controls[field.key],
+            enabled: !busy && !_listingCreateStarted,
+            readOnly: field.date,
+            maxLength: field.maxLength ?? (field.lines > 1 ? 2000 : 240),
+            maxLines: field.lines,
+            keyboardType: field.number
+                ? TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: (field.minimum ?? 0) < 0,
+                  )
+                : null,
+            onTap: field.date ? () => chooseTime(field) : null,
+            decoration: InputDecoration(
+              labelText: field.label,
+              suffixIcon: field.date ? const Icon(Icons.calendar_today) : null,
+            ),
+            validator: (value) => _fieldValidationError(field, value),
+          ),
+  );
+
+  void _showListingStep(int step) {
+    if (!current || busy || _pickingPhoto || _listingCreateStarted) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _listingStep = step;
+      error = null;
+    });
+  }
+
+  void _nextListingStep() {
+    if (!current ||
+        busy ||
+        _pickingPhoto ||
+        _listingCreateStarted ||
+        _listingStep >= _listingSteps.length - 1)
+      return;
+    final fields = widget.fields.where(
+      (field) => _fieldStep(field) == _listingStep,
+    );
+    for (final field in fields) {
+      final message = _fieldValidationError(field, controls[field.key]!.text);
+      if (message != null) {
+        key.currentState?.validate();
+        setState(() => error = '${field.label}: $message');
+        return;
+      }
+    }
+    if (_listingStep == 4 &&
+        _publishesListing &&
+        _photos.length < ListingPhotoPicker.minimumPublicationPhotos) {
+      setState(
+        () => error =
+            'Add at least 4 different property photos before publishing.',
+      );
+      return;
+    }
+    _showListingStep(_listingStep + 1);
+  }
+
+  Widget _listingReview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text('Check your listing', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      Text(
+        _publishesListing
+            ? 'Your listing becomes visible to Buyers after the server confirms the photos and publication.'
+            : 'This saves a draft. Publication remains subject to the existing listing permissions.',
+      ),
+      const SizedBox(height: 16),
+      for (var section = 0; section < 4; section++)
+        if (widget.fields.any((field) => _fieldStep(field) == section))
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _reviewSectionHeading(section),
+                  for (final field in widget.fields.where(
+                    (field) => _fieldStep(field) == section,
+                  ))
+                    if (controls[field.key]!.text.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              field.label,
+                              style: Theme.of(context).textTheme.labelMedium,
+                            ),
+                            Text(
+                              _workspaceOptionLabel(
+                                field,
+                                controls[field.key]!.text.trim(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          ),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${_photos.length} property photos selected',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              if (_photos.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 96,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _photos.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (_, index) => ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        _photos[index].bytes,
+                        width: 128,
+                        height: 96,
+                        cacheWidth: 256,
+                        fit: BoxFit.cover,
+                        semanticLabel: 'Review property photo ${index + 1}',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              TextButton(
+                onPressed: busy || _listingCreateStarted
+                    ? null
+                    : () => _showListingStep(4),
+                child: const Text('Edit photos'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _reviewSectionHeading(int section) => LayoutBuilder(
+    builder: (context, constraints) {
+      final title = Text(
+        _listingSteps[section],
+        style: Theme.of(context).textTheme.titleMedium,
+      );
+      final edit = TextButton(
+        onPressed: busy || _listingCreateStarted
+            ? null
+            : () => _showListingStep(section),
+        child: Text('Edit ${_listingSteps[section].toLowerCase()}'),
+      );
+      if (constraints.maxWidth < 300 ||
+          MediaQuery.textScalerOf(context).scale(1) > 1.4) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [title, edit],
+        );
+      }
+      return Row(
+        children: [
+          Expanded(child: title),
+          edit,
+        ],
+      );
+    },
+  );
+
+  Widget _guidedListingBody() => Form(
+    key: key,
+    child: ListView(
+      key: ValueKey('listing-step-$_listingStep'),
+      padding: const EdgeInsets.all(20),
+      children: [
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            'Step ${_listingStep + 1} of ${_listingSteps.length}',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: (_listingStep + 1) / _listingSteps.length,
+        ),
+        const SizedBox(height: 20),
+        Text(
+          _listingSteps[_listingStep],
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          const [
+            'Choose what you are offering and the property category.',
+            'Describe the property so Buyers know what to expect.',
+            'Add the property location. Coordinates are optional.',
+            'Set the asking price and currency for your listing.',
+            'Choose clear photographs of the property.',
+            'Review the details before sending your listing.',
+          ][_listingStep],
+        ),
+        const SizedBox(height: 20),
+        if (_listingStep < 4)
+          for (final field in widget.fields.where(
+            (field) => _fieldStep(field) == _listingStep,
+          ))
+            _fieldInput(field),
+        if (_listingStep == 4 && _supportsPhotos)
+          ListingPhotoPicker(
+            photos: _photos,
+            minimumPhotos: _publishesListing
+                ? ListingPhotoPicker.minimumPublicationPhotos
+                : 0,
+            enabled: !busy && !_listingCreateStarted,
+            isCurrent: () => current,
+            onChanged: (photos) => setState(() => _photos = photos),
+            onPickingChanged: (picking) =>
+                setState(() => _pickingPhoto = picking),
+          ),
+        if (_listingStep == 4 && !_supportsPhotos)
+          const Text(
+            'Photograph uploads are available to permitted listing accounts.',
+          ),
+        if (_listingStep == 5) _listingReview(),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          ),
+        if (busy && _saveProgress != null) ...[
+          const SizedBox(height: 12),
+          const LinearProgressIndicator(),
+          const SizedBox(height: 12),
+          Semantics(liveRegion: true, child: Text(_saveProgress!)),
+        ],
+      ],
+    ),
+  );
+
+  Widget _listingFooter() => SafeArea(
+    top: false,
+    minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+    child: _listingCreateStarted && !busy
+        ? FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Back to listings'),
+          )
+        : Row(
+            children: [
+              if (_listingStep > 0) ...[
+                OutlinedButton(
+                  onPressed: busy || _pickingPhoto || _listingCreateStarted
+                      ? null
+                      : () => _showListingStep(_listingStep - 1),
+                  child: const Text('Back'),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: FilledButton(
+                  onPressed: busy || _pickingPhoto || _listingCreateStarted
+                      ? null
+                      : _listingStep == 5
+                      ? submit
+                      : _nextListingStep,
+                  child: Text(
+                    busy
+                        ? 'Saving…'
+                        : _listingStep == 5
+                        ? (_publishesListing ? 'Publish listing' : 'Save draft')
+                        : 'Continue',
+                  ),
+                ),
+              ),
+            ],
+          ),
+  );
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.repository.session,
     builder: (context, _) => PopScope(
-      canPop: !_isListingCreate || !busy,
+      canPop:
+          !current ||
+          (!_isListingCreate || !busy) &&
+              (!_guided || _listingStep == 0 || _listingCreateStarted),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && busy) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2467,10 +2950,23 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
               content: Text('Please wait for the current save to finish.'),
             ),
           );
+        } else if (!didPop && _guided && _listingStep > 0) {
+          _showListingStep(_listingStep - 1);
         }
       },
       child: Scaffold(
-        appBar: AppBar(title: Text(widget.title)),
+        appBar: AppBar(
+          title: Text(widget.title),
+          leading:
+              _guided && current && _listingStep > 0 && !_listingCreateStarted
+              ? BackButton(
+                  onPressed: busy || _pickingPhoto
+                      ? null
+                      : () => _showListingStep(_listingStep - 1),
+                )
+              : null,
+        ),
+        bottomNavigationBar: _guided && current ? _listingFooter() : null,
         body: !current
             ? Center(
                 child: Text(
@@ -2479,6 +2975,8 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                       : 'Sign in again before making changes.',
                 ),
               )
+            : _guided
+            ? _guidedListingBody()
             : Form(
                 key: key,
                 child: ListView(
@@ -2503,67 +3001,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                         onPickingChanged: (picking) =>
                             setState(() => _pickingPhoto = picking),
                       ),
-                    for (final field in widget.fields)
-                      Padding(
-                        key: ValueKey(field.key),
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: field.options != null
-                            ? DropdownButtonFormField<String>(
-                                isExpanded: true,
-                                initialValue:
-                                    field.options!.contains(
-                                      controls[field.key]!.text,
-                                    )
-                                    ? controls[field.key]!.text
-                                    : null,
-                                decoration: InputDecoration(
-                                  labelText: field.label,
-                                ),
-                                items: [
-                                  for (final value in field.options!)
-                                    DropdownMenuItem(
-                                      value: value,
-                                      child: Text(
-                                        _workspaceOptionLabel(field, value),
-                                      ),
-                                    ),
-                                ],
-                                onChanged: busy || _listingCreateStarted
-                                    ? null
-                                    : (v) => setState(
-                                        () =>
-                                            controls[field.key]!.text = v ?? '',
-                                      ),
-                                validator: (v) =>
-                                    _fieldValidationError(field, v),
-                              )
-                            : TextFormField(
-                                controller: controls[field.key],
-                                enabled: !busy && !_listingCreateStarted,
-                                readOnly: field.date,
-                                maxLength:
-                                    field.maxLength ??
-                                    (field.lines > 1 ? 2000 : 240),
-                                maxLines: field.lines,
-                                keyboardType: field.number
-                                    ? TextInputType.numberWithOptions(
-                                        decimal: true,
-                                        signed: (field.minimum ?? 0) < 0,
-                                      )
-                                    : null,
-                                onTap: field.date
-                                    ? () => chooseTime(field)
-                                    : null,
-                                decoration: InputDecoration(
-                                  labelText: field.label,
-                                  suffixIcon: field.date
-                                      ? const Icon(Icons.calendar_today)
-                                      : null,
-                                ),
-                                validator: (v) =>
-                                    _fieldValidationError(field, v),
-                              ),
-                      ),
+                    for (final field in widget.fields) _fieldInput(field),
                     if (error != null)
                       Text(
                         error!,

@@ -1,5 +1,26 @@
 # Phase 1 — authentication implementation readiness
 
+## Entry and dashboard source update - 2026-11-04
+
+Selected public role now opens the existing email/password Sign In screen, with
+Create a new account retaining that role and the sign-in draft underneath. This
+does not change Name/Email/Password/Terms registration, role validation, website/
+admin authentication, PIN infrastructure, session verification or server authority.
+The accessibility loading label no longer misidentifies real requests as preview.
+
+All professional roles have focused navigation and server-backed Home previews;
+More groups shared services and account actions. Common My profile reuses the
+existing account API/contact editor and confirms saved values through readback.
+New regression coverage checks OS-vault protocol persistence, independent restored
+session/profile confirmation, revoked sessions, origin isolation and failed logout
+without live accounts. Fixtures do not establish native Keystore or staging proof.
+
+See `ROLE_DASHBOARD_RELEASE_CHECKLIST.md` and the current integration status for
+exact files/checks and remaining controlled Android/staging acceptance gates.
+No infrastructure, deployment, database, account or credential action is authorized
+or performed by this source slice. Historical runtime evidence below retains its
+original scope and is not acceptance of the new artifact.
+
 ## Staging execution completed - 2026-11-02
 
 This update supersedes the earlier configuration-blocked execution notes below.

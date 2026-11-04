@@ -90,7 +90,7 @@ class PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     liveRegion: true,
-    label: loading ? 'Loading local preview' : null,
+    label: loading ? 'Loading' : null,
     child: FilledButton(
       onPressed: loading ? null : onPressed,
       child: loading

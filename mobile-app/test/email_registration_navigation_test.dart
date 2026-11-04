@@ -172,6 +172,8 @@ void main() {
     );
     await helpers.tapText(tester, roles[selectedRole]!);
     await helpers.tapText(tester, 'Continue');
+    expect(find.text('Welcome Back'), findsOneWidget);
+    await helpers.tapText(tester, 'Create a new account');
     await helpers.fill(tester, 'Full name', 'Registration fixture');
     // Normalization must happen once for the same registration/sign-in pair.
     await helpers.fill(
@@ -254,6 +256,69 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'rejected registration retains the draft for correction without exposing a server body',
+    (tester) async {
+      var calls = 0;
+      final transport = RegistrationNavigationTransport()
+        ..registration = (() async {
+          calls++;
+          return calls == 1
+              ? const ApiResponse(400, '{"error":"private backend diagnostic"}')
+              : RegistrationNavigationTransport.acknowledgment;
+        });
+      final controller = await prepare(tester, transport);
+      await submit(tester);
+      await tester.pumpAndSettle();
+
+      expect(controller.verified, isFalse);
+      expectNoDashboard();
+      expect(transport.requestsFor('/api/auth/callback/password'), isEmpty);
+      expect(find.textContaining('private backend diagnostic'), findsNothing);
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Full name'),
+            )
+            .controller!
+            .text,
+        'Registration fixture',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Password'),
+            )
+            .controller!
+            .text,
+        submittedPassword,
+      );
+      final create = find.widgetWithText(FilledButton, 'Create Account');
+      expect(tester.widget<FilledButton>(create).onPressed, isNotNull);
+      await helpers.fill(tester, 'Full name', 'Corrected fixture');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await submit(tester);
+      await tester.pumpAndSettle();
+      expect(controller.verified, isTrue);
+      expect(
+        transport.requestsFor('/api/mobile/auth/email-register'),
+        hasLength(2),
+      );
+      expect(
+        jsonDecode(
+          transport.requestsFor('/api/mobile/auth/email-register').last.body!,
+        )['name'],
+        'Corrected fixture',
+      );
+      expect(
+        transport.requestsFor('/api/auth/callback/password'),
+        hasLength(1),
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets(
     'registration stays busy through independent profile confirmation and cannot submit twice',
@@ -498,7 +563,7 @@ void main() {
       await submit(tester);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.text('Who are you?'), findsOneWidget);
+      expect(find.text('Welcome Back'), findsOneWidget);
       finish.complete(RegistrationNavigationTransport.acknowledgment);
       await tester.pumpAndSettle();
       expect(controller.verified, isFalse);
@@ -529,7 +594,7 @@ void main() {
       finish.complete(transport.profileResponse());
       await tester.pumpAndSettle();
       expect(controller.verified, isFalse);
-      expect(find.text('Who are you?'), findsOneWidget);
+      expect(find.text('Welcome Back'), findsOneWidget);
       expectNoDashboard();
       await tester.pumpWidget(const SizedBox());
     },

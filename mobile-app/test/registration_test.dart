@@ -12,6 +12,8 @@ import 'package:homezone_mobile/core/api/password_auth_protocol.dart';
 import 'package:homezone_mobile/features/auth/sign_in_controller.dart';
 import 'package:homezone_mobile/features/marketplace/marketplace_repository.dart';
 import 'package:homezone_mobile/features/marketplace/registration_screen.dart';
+import 'package:homezone_mobile/features/marketplace/marketplace_screen.dart';
+import 'package:homezone_mobile/features/buyer/buyer_shell.dart';
 import 'marketplace_test.dart' show FixtureTransport, json;
 
 class RegistrationTransport extends FixtureTransport {
@@ -118,16 +120,21 @@ class RegistrationFixture {
   late final SignInController controller;
   late final MarketplaceRepository repository;
   final observer = SessionRouteObserver();
-  // Retained legacy component coverage only. Active service /sign-up is PIN-only
-  // and must not be redirected back to email OTP just to satisfy old fixtures.
+  // Retained legacy component coverage only. Active native registration uses
+  // Name/Email/Password and must not be redirected to OTP for these fixtures.
   Widget app() => SessionScope(
     controller: controller,
     routeObserver: observer,
     child: MaterialApp(
       navigatorObservers: [observer],
       home: RegistrationScreen(repository: repository),
-      routes: {'/buyer': (_) => HomezoneApp(initialRoute: '/buyer',
-        signInController: controller, marketplace: repository)},
+      routes: {
+        '/buyer': (_) => HomezoneApp(
+          initialRoute: '/buyer',
+          signInController: controller,
+          marketplace: repository,
+        ),
+      },
     ),
   );
 }
@@ -189,7 +196,7 @@ void main() {
       await tester.pump();
       expect(f.transport.verifies, 1);
       expect(f.controller.verified, false);
-      expect(find.text('Discover a place'), findsNothing);
+      expect(find.byType(MarketplaceScreen), findsNothing);
       f.transport.sessionResponse!.complete(
         json({
           'user': {
@@ -205,13 +212,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(f.controller.verified, true);
-      expect(find.text('Discover a place'), findsOneWidget);
-      expect(
-        find.text(
-          'Service-backed listings. The offline preview is a separate experience.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.byType(MarketplaceScreen), findsOneWidget);
+      expect(find.byType(BuyerShell), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
@@ -225,7 +227,7 @@ void main() {
       await verify(tester);
       await tester.pumpAndSettle();
       expect(f.controller.verified, false);
-      expect(find.text('Discover a place'), findsNothing);
+      expect(find.byType(MarketplaceScreen), findsNothing);
       expect(find.textContaining('Email verified.'), findsOneWidget);
       expect(find.text('Retry secure sign-in'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());

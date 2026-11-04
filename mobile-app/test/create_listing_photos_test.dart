@@ -310,18 +310,12 @@ void main() {
       await tester.pumpAndSettle();
       final form = tester.widget<WorkspaceForm>(find.byType(WorkspaceForm));
       expect(form.fixed['status'], role == 'OWNER' ? 'PUBLISHED' : 'DRAFT');
-      if (role == 'OWNER') {
-        expect(
-          find.textContaining('Add at least 4 different property photos.'),
-          findsOneWidget,
-        );
-      }
-      await _reveal(tester, role == 'OWNER' ? 'Publish listing' : 'Save');
-      if (role == 'OWNER') {
-        expect(find.text('Save'), findsNothing);
-      } else {
-        expect(find.text('Publish listing'), findsNothing);
-      }
+      expect(form.guidedListing, true);
+      expect(find.text('Step 1 of 6'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
+      // Publication is offered only after validated details, photos and review.
+      expect(find.text('Publish listing'), findsNothing);
+      expect(find.text('Save draft'), findsNothing);
       expect(_creates(fixture), isEmpty);
     });
   }
