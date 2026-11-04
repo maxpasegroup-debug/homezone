@@ -1,5 +1,65 @@
 # HOMEZONE integration implementation status
 
+## Owner single-submission publication - SOURCE IMPLEMENTED / COMPILED - 2026-11-04
+
+New Owner creation keeps the founder's final **Publish listing** action. After
+the required fields and 2-6 photos are supplied, that one action creates the
+property, uploads the selected photos, independently reads the stored gallery,
+automatically publishes and confirms the returned property ID/status before
+closing. Owners do not reopen the new listing for a second Publish action after
+success. This publication pipeline was already present; this slice clarifies the
+creation UI rather than replacing backend APIs or publishing incomplete records.
+
+One confirmed misleading UI condition was corrected: already `PUBLISHED` records
+still offered Publish in listing details. That redundant action is now hidden.
+Actual unpublished drafts retain manual recovery with existing authorization and
+moderation restrictions. Interrupted or unconfirmed uploads/publication remain
+private/uncertain with a visible error, never a fabricated success or automatic
+recreation. The two-photo minimum and six-photo creation picker cap remain.
+
+Changed source: `lib/features/workspace/workspace_screen.dart`. Changed fixtures:
+`test/create_listing_photos_test.dart`, `test/listing_wizard_test.dart`,
+`test/workspace_form_state_test.dart`. The guided button test now performs an
+actual tap, rejects a duplicate callback, waits for the publication acknowledgment
+and verifies no intermediate details/republication screen. Published-state and
+manual-draft recovery tests are retained. One older form fixture's four-photo
+message expectation was reconciled with the approved two-photo policy.
+
+No backend, authentication, schema, database, Railway or deployment change was
+made. The published property is eligible for the matching Buyer catalogue;
+actual live visibility still requires the matching deployed backend/storage,
+current APK and controlled device verification. Previous APK evidence below is
+historical until a new artifact is recorded for this source slice.
+
+Final founder wording is **Publish listing**, not a separate Create & publish
+button. All required fields and 2-6 photos are supplied first; a single tap then
+runs upload, stored-photo readback and automatic publication. After restoring that
+wording, all 89 focused creation/wizard/retained-form tests passed. The existing
+no-second-step and no-premature-success checks remain intact.
+
+Latest APK for the final Publish listing wording built successfully in explicit
+staging service mode: `build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes.
+SHA-256: `558e8a09851589548fa0075b544fb4ae20f91606f2a0739035064fa9e355b50f`.
+Build record: `build/android-source-builds/2026-11-04T07-37-58-902Z-22184/build-record.json`.
+Hash, byte count and exact staging origin independently checked. Previous APK
+preserved; no installation, live publication, database operation or deployment.
+
+Before the final button-wording clarification, the full
+`flutter test --no-pub --reporter expanded` suite passed
+all **517** tests. Targeted analysis of the source and three changed fixture files
+passed with no errors/warnings and 32 informational lints. `git diff --check`
+passed. These are local in-process checks; no real property was created,
+published or modified, and actual Android/Buyer visibility is not established.
+
+Previous UX candidate staging debug APK built successfully with
+`node scripts/build-android.mjs --mode service --config config/staging.local.json`:
+`build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes. SHA-256:
+`8f49dbf2c60b92bfad49cd60ef9df490d9e59f13fb9b3f9b3dc37ab21d4aa19b`.
+Build record: `build/android-source-builds/2026-11-04T07-30-54-322Z-31836/build-record.json`.
+Hash independently verified. Explicit staging service mode/origin, debug variant,
+freshly written; runtime and live-service verification flags remain false.
+Previous APK preserved. No installation, app launch, deployment or live API action.
+
 ## Owner photo policy update - SOURCE IMPLEMENTED / COMPILED - 2026-11-04
 
 This supersedes the earlier four-photo requirement below. Owner publication now

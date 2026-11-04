@@ -1065,17 +1065,14 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
   String get id => recordId(widget.item);
   bool get _canPublishListing =>
       widget.repository.session.identity?.role == 'OWNER'
-      ? const {
-              'DRAFT',
-              'PENDING_REVIEW',
-              'PUBLISHED',
-            }.contains(widget.item['status']) &&
+      ? const {'DRAFT', 'PENDING_REVIEW'}.contains(widget.item['status']) &&
             !const {
               'REJECTED',
               'NEEDS_CHANGES',
               'EXPIRED',
             }.contains(widget.item['verificationStatus'])
-      : widget.item['verificationStatus'] == 'VERIFIED';
+      : widget.item['status'] != 'PUBLISHED' &&
+            widget.item['verificationStatus'] == 'VERIFIED';
   Future<void> form(
     String title,
     String path,
@@ -2398,7 +2395,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     _plannedPhotos = selected.length;
     setState(
       () => _saveProgress = publishAfterPhotos
-          ? 'Saving a private draft before uploading photos...'
+          ? 'Creating your property and preparing photo uploads...'
           : 'Saving listing...',
     );
     final data = await widget.repository.call(
@@ -2708,7 +2705,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
       const SizedBox(height: 8),
       Text(
         _publishesListing
-            ? 'Your listing becomes visible to Buyers after the server confirms the photos and publication.'
+            ? 'Tap Publish listing to upload your photos and publish your property for Buyers. You do not need to reopen the listing.'
             : 'This saves a draft. Publication remains subject to the existing listing permissions.',
       ),
       const SizedBox(height: 16),
@@ -2988,7 +2985,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                       const Padding(
                         padding: EdgeInsets.only(bottom: 16),
                         child: Text(
-                          'Add at least ${ListingPhotoPicker.minimumPublicationPhotos} different property photos. Your listing becomes visible to Buyers only after the photos are confirmed and publication succeeds.',
+                          'Complete the required fields and add at least ${ListingPhotoPicker.minimumPublicationPhotos} different property photos, then tap Publish listing. Your photos upload and your property publishes in the same submission.',
                         ),
                       ),
                     if (_supportsPhotos)

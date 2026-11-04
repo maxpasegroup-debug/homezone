@@ -259,10 +259,11 @@ void main() {
   });
 
   wizardTest(
-    'review precedes one draft, two uploads, readback and publication',
+    'one Publish listing tap creates, uploads and publishes without reopening',
     (tester) async {
       var uploads = 0;
       Map<String, dynamic>? created;
+      final publication = Completer<ApiResponse>();
       fixture.initialize();
       fixture.transport.reply = (request) {
         if (request.method == 'POST' && request.uri.path == '/api/properties') {
@@ -287,10 +288,7 @@ void main() {
             },
           });
         }
-        if (request.method == 'PATCH')
-          return json({
-            'property': {'id': _id, 'status': 'PUBLISHED'},
-          });
+        if (request.method == 'PATCH') return publication.future;
         return json({}, 404);
       };
       await open(tester);
@@ -302,8 +300,35 @@ void main() {
       final submit = tester
           .widget<ButtonStyleButton>(_button('Publish listing'))
           .onPressed!;
+      await tester.ensureVisible(_button('Publish listing'));
+      await tester.tap(_button('Publish listing'));
+      // A stale callback from the same tap frame cannot create a second draft.
       submit();
-      submit();
+      await tester.pump();
+      expect(find.byType(WorkspaceForm), findsOneWidget);
+      expect(find.byType(WorkspaceDetail), findsNothing);
+      expect(
+        _writes(
+          fixture,
+        ).where((request) => request.uri.path == '/api/properties'),
+        hasLength(1),
+      );
+      expect(
+        _writes(fixture).where((request) => request.method == 'PATCH'),
+        hasLength(1),
+      );
+      expect(
+        fixture.transport.requests.where(
+          (request) => request.uri.path == '/api/properties/$_id/media',
+        ),
+        hasLength(1),
+      );
+      expect(find.text('Listing published with 2 photos.'), findsNothing);
+      publication.complete(
+        json({
+          'property': {'id': _id, 'status': 'PUBLISHED'},
+        }),
+      );
       await tester.pumpAndSettle();
       if (find.text('Back to listings').evaluate().isNotEmpty) {
         await tester.drag(find.byType(ListView).first, const Offset(0, -4000));
@@ -325,6 +350,7 @@ void main() {
       expect(created?['status'], 'DRAFT');
       expect(created?['intent'], 'BUY');
       expect(find.text('Listing published with 2 photos.'), findsOneWidget);
+      expect(find.byType(WorkspaceDetail), findsNothing);
     },
   );
 

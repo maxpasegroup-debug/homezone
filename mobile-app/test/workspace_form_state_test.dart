@@ -165,7 +165,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           find.text(
-            'Add at least 4 different property photos before publishing.',
+            'Add at least 2 different property photos before publishing.',
           ),
           findsOneWidget,
         );

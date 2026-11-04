@@ -1,5 +1,15 @@
 # HOMEZONE remaining integration blockers
 
+## Owner single-submission publication acceptance - 2026-11-04
+
+The final new-listing action remains Publish listing, as clarified by the founder.
+After required fields and photos are complete, it uses the
+existing automatic creation/upload/readback/publication sequence, and already
+published detail pages no longer offer a redundant Publish button. Manual Publish
+is retained only for eligible unpublished drafts/recovery. This is a source/UI
+correction, not proof that a reported live draft has been published. Matching
+backend/storage/APK and controlled Owner-to-Buyer acceptance remain required.
+
 ## Two-photo Owner policy release - 2026-11-04
 
 Owner publication now requires two distinct stored photos; the mobile new-listing

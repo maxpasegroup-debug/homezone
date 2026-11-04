@@ -9,6 +9,17 @@ Photo-policy update, 2026-11-04: the current minimum is **two distinct photos**,
 with **six selected photos maximum** in mobile Create listing. This supersedes the
 earlier four-photo candidate. Existing larger stored galleries remain intact.
 
+Owner creation UX update: Review ends with **Publish listing**. One action
+performs creation, selected uploads, independent gallery readback and automatic
+publication; successful creation never requires reopening details to publish.
+Already published details hide the redundant Publish action. Eligible unfinished
+drafts keep recovery actions; failure is not reported as successful publication.
+Before the final button-wording clarification, the complete Flutter suite passed 517/517 tests, including an actual
+new-listing submission tap with delayed publication confirmation and published-detail
+action hiding. Targeted analysis has no errors/warnings (32 informational lints).
+After restoring the Publish listing wording, all 89 focused creation, wizard and
+retained-form checks passed; the actual-tap one-submission test is preserved.
+
 ## Source changes
 
 | Area | Result |

@@ -935,12 +935,16 @@ void main() {
   for (final state in [
     ('OWNER', 'DRAFT', 'PENDING', true),
     ('OWNER', 'PENDING_REVIEW', 'UNDER_REVIEW', true),
+    ('OWNER', 'PUBLISHED', 'PENDING', false),
+    ('OWNER', 'PUBLISHED', 'UNDER_REVIEW', false),
+    ('OWNER', 'PUBLISHED', 'VERIFIED', false),
     ('OWNER', 'REJECTED', 'REJECTED', false),
     ('OWNER', 'ARCHIVED', 'VERIFIED', false),
     ('OWNER', 'DRAFT', 'NEEDS_CHANGES', false),
     ('OWNER', 'DRAFT', 'EXPIRED', false),
     ('BROKER', 'DRAFT', 'PENDING', false),
     ('BROKER', 'DRAFT', 'VERIFIED', true),
+    ('BROKER', 'PUBLISHED', 'VERIFIED', false),
   ]) {
     photoTest('listing publication action respects $state', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1600));
