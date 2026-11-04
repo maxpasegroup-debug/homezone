@@ -6,7 +6,72 @@ Date: 2026-11-04. Source baseline:
 The founder selected Railway-volume storage for staging, with Cloudinary retained
 for production. This implementation adds an adapter to the existing upload flow;
 it does not replace authentication, listing creation or publication APIs.
-**SOURCE IMPLEMENTED / LOCAL TESTED; NOT DEPLOYED OR DEVICE VERIFIED.**
+**STAGING ACTIVATED / OWNER PUBLICATION AND PHOTOS DEVICE VERIFIED.**
+
+## Authorized staging activation and acceptance - 2026-11-04
+
+The founder explicitly granted Railway access to fix the displayed upload error.
+Fresh inspection found the code already deployed at
+`eeea9a3ce114923dcd352e9ad823a92a67afca3e`, but the provider selector and
+photo mount were absent. All 21 migration files and Prisma schema were identical
+to the preceding release; its existing deployment logs reported no pending
+migrations. No production service or database was accessed.
+
+Completed against the exact staging target below:
+
+- Saved `PROPERTY_PHOTO_STORAGE=railway-volume` with deploys initially skipped.
+- Added a separate backend photo volume mounted at `/app/property-media`.
+  Volume ID `7d783a33-4d9a-42f3-9c0f-2a352a701d2a`, instance
+  `76294119-cffb-41e5-ba7c-546707940da3`, name `homezone-volume`.
+  Railway assigned its default `sizeMB:50000`; no resize was requested.
+  The existing PostgreSQL volume was left untouched.
+- Volume attachment automatically triggered deployment
+  `9f87dfe1-e8d5-48ba-911b-8af27e64af09`, which reached SUCCESS on the same
+  reviewed commit. Its existing pre-deploy reported 21 migrations and
+  **No pending migrations to apply**; application startup reported Ready.
+  No manual migration/database command was executed and no schema change applied.
+- Retried the retained Owner form once after activation. The prior attempt had
+  stopped before creation. Native Flutter created one clearly labelled staging
+  test listing, uploaded two photos, read stored media and published it from the
+  one Publish listing action. It returned to Owner Home without a second Publish.
+- Property `cmw269d0x0003pu0x0qnp0t90`, title
+  `STAGING TEST Owner mobile 20261104`, is PUBLISHED. Its description explicitly
+  identifies the illustrative photos/test and says it is not a real offer.
+  No pre-existing listing was edited or deleted and no account was created.
+- Railway HTTP evidence on that deployment records the native capability GET,
+  property creation POST and both upload POSTs returning 200. The public
+  catalogue subsequently returned 200, source database, two published records
+  including the exact new ID/title. Both new photo URLs returned 200/image/jpeg;
+  bytes and SHA-256 matched the two selected local files independently.
+- Installed the already-built `911f6941...1893d8` staging debug APK with
+  `adb install -r`, preserving local account data. The Owner session restored.
+  Actual Android screenshots show the new Owner Home card, PUBLISHED detail,
+  both Owner gallery photos, matching Buyer-facing public catalogue card/detail
+  and both photos in its gallery. Public discovery was opened through the
+  existing Owner Browse properties action; this was not a new Buyer login test.
+- Performed one controlled restart of this staging backend without rebuilding.
+  After restart, independent cache-busted requests for both photos returned 200
+  with identical pre-restart bytes/hashes. This verifies the actual runtime
+  mount/write/read/fsync path and persistence through that restart.
+
+Sanitized local evidence is under
+`build/owner-buyer-device-check-20261104/`: activation-before/after JSON,
+`volume-native-http-evidence.json`, `volume-publish-public-readback.json`,
+`volume-persistence-readback.json`, `volume-updated-app-home.png`,
+`volume-owner-property-details.png`, `volume-owner-second-photo.png`,
+`volume-buyer-published-photo.png`, `volume-buyer-property-details.png` and
+`volume-buyer-gallery.png`. Desktop timestamps differ from Railway server time;
+use deployment ID, property ID and ordered server log timestamps for correlation.
+
+Still not verified: an already-open Buyer screen receiving a new publication
+without manual navigation, WebSocket acceptance, a distinct Buyer-account login,
+rental creation, backup/restore and all other role workflows. No volume backup
+schedule was configured or restore performed. Retain capacity monitoring and
+independent database/photo backups. No production access, commit or push occurred.
+
+The sections below retain the implementation contract and rollout/rollback
+procedure. Their source-slice verification notes are historical; this acceptance
+section supersedes their earlier not-activated/device-unverified status.
 
 ## Storage contract
 

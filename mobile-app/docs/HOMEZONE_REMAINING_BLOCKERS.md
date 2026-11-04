@@ -1,5 +1,28 @@
 # HOMEZONE remaining integration blockers
 
+## Photo-storage error resolved on staging - 2026-11-04
+
+Authorized volume activation is complete. Deployment
+`9f87dfe1-e8d5-48ba-911b-8af27e64af09` is SUCCESS on
+`eeea9a3ce114923dcd352e9ad823a92a67afca3e`, with its own backend photo mount
+and volume provider selector. Existing pre-deploy reported no pending migrations;
+PostgreSQL and production were untouched.
+
+Native Owner creation -> two real photo uploads -> stored-gallery confirmation
+-> PUBLISHED completed from the form's one Publish action. Public readback and
+actual Android Owner/Buyer-facing screens displayed the new test property and
+both photos using the installed updated staging APK. Both files survived a
+controlled backend restart with identical independent readback hashes. The old
+storage-unavailable screenshot is no longer the current result.
+
+Still pending: automatic appearance on an already-open Buyer screen, WebSocket
+acceptance, a distinct Buyer-account login test and rental-specific acceptance.
+The test used Owner-authenticated public discovery. Volume backup/restore and
+capacity operations remain unverified; Railway's assigned capacity was
+`sizeMB:50000` and no resize/backup schedule was requested. Production Cloudinary
+transition and other role-workflow gates remain. Exact evidence/target/record:
+`PROPERTY_PHOTO_VOLUME_STORAGE.md`.
+
 ## Volume-storage decision: staging activation pending - 2026-11-04
 
 Source now supports the founder's Railway-volume staging choice. Cloudinary

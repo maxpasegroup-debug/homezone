@@ -1,5 +1,39 @@
 # HOMEZONE integration implementation status
 
+## Staging photo publishing - BACKEND CONNECTED / DEVICE VERIFIED - 2026-11-04
+
+The founder authorized Railway access and activation. The matched staging backend
+now has its own photo volume at `/app/property-media` and
+`PROPERTY_PHOTO_STORAGE=railway-volume`. Attachment automatically released
+deployment `9f87dfe1-e8d5-48ba-911b-8af27e64af09` on reviewed commit
+`eeea9a3ce114923dcd352e9ad823a92a67afca3e`; status SUCCESS. Existing pre-deploy
+logged 21 migrations/no pending; no migration was applied or manually executed.
+Production and the PostgreSQL volume were untouched.
+
+ACTUAL NATIVE ACCEPTANCE: retried the retained form once; Flutter created one
+labelled test listing, uploaded two selected photos, confirmed stored media and
+published from the one form action. Property `cmw269d0x0003pu0x0qnp0t90` is
+PUBLISHED. Public catalogue returned 200/source database with the new record;
+both photo GETs returned 200 and exactly matched the selected file bytes/hashes.
+The current staging APK (`911f6941...1893d8`) was installed preserving data.
+Owner session restored; actual Android screenshots show the new Owner card,
+PUBLISHED detail, both Owner gallery images, Buyer-facing public card/detail and
+both public gallery images. Public discovery used the Owner Browse properties
+route; this does not constitute a new Buyer-account login test.
+
+A controlled staging restart completed; cache-busted photo reads returned the
+same bytes afterward. Volume instance `76294119-cffb-41e5-ba7c-546707940da3`
+belongs only to the backend. No application code changed during activation,
+no account was created, no existing listing was altered, and no commit/push
+occurred. The one authorized public test listing remains clearly labelled.
+
+The screenshot's storage-unavailable blocker is RESOLVED on staging. Remaining:
+foreground automatic-new-publication/WebSocket acceptance, a distinct Buyer
+login, rental-specific acceptance, photo backups/restore/capacity monitoring and
+other role workflows. Detailed target/log/asset evidence and limitations:
+`PROPERTY_PHOTO_VOLUME_STORAGE.md` (activation acceptance section). This section
+supersedes the historical activation-blocked notes below.
+
 ## Staging volume photo storage - SOURCE IMPLEMENTED / LOCAL TESTED - 2026-11-04
 
 The founder selected a Railway photo volume for staging and Cloudinary for
