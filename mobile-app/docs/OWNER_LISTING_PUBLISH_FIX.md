@@ -2,6 +2,24 @@
 
 Date: 2026-11-04. Baseline: `main/6d07cc433dbd5332dbb7b55db608621f569e5902`.
 
+## Owner purpose wording - 2026-11-04
+
+The Owner creation/editing dropdown now displays **Sell**, **Rent**, **Lease**
+and **Investment**. The existing stored/API values remain `BUY`, `RENT`, `LEASE`,
+`INVEST`: `BUY` describes the Buyer's search for an offered sale property, not
+an Owner trying to purchase one. Mobile and the active website listing editor
+use the clearer labels; Buyer search wording and all data/permissions are unchanged.
+The existing sale/rental fixtures now select the friendly labels and still assert
+the canonical request values and retained choices after scrolling. No schema or
+migration is needed. This wording correction does not activate photo storage;
+the volume option discussed with the founder still needs implementation and
+separately approved infrastructure/release actions.
+
+Validation for this wording slice: all four existing sale/rental selection and
+payload tests passed, TypeScript checking passed and the diff check was clean.
+No new APK build, device operation, deployment or live record change was performed
+for the wording update; the currently installed application is not claimed updated.
+
 ## Confirmed causes
 
 1. The Flutter Owner form uses a lazy ListView. Purpose, Category and Currency

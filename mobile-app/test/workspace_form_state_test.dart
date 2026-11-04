@@ -130,7 +130,10 @@ void main() {
           await reveal(field, 160);
           await tester.tap(field);
           await tester.pumpAndSettle();
-          await tester.tap(find.text(value).last);
+          final label = name == 'Purpose'
+              ? const {'BUY': 'Sell', 'RENT': 'Rent'}[value] ?? value
+              : value;
+          await tester.tap(find.text(label).last);
           await tester.pumpAndSettle();
         }
 

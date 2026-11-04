@@ -383,7 +383,11 @@ void main() {
         await _reveal(tester, selection.$1);
         await tester.tap(dropdown);
         await tester.pumpAndSettle();
-        await tester.tap(find.text(selection.$2).last);
+        final label = selection.$1 == 'Purpose'
+            ? const {'BUY': 'Sell', 'RENT': 'Rent'}[selection.$2] ??
+                  selection.$2
+            : selection.$2;
+        await tester.tap(find.text(label).last);
         await tester.pumpAndSettle();
       }
       await _tap(tester, 'Publish listing');
@@ -504,10 +508,8 @@ void main() {
     for (var index = 0; index < 4; index++) {
       await _tap(tester, 'Add photo');
     }
-    fixture.transport.photoReadinessReply = (_) => json({
-      'propertyPhotoUploadConfigured': true,
-      'success': false,
-    });
+    fixture.transport.photoReadinessReply = (_) =>
+        json({'propertyPhotoUploadConfigured': true, 'success': false});
     await _tap(tester, 'Publish listing');
     expect(_creates(fixture), isEmpty);
     expect(_uploads(fixture), isEmpty);

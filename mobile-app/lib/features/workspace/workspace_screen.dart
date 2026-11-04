@@ -43,6 +43,18 @@ class FieldSpec {
   final int? maxLength;
 }
 
+// Stored intent remains buyer-facing BUY; Owners are offering it for sale.
+String _workspaceOptionLabel(FieldSpec field, String value) =>
+    field.key == 'intent'
+    ? switch (value) {
+        'BUY' => 'Sell',
+        'RENT' => 'Rent',
+        'LEASE' => 'Lease',
+        'INVEST' => 'Investment',
+        _ => value,
+      }
+    : value;
+
 const _name = FieldSpec('name', 'Name', required: true);
 const _city = FieldSpec('city', 'City', required: true);
 const _notes = FieldSpec('notes', 'Notes', lines: 3);
@@ -2511,7 +2523,9 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                                   for (final value in field.options!)
                                     DropdownMenuItem(
                                       value: value,
-                                      child: Text(value),
+                                      child: Text(
+                                        _workspaceOptionLabel(field, value),
+                                      ),
                                     ),
                                 ],
                                 onChanged: busy || _listingCreateStarted

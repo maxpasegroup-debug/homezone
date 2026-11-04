@@ -1,5 +1,13 @@
 # HOMEZONE integration implementation status
 
+## Owner purpose wording - SOURCE UPDATED - 2026-11-04
+
+Owner mobile create/edit forms and the active website listing editor now display
+Sell/Rent/Lease/Investment. Payloads still use BUY/RENT/LEASE/INVEST, preserving the
+existing database and Buyer filters. This is a label correction, not activation
+of photo storage or evidence of a published sale/rental. See
+`OWNER_LISTING_PUBLISH_FIX.md` for the remaining storage/release requirements.
+
 ## Owner form retention and upload readiness - SOURCE FIXED - 2026-11-04
 
 Fixed lazy-scroll loss of Purpose/Category/Currency selections and validation of

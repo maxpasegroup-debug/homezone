@@ -49,6 +49,9 @@ type SaveStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED";
 const categories = ["RESIDENTIAL", "COMMERCIAL", "LAND", "INDUSTRIAL", "AGRICULTURAL", "HOSPITALITY", "LUXURY"];
 const currencies = ["INR", "AED", "USD", "GBP", "EUR"];
 const intents = ["BUY", "RENT", "LEASE", "INVEST"];
+const intentLabels: Record<string, string> = {
+  BUY: "Sell", RENT: "Rent", LEASE: "Lease", INVEST: "Investment"
+};
 const propertyTypes = ["Villa", "House", "Apartment", "Flat", "Land", "Office", "Shop", "Warehouse", "Farm Land", "Hotel", "Luxury"];
 
 function toFormData(property?: ListingValue) {
@@ -404,7 +407,7 @@ export function OwnerListingEditor({
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <Field className="sm:col-span-2" label="Title" name="title" onChange={updateField} value={form.title} />
         <TextArea className="sm:col-span-2" label="Description" name="description" onChange={updateField} value={form.description} />
-        <Select label="Intent" name="intent" onChange={updateField} options={intents} value={form.intent} />
+        <Select label="Purpose" name="intent" onChange={updateField} options={intents} value={form.intent} />
         <Select label="Category" name="category" onChange={updateField} options={categories} value={form.category} />
         <Select label="Property Type" name="propertyType" onChange={updateField} options={propertyTypes} value={form.propertyType} />
         <Select label="Currency" name="currency" onChange={updateField} options={currencies} value={form.currency} />
@@ -602,7 +605,7 @@ function Select({
         value={value}
       >
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          <option key={option} value={option}>{name === "intent" ? intentLabels[option] ?? option : option}</option>
         ))}
       </select>
     </label>
