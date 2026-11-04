@@ -9,6 +9,41 @@ import 'listing_realtime.dart';
 
 typedef JsonObject = Map<String, dynamic>;
 
+enum PropertyPhotoFailure {
+  storageUnavailable,
+  readinessUnavailable,
+  uploadFailed,
+  confirmationUnavailable,
+}
+
+/// Only allowlisted photo-service categories cross the feature boundary.
+/// Response bodies, provider details and headers are never retained.
+class PropertyPhotoException extends ApiException {
+  const PropertyPhotoException(this.reason, {super.status})
+    : super(ApiFailure.server);
+
+  final PropertyPhotoFailure reason;
+}
+
+PropertyPhotoFailure? _photoFailureCode(ApiResponse response) {
+  if (response.status != 502 && response.status != 503) return null;
+  try {
+    final data = jsonDecode(response.body);
+    if (data is! Map<String, dynamic>) return null;
+    return switch ((response.status, data['code'])) {
+      (503, 'PROPERTY_PHOTO_STORAGE_UNAVAILABLE') =>
+        PropertyPhotoFailure.storageUnavailable,
+      (502, 'PROPERTY_PHOTO_UPLOAD_FAILED') =>
+        PropertyPhotoFailure.uploadFailed,
+      (502, 'PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE') =>
+        PropertyPhotoFailure.confirmationUnavailable,
+      _ => null,
+    };
+  } on FormatException {
+    return null;
+  }
+}
+
 JsonObject object(Object? value) {
   if (value is! JsonObject) {
     throw const ApiException(ApiFailure.invalidResponse);
@@ -232,6 +267,12 @@ final class MarketplaceRepository {
           if (!coordinator.acceptMetadata(ticket, response.metadata())) {
             throw const CookieLifecycleInvalidated();
           }
+          if (path == '/api/mobile/upload') {
+            final reason = _photoFailureCode(response);
+            if (reason != null) {
+              throw PropertyPhotoException(reason, status: response.status);
+            }
+          }
           ApiClient.checkStatus(response);
           if (protected && !session.verified) {
             throw const CookieLifecycleInvalidated();
@@ -259,6 +300,9 @@ final class MarketplaceRepository {
         session.clearLocalSession();
       }
       // Strip all raw response metadata at the feature boundary.
+      if (error is PropertyPhotoException) {
+        throw PropertyPhotoException(error.reason, status: error.status);
+      }
       throw ApiException(
         error.failure,
         status: error.status,

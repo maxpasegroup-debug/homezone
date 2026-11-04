@@ -5,6 +5,7 @@ import { apiError, forbidden, handleApiError, ok, rateLimited, unauthorized } fr
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { env } from "@/lib/env";
 import { getCloudinaryConfig, signCloudinaryParams } from "@/lib/media/cloudinary";
+import { logger } from "@/lib/logging/logger";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,23 @@ const allowedFolders = new Set([
   "homezone/property-documents",
   "homezone/property-reels"
 ]);
+
+function uploadUnavailable(
+  code: "PROPERTY_PHOTO_STORAGE_UNAVAILABLE" | "PROPERTY_PHOTO_UPLOAD_FAILED" | "PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE",
+  stage: "configuration" | "provider-request" | "provider-response" | "provider-confirmation"
+) {
+  // Fixed categories only. Never record provider responses, URLs or credentials.
+  logger.warn("Media upload unavailable", { stage, category: code });
+  return ok({
+    code,
+    error: code === "PROPERTY_PHOTO_STORAGE_UNAVAILABLE"
+      ? "Property photo storage is not configured. Please try again later."
+      : code === "PROPERTY_PHOTO_UPLOAD_FAILED"
+        ? "Property photo upload could not be completed. Refresh the listing before retrying."
+        : "Property photo upload confirmation is unavailable. Refresh the listing before retrying.",
+    success: false
+  }, { status: code === "PROPERTY_PHOTO_STORAGE_UNAVAILABLE" ? 503 : 502 });
+}
 
 export async function POST(request: Request) {
   try {
@@ -69,7 +87,13 @@ export async function POST(request: Request) {
       return apiError("File is too large", 400);
     }
 
-    const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
+    let config: ReturnType<typeof getCloudinaryConfig>;
+    try {
+      config = getCloudinaryConfig();
+    } catch {
+      return uploadUnavailable("PROPERTY_PHOTO_STORAGE_UNAVAILABLE", "configuration");
+    }
+    const { cloudName, apiKey, apiSecret } = config;
     const timestamp = Math.round(Date.now() / 1000);
     const signature = signCloudinaryParams({ folder, timestamp }, apiSecret);
 
@@ -80,18 +104,36 @@ export async function POST(request: Request) {
     uploadForm.append("folder", folder);
     uploadForm.append("signature", signature);
 
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
-      {
-        method: "POST",
-        body: uploadForm
-      }
-    );
-
-    const data = await response.json();
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+        {
+          method: "POST",
+          body: uploadForm
+        }
+      );
+    } catch {
+      return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "provider-request");
+    }
 
     if (!response.ok) {
-      return apiError("Media upload failed", 502);
+      return uploadUnavailable("PROPERTY_PHOTO_UPLOAD_FAILED", "provider-response");
+    }
+
+    let data;
+    try {
+      data = await response.json();
+      if (!data || typeof data !== "object" || typeof data.secure_url !== "string") {
+        throw new Error("Invalid upload acknowledgment");
+      }
+      const uploaded = new URL(data.secure_url);
+      if (uploaded.protocol !== "https:" || uploaded.username || uploaded.password ||
+          uploaded.hash || (uploaded.port && uploaded.port !== "443")) {
+        throw new Error("Invalid upload acknowledgment");
+      }
+    } catch {
+      return uploadUnavailable("PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE", "provider-confirmation");
     }
 
     await auditLog({

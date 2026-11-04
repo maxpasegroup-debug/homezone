@@ -1,5 +1,38 @@
 # HOMEZONE integration implementation status
 
+## Owner form retention and upload readiness - SOURCE FIXED - 2026-11-04
+
+Fixed lazy-scroll loss of Purpose/Category/Currency selections and validation of
+required fields that are offscreen. BUY/RENT regressions reproduced the dropdown
+loss before correction; corrected fixtures preserve both UI selections and the
+request payload. Added authenticated photo readiness checking before a listing
+with selected photos is created, retaining all inputs/photos when unavailable.
+The backend reports safe upload categories, which Flutter displays without raw
+provider/response details. Unknown writes are not blindly repeated.
+
+Fresh scoped Railway metadata matched staging service/environment/domain and
+confirmed `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+all absent. No values were displayed or settings changed. This is a confirmed
+staging configuration blocker for native file upload, alongside the fixed UI
+defect; it is not a captured HTTP status from the user's failed attempt.
+
+No four-photo, ownership, role, authentication, media-host or WebSocket protection
+was removed. Matching backend/APK release and private photo-storage provisioning
+remain required before claiming live publication success. Exact files, tests,
+configuration evidence and next actions: `OWNER_LISTING_PUBLISH_FIX.md`.
+
+Local verification PASSED: 106 Flutter tests; 39 backend publication/photo/storage
+tests; 11 mobile API tests; 41 WebSocket tests; TypeScript checking. Focused Flutter
+analysis reported zero errors/warnings and 38 informational lints. The four-photo
+publication test uses in-process fixtures, not a real Cloudinary upload.
+
+Updated staging debug APK build PASSED, record
+`2026-11-04T03-17-26-583Z-22300`, SHA256
+`829489e20f02fc1efef7c6638c8421d12b622565c40ae603fe9d5494cb77b3e6`.
+The previous APK is preserved. This candidate was not installed or launched and
+requires the matching backend readiness field; it does not unblock missing storage
+credentials or establish live publication acceptance.
+
 ## Listing WebSockets - SOURCE IMPLEMENTED - 2026-11-04
 
 Added an opt-in same-origin WebSocket gateway at

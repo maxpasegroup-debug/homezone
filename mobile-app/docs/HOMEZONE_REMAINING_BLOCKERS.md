@@ -1,5 +1,28 @@
 # HOMEZONE remaining integration blockers
 
+## Current native photo-upload blocker and Owner form correction - 2026-11-04
+
+CONFIRMED: current saved-variable metadata for the explicitly matched staging
+service/environment/domain has none of `CLOUDINARY_CLOUD_NAME`,
+`CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`. No credential values were printed
+or changed. Native photo upload cannot be accepted as working from the earlier
+hosted-URL image display evidence. The user's particular failed request's HTTP
+status remains uncaptured.
+
+SOURCE FIXED: Purpose/Category/Currency no longer lose their displayed selection
+after lazy scrolling; all retained required fields are validated. A new readiness
+flag on existing capabilities prevents a new listing draft when upload setup
+cannot be confirmed, retaining inputs/photos on the current screen. Safe upload
+categories replace ambiguous zero-photo-only feedback, without replaying uncertain
+writes. The four-photo rule and existing drafts are preserved.
+
+Remaining actions: privately provision the three staging Cloudinary requirements;
+approve any resulting service effects and the matching backend/APK release, then
+authorize one real four-file upload/publication/readback test. New clients require
+the backend readiness field and fail closed on an older server. This source slice
+adds no schema/migration and does not authorize Railway predeploy's unknown pending
+set. Full handover: `OWNER_LISTING_PUBLISH_FIX.md`.
+
 ## WebSocket staging activation and acceptance - 2026-11-04
 
 SOURCE IMPLEMENTED and local-fixture checked: transaction-bound public property

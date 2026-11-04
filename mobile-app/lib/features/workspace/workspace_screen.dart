@@ -2008,6 +2008,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
       _publicationStarted = false,
       _publicationConfirmed = false;
   String? _createdListingId, _saveProgress;
+  bool _confirmingStoredPhotos = false;
   int _confirmedPhotos = 0, _plannedPhotos = 0;
   bool get _isListingCreate =>
       widget.method == 'POST' && widget.path == '/api/properties';
@@ -2054,11 +2055,18 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   }
 
   Future<void> submit() async {
-    if (!current ||
-        busy ||
-        _pickingPhoto ||
-        _listingCreateStarted ||
-        !key.currentState!.validate()) {
+    if (!current || busy || _pickingPhoto || _listingCreateStarted) {
+      return;
+    }
+    final validation = _firstFieldValidationError;
+    final mountedFieldsValid = key.currentState!.validate();
+    if (validation != null || !mountedFieldsValid) {
+      if (validation != null) {
+        setState(() => error = validation);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(validation)));
+      }
       return;
     }
     if (_publishesListing &&
@@ -2120,11 +2128,13 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     } catch (e) {
       if (current) {
         setState(() {
+          _saveProgress = null;
           if (_isListingCreate && _createdListingId != null) {
             if (_publishesListing && !_publicationConfirmed) {
               error = _draftConfirmed && !_publicationStarted
                   ? 'Draft saved. It has not been published. '
-                        'Photo confirmation is incomplete ($_confirmedPhotos of $_plannedPhotos photos confirmed). '
+                        '${_confirmingStoredPhotos ? 'The stored property photos could not be confirmed.' : _photoFailureMessage(e)} '
+                        '($_confirmedPhotos of $_plannedPhotos photos confirmed). '
                         'Return to Listings and refresh this draft before adding photos and publishing.'
                   : 'Listing saved, but publication could not be confirmed. '
                         'Return to Listings and refresh before making any changes.';
@@ -2134,6 +2144,10 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                   '($_confirmedPhotos of $_plannedPhotos photos confirmed). '
                   'Return to Listings and refresh this listing before uploading again.';
             }
+          } else if (_isListingCreate && !_listingCreateStarted) {
+            error =
+                '${e is PropertyPhotoException ? _photoFailureMessage(e) : 'Photo upload availability could not be checked. Check your connection and try again.'} '
+                'Your details and selected photos are kept on this screen. No listing was created.';
           } else if (_isListingCreate && !_definitelyRejected(e)) {
             error =
                 'Saving the listing could not be confirmed. It may already exist. '
@@ -2159,9 +2173,59 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
         ApiFailure.notFound,
       }.contains(error.failure);
 
+  String _photoFailureMessage(Object failure) {
+    if (failure is PropertyPhotoException) {
+      return switch (failure.reason) {
+        PropertyPhotoFailure.storageUnavailable =>
+          'Photo uploads are unavailable. Please contact HomeZone support.',
+        PropertyPhotoFailure.readinessUnavailable =>
+          'Photo upload availability could not be confirmed. Please try again later.',
+        PropertyPhotoFailure.uploadFailed =>
+          'The photo upload service could not complete the upload.',
+        PropertyPhotoFailure.confirmationUnavailable =>
+          'The photo upload response could not be confirmed.',
+      };
+    }
+    if (failure is ApiException) {
+      return switch (failure.failure) {
+        ApiFailure.timeout || ApiFailure.network =>
+          'The photo upload confirmation was not received. Some photos may already have reached the server.',
+        ApiFailure.rateLimited =>
+          'The photo upload limit was reached. Wait before uploading again.',
+        ApiFailure.validation =>
+          'The server could not accept this photo. Use a readable JPEG, PNG or WebP within the allowed size.',
+        ApiFailure.unauthorized => 'Sign in again before uploading photos.',
+        ApiFailure.forbidden =>
+          'This account cannot upload photos to this listing.',
+        _ => 'The server could not confirm the photo upload.',
+      };
+    }
+    return 'The photo upload response could not be confirmed.';
+  }
+
   Future<void> _createListing(JsonObject payload, int generation) async {
     final selected = List<SelectedListingPhoto>.of(_photos);
     final publishAfterPhotos = _publishesListing;
+    if (selected.isNotEmpty) {
+      setState(() => _saveProgress = 'Checking photo upload availability...');
+      final capabilities = await widget.repository.call(
+        'GET',
+        '/api/mobile/capabilities',
+      );
+      if (!current || generation != widget.repository.coordinator.generation) {
+        return;
+      }
+      final configured = capabilities['propertyPhotoUploadConfigured'];
+      if (configured != true ||
+          capabilities['ok'] == false ||
+          capabilities['success'] == false) {
+        throw PropertyPhotoException(
+          configured == false
+              ? PropertyPhotoFailure.storageUnavailable
+              : PropertyPhotoFailure.readinessUnavailable,
+        );
+      }
+    }
     // Creation/upload endpoints are non-idempotent. Never retry a lost response.
     _listingCreateStarted = true;
     _plannedPhotos = selected.length;
@@ -2227,6 +2291,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
       return;
     }
     if (publishAfterPhotos) {
+      _confirmingStoredPhotos = true;
       setState(() => _saveProgress = 'Confirming property photos...');
       final media = await widget.repository.call(
         'GET',
@@ -2320,6 +2385,64 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
       );
   }
 
+  String? _fieldValidationError(FieldSpec field, String? raw) {
+    final value = raw?.trim() ?? '';
+    if (field.options != null) {
+      if (value.isEmpty && !field.required) return null;
+      return field.options!.contains(value) ? null : 'Choose an option';
+    }
+    if (value.isEmpty) {
+      return field.required ? 'This field is required' : null;
+    }
+    if (field.stringList) {
+      final values = value
+          .split(RegExp(r'\r?\n'))
+          .map((v) => v.trim())
+          .where((v) => v.isNotEmpty)
+          .toSet();
+      if (values.length > 100 || values.any((v) => v.length > 120)) {
+        return 'Use up to 100 amenities, at most 120 characters each';
+      }
+    }
+    if (field.number) {
+      final number = num.tryParse(value);
+      if (number == null ||
+          !number.isFinite ||
+          number < (field.minimum ?? 0) ||
+          (field.maximum != null && number > field.maximum!) ||
+          (field.integer && number != number.round())) {
+        return field.integer
+            ? 'Enter a whole number within the allowed range'
+            : 'Enter a number within the allowed range';
+      }
+    }
+    if (field.date && DateTime.tryParse(value) == null) {
+      return 'Choose a date and time';
+    }
+    if (field.key == 'email' &&
+        !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value)) {
+      return 'Enter a valid email';
+    }
+    if (field.key.toLowerCase().endsWith('url') &&
+        Uri.tryParse(value)?.scheme != 'https') {
+      return 'Use an approved HTTPS URL';
+    }
+    return null;
+  }
+
+  // ListView may dispose offscreen FormFields. Validate the retained values as
+  // well as mounted widgets so scrolling never bypasses required fields.
+  String? get _firstFieldValidationError {
+    for (final field in widget.fields) {
+      final validation = _fieldValidationError(
+        field,
+        controls[field.key]!.text,
+      );
+      if (validation != null) return '${field.label}: $validation';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.repository.session,
@@ -2370,6 +2493,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                       ),
                     for (final field in widget.fields)
                       Padding(
+                        key: ValueKey(field.key),
                         padding: const EdgeInsets.only(bottom: 16),
                         child: field.options != null
                             ? DropdownButtonFormField<String>(
@@ -2392,11 +2516,12 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                                 ],
                                 onChanged: busy || _listingCreateStarted
                                     ? null
-                                    : (v) =>
-                                          controls[field.key]!.text = v ?? '',
-                                validator: (v) => field.required && v == null
-                                    ? 'Choose an option'
-                                    : null,
+                                    : (v) => setState(
+                                        () =>
+                                            controls[field.key]!.text = v ?? '',
+                                      ),
+                                validator: (v) =>
+                                    _fieldValidationError(field, v),
                               )
                             : TextFormField(
                                 controller: controls[field.key],
@@ -2421,49 +2546,8 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                                       ? const Icon(Icons.calendar_today)
                                       : null,
                                 ),
-                                validator: (v) {
-                                  final value = v?.trim() ?? '';
-                                  if (value.isEmpty)
-                                    return field.required
-                                        ? 'This field is required'
-                                        : null;
-                                  if (field.stringList) {
-                                    final values = value
-                                        .split(RegExp(r'\r?\n'))
-                                        .map((v) => v.trim())
-                                        .where((v) => v.isNotEmpty)
-                                        .toSet();
-                                    if (values.length > 100 ||
-                                        values.any((v) => v.length > 120))
-                                      return 'Use up to 100 amenities, at most 120 characters each';
-                                  }
-                                  if (field.number &&
-                                      (num.tryParse(value) == null ||
-                                          !num.parse(value).isFinite ||
-                                          num.parse(value) <
-                                              (field.minimum ?? 0) ||
-                                          (field.maximum != null &&
-                                              num.parse(value) >
-                                                  field.maximum!) ||
-                                          (field.integer &&
-                                              num.parse(value) !=
-                                                  num.parse(value).round())))
-                                    return field.integer
-                                        ? 'Enter a whole number within the allowed range'
-                                        : 'Enter a number within the allowed range';
-                                  if (field.date &&
-                                      DateTime.tryParse(value) == null)
-                                    return 'Choose a date and time';
-                                  if (field.key == 'email' &&
-                                      !RegExp(
-                                        r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                                      ).hasMatch(value))
-                                    return 'Enter a valid email';
-                                  if (field.key.toLowerCase().endsWith('url') &&
-                                      Uri.tryParse(value)?.scheme != 'https')
-                                    return 'Use an approved HTTPS URL';
-                                  return null;
-                                },
+                                validator: (v) =>
+                                    _fieldValidationError(field, v),
                               ),
                       ),
                     if (error != null)

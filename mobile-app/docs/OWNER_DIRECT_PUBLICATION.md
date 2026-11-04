@@ -1,5 +1,21 @@
 # Owner direct publication
 
+## Owner form retention and native upload correction - 2026-11-04
+
+Purpose/Category/Currency now retain their choices through lazy scrolling and
+validation. All retained required fields are checked before requests. Flutter
+checks existing authenticated capabilities for the new photo-storage presence
+flag before creating a draft with photos; false/unknown readiness preserves the
+form without creating an empty draft. Safe stage-specific errors distinguish
+storage/provider/network uncertainty. Four confirmed photos are still required.
+
+Fresh read-only staging configuration evidence confirms all three existing
+Cloudinary settings remain absent. No provider credentials, environment setting,
+live record or deployment was changed. The matching backend/APK and approved
+private storage setup must precede live acceptance. See
+`OWNER_LISTING_PUBLISH_FIX.md`; earlier hosted-URL image acceptance is not proof
+of native file upload.
+
 ## WebSocket invalidation - source update - 2026-11-03
 
 The new opt-in WebSocket implementation supplements the foreground polling

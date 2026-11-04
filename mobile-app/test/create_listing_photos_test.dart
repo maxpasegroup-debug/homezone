@@ -33,6 +33,7 @@ Map<String, dynamic> _picked([int index = 0]) => {
 
 class _OwnerTransport extends FixtureTransport {
   String role = 'OWNER';
+  FutureOr<ApiResponse> Function(ApiRequest)? photoReadinessReply;
 
   @override
   Future<ApiResponse> send(
@@ -40,6 +41,12 @@ class _OwnerTransport extends FixtureTransport {
     Duration timeout, {
     void Function(ApiResponseMetadata)? onHeaders,
   }) async {
+    if (request.uri.path == '/api/mobile/capabilities') {
+      requests.add(request);
+      return photoReadinessReply == null
+          ? json({'propertyPhotoUploadConfigured': true})
+          : await photoReadinessReply!(request);
+    }
     if (request.uri.path == '/api/auth/session') {
       requests.add(request);
       return json({
@@ -170,6 +177,8 @@ Future<Completer<bool?>> _open(
   String path = '/api/properties',
   String method = 'POST',
   bool publish = false,
+  List<FieldSpec>? fields,
+  JsonObject? initial,
 }) async {
   await fixture.signIn(tester);
   fixture.transport.requests.clear();
@@ -191,10 +200,10 @@ Future<Completer<bool?>> _open(
               path: path,
               method: method,
               fixed: publish ? const {'status': 'PUBLISHED'} : const {},
-              fields: const [
-                FieldSpec('title', 'Property title', required: true),
-              ],
-              initial: const {'title': 'Local listing fixture'},
+              fields:
+                  fields ??
+                  const [FieldSpec('title', 'Property title', required: true)],
+              initial: initial ?? const {'title': 'Local listing fixture'},
             ),
           ),
         )
@@ -317,6 +326,249 @@ void main() {
     });
   }
 
+  for (final intent in ['BUY', 'RENT']) {
+    photoTest('$intent selections reach the created property after scrolling', (
+      tester,
+    ) async {
+      final result = await _open(
+        tester,
+        fixture,
+        publish: true,
+        fields: const [
+          FieldSpec('title', 'Property title', required: true),
+          FieldSpec(
+            'intent',
+            'Purpose',
+            options: ['BUY', 'RENT'],
+            required: true,
+          ),
+          FieldSpec(
+            'category',
+            'Category',
+            options: ['RESIDENTIAL', 'COMMERCIAL'],
+            required: true,
+          ),
+          FieldSpec(
+            'currency',
+            'Currency',
+            options: ['INR', 'AED'],
+            required: true,
+          ),
+          FieldSpec('description', 'Description', lines: 6),
+          FieldSpec('city', 'City'),
+          FieldSpec('locality', 'Locality'),
+          FieldSpec('country', 'Country'),
+          FieldSpec('state', 'State / region'),
+          FieldSpec('address', 'Address'),
+          FieldSpec('bedrooms', 'Bedrooms', number: true),
+          FieldSpec('bathrooms', 'Bathrooms', number: true),
+          FieldSpec('areaValue', 'Area', number: true),
+          FieldSpec('areaUnit', 'Area unit'),
+        ],
+      );
+      picker.results.addAll(List.generate(4, _picked));
+      for (var index = 0; index < 4; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      for (final selection in [
+        ('Purpose', intent),
+        ('Category', 'RESIDENTIAL'),
+        ('Currency', 'INR'),
+      ]) {
+        final dropdown = find.byWidgetPredicate(
+          (widget) =>
+              widget is DropdownButtonFormField<String> &&
+              widget.decoration.labelText == selection.$1,
+        );
+        await _reveal(tester, selection.$1);
+        await tester.tap(dropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(selection.$2).last);
+        await tester.pumpAndSettle();
+      }
+      await _tap(tester, 'Publish listing');
+      expect(_creates(fixture), hasLength(1));
+      expect(_body(_creates(fixture).single), containsPair('intent', intent));
+      expect(
+        _body(_creates(fixture).single),
+        containsPair('category', 'RESIDENTIAL'),
+      );
+      expect(_body(_creates(fixture).single), containsPair('currency', 'INR'));
+      expect(
+        _body(_creates(fixture).single),
+        containsPair('title', 'Local listing fixture'),
+      );
+      expect(_body(_creates(fixture).single), containsPair('status', 'DRAFT'));
+      expect(_uploads(fixture), hasLength(4));
+      expect(await result.future, true);
+      expect(find.text('Listing published with 4 photos.'), findsOneWidget);
+    });
+  }
+
+  photoTest(
+    'unconfigured uploads preserve the form without creating an empty draft',
+    (tester) async {
+      final result = await _open(tester, fixture, publish: true);
+      picker.results.addAll(List.generate(4, _picked));
+      for (var index = 0; index < 4; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      fixture.transport.photoReadinessReply = (_) =>
+          json({'propertyPhotoUploadConfigured': false});
+      await _tap(tester, 'Publish listing');
+      expect(_creates(fixture), isEmpty);
+      expect(_uploads(fixture), isEmpty);
+      expect(
+        find.textContaining('Photo uploads are unavailable.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('No listing was created.'), findsOneWidget);
+      expect(result.isCompleted, false);
+      expect(
+        tester.widget<ButtonStyleButton>(_button('Publish listing')).onPressed,
+        isNotNull,
+      );
+      await _reveal(tester, 'Property title');
+      expect(
+        tester
+            .widget<TextFormField>(find.byType(TextFormField).first)
+            .controller!
+            .text,
+        'Local listing fixture',
+      );
+      await _reveal(tester, 'Property photos');
+      expect(
+        tester
+            .widget<ListingPhotoPicker>(find.byType(ListingPhotoPicker))
+            .photos,
+        hasLength(4),
+      );
+      // A user retry after a successful readiness check creates exactly once.
+      fixture.transport.photoReadinessReply = null;
+      await _tap(tester, 'Publish listing');
+      expect(_creates(fixture), hasLength(1));
+      expect(_uploads(fixture), hasLength(4));
+      expect(await result.future, true);
+    },
+  );
+
+  for (final readiness in [null, 'true']) {
+    photoTest('unknown upload readiness $readiness cannot create a draft', (
+      tester,
+    ) async {
+      await _open(tester, fixture, publish: true);
+      picker.results.addAll(List.generate(4, _picked));
+      for (var index = 0; index < 4; index++) {
+        await _tap(tester, 'Add photo');
+      }
+      fixture.transport.photoReadinessReply = (_) => json({
+        if (readiness != null) 'propertyPhotoUploadConfigured': readiness,
+      });
+      await _tap(tester, 'Publish listing');
+      expect(_creates(fixture), isEmpty);
+      expect(_uploads(fixture), isEmpty);
+      expect(
+        find.textContaining('availability could not be confirmed'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('No listing was created.'), findsOneWidget);
+    });
+  }
+
+  photoTest('readiness timeout keeps a safe retry without any mutation', (
+    tester,
+  ) async {
+    await _open(tester, fixture, publish: true);
+    picker.results.addAll(List.generate(4, _picked));
+    for (var index = 0; index < 4; index++) {
+      await _tap(tester, 'Add photo');
+    }
+    fixture.transport.photoReadinessReply = (_) =>
+        throw TimeoutException('Fixture only');
+    await _tap(tester, 'Publish listing');
+    expect(_creates(fixture), isEmpty);
+    expect(_uploads(fixture), isEmpty);
+    expect(find.textContaining('No listing was created.'), findsOneWidget);
+    expect(find.textContaining('Some photos may already'), findsNothing);
+    expect(
+      tester.widget<ButtonStyleButton>(_button('Publish listing')).onPressed,
+      isNotNull,
+    );
+  });
+
+  photoTest('negative readiness acknowledgment cannot create a draft', (
+    tester,
+  ) async {
+    await _open(tester, fixture, publish: true);
+    picker.results.addAll(List.generate(4, _picked));
+    for (var index = 0; index < 4; index++) {
+      await _tap(tester, 'Add photo');
+    }
+    fixture.transport.photoReadinessReply = (_) => json({
+      'propertyPhotoUploadConfigured': true,
+      'success': false,
+    });
+    await _tap(tester, 'Publish listing');
+    expect(_creates(fixture), isEmpty);
+    expect(_uploads(fixture), isEmpty);
+    expect(find.textContaining('No listing was created.'), findsOneWidget);
+  });
+
+  for (final failure in [
+    (
+      503,
+      'PROPERTY_PHOTO_STORAGE_UNAVAILABLE',
+      'Photo uploads are unavailable.',
+    ),
+    (502, 'PROPERTY_PHOTO_UPLOAD_FAILED', 'could not complete the upload'),
+    (
+      502,
+      'PROPERTY_PHOTO_CONFIRMATION_UNAVAILABLE',
+      'response could not be confirmed',
+    ),
+    (
+      503,
+      'UNTRUSTED_PRIVATE_CODE',
+      'server could not confirm the photo upload',
+    ),
+  ]) {
+    photoTest(
+      'first upload ${failure.$2} explains the failure without replay',
+      (tester) async {
+        await _open(tester, fixture, publish: true);
+        picker.results.addAll(List.generate(4, _picked));
+        for (var index = 0; index < 4; index++) {
+          await _tap(tester, 'Add photo');
+        }
+        final success = fixture.transport.reply!;
+        fixture.transport.reply = (request) =>
+            request.uri.path == '/api/mobile/upload'
+            ? json({
+                'code': failure.$2,
+                'error': 'PRIVATE_UPSTREAM_DETAILS',
+              }, failure.$1)
+            : success(request);
+        await _tap(tester, 'Publish listing');
+        expect(_creates(fixture), hasLength(1));
+        expect(_uploads(fixture), hasLength(1));
+        expect(find.textContaining('0 of 4 photos confirmed'), findsOneWidget);
+        expect(find.textContaining(failure.$3), findsOneWidget);
+        expect(find.textContaining('PRIVATE_UPSTREAM_DETAILS'), findsNothing);
+        expect(find.textContaining('UNTRUSTED_PRIVATE_CODE'), findsNothing);
+        expect(
+          fixture.transport.requests.where((r) => r.method == 'PATCH'),
+          isEmpty,
+        );
+        expect(
+          tester
+              .widget<ButtonStyleButton>(_button('Publish listing'))
+              .onPressed,
+          isNull,
+        );
+      },
+    );
+  }
+
   photoTest(
     'Owner creates privately and confirms four photos before publishing',
     (tester) async {
@@ -333,6 +585,7 @@ void main() {
       expect(
         fixture.transport.requests.map((r) => '${r.method} ${r.uri.path}'),
         [
+          'GET /api/mobile/capabilities',
           'POST /api/properties',
           'GET /api/auth/session',
           'POST /api/mobile/upload',
@@ -1005,6 +1258,7 @@ void main() {
 
     await _tap(tester, 'Save');
     expect(fixture.transport.requests.map((r) => '${r.method} ${r.uri.path}'), [
+      'GET /api/mobile/capabilities',
       'POST /api/properties',
       'GET /api/auth/session',
       'POST /api/mobile/upload',
