@@ -1,13 +1,15 @@
 import { auth } from "@/auth";
 import { handleApiError, ok, unauthorized } from "@/lib/api/response";
 import { getOrCreateProfile } from "@/lib/auth/profile";
-import { getBuilderEnterpriseData } from "@/lib/builder/queries";
+import { getBuilderEnterpriseData, requireBuilderActor } from "@/lib/builder/queries";
 
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) return unauthorized();
     const profile = await getOrCreateProfile(session.user);
+    const admission = await requireBuilderActor(profile);
+    if ("error" in admission) return admission.error;
     const data = await getBuilderEnterpriseData(profile.id);
     return ok({
       reports: {

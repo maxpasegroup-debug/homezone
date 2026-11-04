@@ -153,8 +153,8 @@ export async function addLeadTimeline({
   leadId: string;
   message: string;
   metadata?: Prisma.InputJsonValue;
-}) {
-  return db.leadTimelineEvent.create({
+}, client: Pick<Prisma.TransactionClient, "leadTimelineEvent"> = db) {
+  return client.leadTimelineEvent.create({
     data: {
       actorId,
       eventType,
@@ -177,7 +177,7 @@ export async function createLeadNotification({
   recipientId?: string | null;
   title: string;
   type: string;
-}) {
+}, client: Pick<Prisma.TransactionClient, "notification" | "leadNotification"> = db) {
   if (!recipientId) return null;
 
   await createNotification({
@@ -191,9 +191,9 @@ export async function createLeadNotification({
     recipientId,
     title,
     type
-  });
+  }, client);
 
-  return db.leadNotification.create({
+  return client.leadNotification.create({
     data: {
       leadId,
       message,

@@ -1,29 +1,38 @@
 import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
-import { handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
+import { forbidden, handleApiError, ok, parseJson, rateLimited, unauthorized } from "@/lib/api/response";
 import { serviceRequestSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
+import { providerRequestWhere, serviceRequestSelect } from "@/lib/services/marketplace";
 
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user?.id) return unauthorized("Verified account required");
     const profile = await getOrCreateProfile(session.user);
-    const provider = await db.serviceProvider.findFirst({ where: { profileId: profile.id } });
-    const requests = await db.serviceRequest.findMany({
-      include: {
-        booking: true,
-        provider: true,
-        quotes: { include: { provider: true } }
-      },
+    if (profile.verificationStatus === "SUSPENDED") return forbidden();
+    const provider = profile.role === "SERVICE_PROVIDER" ? await db.serviceProvider.findFirst({
+      where: { profileId: profile.id, verified: true, suspended: false },
+      select: { id: true, category: true, city: true }
+    }) : null;
+    const own = await db.serviceRequest.findMany({
+      select: serviceRequestSelect(),
       orderBy: { createdAt: "desc" },
-      where: provider
-        ? { OR: [{ requesterId: profile.id }, { category: provider.category, city: provider.city ?? undefined }] }
-        : { requesterId: profile.id }
+      where: { requesterId: profile.id },
+      take: 100
     });
-    return ok({ requests });
+    const incoming = provider ? await db.serviceRequest.findMany({
+      select: serviceRequestSelect(provider.id),
+      orderBy: { createdAt: "desc" },
+      where: { AND: [providerRequestWhere(provider), { requesterId: { not: profile.id } }] },
+      take: 100
+    }) : [];
+    const requests = [...own, ...incoming].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 100);
+    return ok({ requests }, {
+      headers: { "Cache-Control": "no-store" }
+    });
   } catch (error) {
     return handleApiError(error, { route: "GET /api/service-requests" });
   }

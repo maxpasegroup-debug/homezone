@@ -3,7 +3,7 @@ import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response"
 import { builderCampaignSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addBuilderActivity, requireBuilderProjectAccess } from "@/lib/builder/queries";
+import { requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -17,26 +17,34 @@ export async function POST(request: Request, context: RouteContext) {
     if ("error" in access) return access.error;
     const parsed = await parseJson(request, builderCampaignSchema);
     if ("error" in parsed) return parsed.error;
-    const campaign = await db.builderCampaign.create({
-      data: {
-        brochureDownloads: parsed.data.brochureDownloads,
-        budget: parsed.data.budget,
-        channel: parsed.data.channel,
-        landingPageUrl: parsed.data.landingPageUrl,
-        leadsCount: parsed.data.leadsCount,
-        name: parsed.data.name,
-        projectId: id,
-        qrCodeUrl: parsed.data.qrCodeUrl,
-        status: parsed.data.status
-      }
+    const result = await db.$transaction(async (tx) => {
+      const admission = await requireBuilderWriteAccess(tx, profile, id);
+      if ("error" in admission) return admission;
+      const created = await tx.builderCampaign.create({
+        data: {
+          brochureDownloads: parsed.data.brochureDownloads,
+          budget: parsed.data.budget,
+          channel: parsed.data.channel,
+          landingPageUrl: parsed.data.landingPageUrl,
+          leadsCount: parsed.data.leadsCount,
+          name: parsed.data.name,
+          projectId: id,
+          qrCodeUrl: parsed.data.qrCodeUrl,
+          status: parsed.data.status
+        }
+      });
+      await tx.builderActivityLog.create({
+        data: {
+          action: "CAMPAIGN_CREATED",
+          builderId: profile.id,
+          message: `Campaign created: ${created.name}.`,
+          projectId: id
+        }
+      });
+      return { campaign: created };
     });
-    await addBuilderActivity({
-      action: "CAMPAIGN_CREATED",
-      builderId: profile.id,
-      message: `Campaign created: ${campaign.name}.`,
-      projectId: id
-    });
-    return ok({ campaign });
+    if ("error" in result) return result.error;
+    return ok({ campaign: result.campaign });
   } catch (error) {
     return handleApiError(error, { route: "POST /api/builder/projects/[id]/campaigns" });
   }

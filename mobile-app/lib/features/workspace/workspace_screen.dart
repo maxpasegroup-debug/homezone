@@ -35,6 +35,10 @@ class FieldSpec {
     this.stringList = false,
     this.maxLength,
     this.minLength,
+    this.positive = false,
+    this.urlList = false,
+    this.maxItems = 100,
+    this.itemMaxLength = 120,
   });
   final String key, label;
   final bool required, number, date;
@@ -44,6 +48,8 @@ class FieldSpec {
   final bool integer;
   final bool stringList;
   final int? maxLength, minLength;
+  final bool positive, urlList;
+  final int maxItems, itemMaxLength;
 }
 
 // Stored intent remains buyer-facing BUY; Owners are offering it for sale.
@@ -58,8 +64,27 @@ String _workspaceOptionLabel(FieldSpec field, String value) =>
       }
     : value;
 
-const _name = FieldSpec('name', 'Name', required: true);
-const _city = FieldSpec('city', 'City', required: true);
+const _name = FieldSpec(
+  'name',
+  'Name',
+  required: true,
+  minLength: 2,
+  maxLength: 120,
+);
+const _city = FieldSpec(
+  'city',
+  'City',
+  required: true,
+  minLength: 2,
+  maxLength: 120,
+);
+const _towerName = FieldSpec(
+  'name',
+  'Name',
+  required: true,
+  minLength: 1,
+  maxLength: 80,
+);
 const _notes = FieldSpec('notes', 'Notes', lines: 3);
 const _when = FieldSpec(
   'scheduledAt',
@@ -73,6 +98,8 @@ const _description = FieldSpec(
   'Description',
   required: true,
   lines: 4,
+  minLength: 10,
+  maxLength: 2000,
 );
 const _propertyFields = [
   FieldSpec(
@@ -150,9 +177,16 @@ const _propertyFields = [
   ),
 ];
 const _projectFields = [
-  _name,
+  FieldSpec('name', 'Name', required: true, minLength: 3, maxLength: 160),
   _city,
   _description,
+  FieldSpec('locality', 'Locality', maxLength: 160),
+  FieldSpec('address', 'Address', maxLength: 240),
+  FieldSpec(
+    'status',
+    'Project status',
+    options: ['DRAFT', 'PUBLISHED', 'ARCHIVED', 'COMPLETED'],
+  ),
   FieldSpec(
     'constructionStatus',
     'Construction stage',
@@ -165,14 +199,96 @@ const _projectFields = [
       'COMPLETED',
     ],
   ),
+  FieldSpec(
+    'amenities',
+    'Amenities — one per line',
+    stringList: true,
+    lines: 3,
+    maxLength: 12100,
+  ),
+  FieldSpec(
+    'mediaUrls',
+    'Project image URLs — one per line',
+    stringList: true,
+    urlList: true,
+    maxItems: 40,
+    itemMaxLength: 2048,
+    lines: 3,
+    maxLength: 12000,
+  ),
+  FieldSpec(
+    'floorPlanUrls',
+    'Floor plan URLs — one per line',
+    stringList: true,
+    urlList: true,
+    maxItems: 30,
+    itemMaxLength: 2048,
+    lines: 3,
+    maxLength: 12000,
+  ),
+  FieldSpec('masterPlanUrl', 'Master plan HTTPS URL', maxLength: 2048),
+  FieldSpec('brochureUrl', 'Brochure HTTPS URL', maxLength: 2048),
 ];
 const _providerFields = [
-  FieldSpec('businessName', 'Business name', required: true),
-  FieldSpec('category', 'Service category', required: true),
+  FieldSpec(
+    'businessName',
+    'Business name',
+    required: true,
+    minLength: 2,
+    maxLength: 160,
+  ),
+  FieldSpec(
+    'category',
+    'Service category',
+    required: true,
+    minLength: 2,
+    maxLength: 120,
+  ),
   _city,
-  FieldSpec('description', 'About your service', lines: 4),
-  FieldSpec('priceLabel', 'Price information'),
-  FieldSpec('availability', 'Availability'),
+  FieldSpec('description', 'About your service', lines: 4, maxLength: 2000),
+  FieldSpec('priceLabel', 'Price information', maxLength: 120),
+  FieldSpec('availability', 'Availability', maxLength: 120),
+  FieldSpec(
+    'experienceYears',
+    'Years of experience',
+    number: true,
+    integer: true,
+    maximum: 100,
+  ),
+  FieldSpec(
+    'certifications',
+    'Certifications — one per line',
+    stringList: true,
+    maxItems: 20,
+    lines: 3,
+  ),
+  FieldSpec(
+    'serviceAreas',
+    'Service areas — one per line',
+    stringList: true,
+    maxItems: 30,
+    lines: 3,
+  ),
+  FieldSpec(
+    'photoUrls',
+    'Business image URLs — one per line',
+    stringList: true,
+    urlList: true,
+    maxItems: 30,
+    itemMaxLength: 2048,
+    lines: 3,
+    maxLength: 12000,
+  ),
+  FieldSpec(
+    'portfolioUrls',
+    'Portfolio HTTPS URLs — one per line',
+    stringList: true,
+    urlList: true,
+    maxItems: 20,
+    itemMaxLength: 2048,
+    lines: 3,
+    maxLength: 12000,
+  ),
 ];
 
 /// Role is obtained exclusively from the verified controller; server repeats checks.
@@ -280,9 +396,20 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             : const [
                 _name,
                 FieldSpec('phone', 'Phone', required: true),
-                FieldSpec('message', 'Requirement', required: true, lines: 4),
+                FieldSpec(
+                  'message',
+                  'Requirement',
+                  required: true,
+                  lines: 4,
+                  minLength: 2,
+                  maxLength: 1000,
+                ),
               ],
-        fixed: isProperty ? const {'status': 'PUBLISHED'} : const {},
+        fixed: isProperty
+            ? const {'status': 'PUBLISHED'}
+            : role == 'BROKER'
+            ? const {'source': 'DASHBOARD'}
+            : const {},
         guidedListing: isProperty,
       ),
     );
@@ -640,7 +767,14 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
       });
     } catch (e) {
       if (current && request == epoch)
-        setState(() => error = marketplaceError(e));
+        setState(
+          () => error =
+              widget.module == 'providerRequests' &&
+                  e is ApiException &&
+                  e.failure == ApiFailure.forbidden
+              ? 'Incoming work requires an active, verified service business. Open Profile to create or check your business profile, then contact HomeZone support for verification.'
+              : marketplaceError(e),
+        );
     } finally {
       if (mounted && request == epoch) setState(() => loading = false);
     }
@@ -671,8 +805,7 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
     );
     // A creation response can be lost after the listing was saved. Refresh even
     // when the user leaves that form with the normal Back button.
-    if ((changed == true || (path == '/api/properties' && method == 'POST')) &&
-        current) {
+    if ((changed == true || method == 'POST') && current) {
       await load();
     }
   }
@@ -699,8 +832,8 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
         await edit('Add unit', '/api/builder/projects/$parent/units', [
           const FieldSpec('unitNumber', 'Unit number', required: true),
           const FieldSpec('unitType', 'Unit type', required: true),
-          _price,
-          const FieldSpec('areaValue', 'Area', number: true),
+          const FieldSpec('price', 'Price', number: true, positive: true),
+          const FieldSpec('areaValue', 'Area', number: true, positive: true),
           const FieldSpec(
             'floor',
             'Floor',
@@ -727,7 +860,7 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
         break;
       case 'towers':
         await edit('Add tower', '/api/builder/projects/$parent/towers', [
-          _name,
+          _towerName,
           const FieldSpec(
             'floors',
             'Floors',
@@ -778,18 +911,43 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
         ]);
         break;
       case 'crm':
-        await edit('Create lead', '/api/pro/leads', [
-          _name,
-          const FieldSpec('phone', 'Phone', required: true),
-          const FieldSpec('message', 'Requirement', required: true, lines: 4),
-        ]);
+        await edit(
+          'Create lead',
+          '/api/pro/leads',
+          [
+            _name,
+            const FieldSpec('phone', 'Phone', required: true),
+            const FieldSpec(
+              'message',
+              'Requirement',
+              required: true,
+              lines: 4,
+              minLength: 2,
+              maxLength: 1000,
+            ),
+          ],
+          fixed: const {'source': 'DASHBOARD'},
+        );
         break;
       case 'requests':
         await edit('Request a service', '/api/service-requests', [
-          const FieldSpec('category', 'Service category', required: true),
+          const FieldSpec(
+            'category',
+            'Service category',
+            required: true,
+            minLength: 2,
+            maxLength: 120,
+          ),
           _city,
-          const FieldSpec('budget', 'Budget', required: true),
-          const FieldSpec('message', 'Requirement', required: true, lines: 4),
+          const FieldSpec('budget', 'Budget', required: true, minLength: 2),
+          const FieldSpec(
+            'message',
+            'Requirement',
+            required: true,
+            lines: 4,
+            minLength: 2,
+            maxLength: 1000,
+          ),
         ]);
         break;
       case 'providerProfile':
@@ -1144,7 +1302,7 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
           title: Text(label),
           content: Text(
             deleting
-                ? 'Permanently delete "${recordTitle(widget.item)}"? It will be removed from your Items and Buyer discovery. This cannot be undone. Use Archive instead if you only want to hide the listing.'
+                ? 'Permanently delete "${recordTitle(widget.item)}"? It will be removed from your Items and Buyer discovery. This cannot be undone. Use Unpublish listing instead if you only want to hide the listing.'
                 : publishing
                 ? 'This makes your listing visible to Buyers. Publish now?'
                 : 'This changes your HOMEZONE account record. Continue?',
@@ -1180,8 +1338,15 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
       if (response.isEmpty || response['ok'] == false) {
         throw const FormatException();
       }
-      if (publishing && object(response['property'])['status'] != 'PUBLISHED') {
-        throw const FormatException('Publication confirmation unavailable');
+      if (widget.module == 'properties' &&
+          method == 'PATCH' &&
+          body['status'] is String) {
+        final property = object(response['property']);
+        if (property['id'] != id || property['status'] != body['status']) {
+          throw const FormatException(
+            'Listing status confirmation unavailable',
+          );
+        }
       }
       if (deleting && response['deleted'] != true) {
         throw const FormatException('Deletion confirmation unavailable');
@@ -1389,6 +1554,10 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                     ),
                 ],
                 if (widget.module == 'properties') ...[
+                  if (widget.item['status'] == 'ARCHIVED')
+                    const Text(
+                      'This listing is archived. Contact HomeZone support to restore it; archiving cannot be reversed from the app.',
+                    ),
                   button(
                     'Edit listing',
                     () => form(
@@ -1399,16 +1568,27 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                     ),
                   ),
                   for (final status in [
-                    'DRAFT',
-                    if (widget.repository.session.identity?.role != 'OWNER')
-                      'PENDING_REVIEW',
-                    'ARCHIVED',
+                    if (widget.item['status'] != 'ARCHIVED' &&
+                        widget.item['status'] != 'REJECTED') ...[
+                      if (widget.item['status'] != 'DRAFT') 'DRAFT',
+                      if (widget.repository.session.identity?.role != 'OWNER' &&
+                          widget.item['status'] != 'PENDING_REVIEW')
+                        'PENDING_REVIEW',
+                      // Owners can reversibly unpublish to DRAFT. ARCHIVED is
+                      // reserved here because its moderation origin is unknown.
+                      if (widget.repository.session.identity?.role != 'OWNER')
+                        'ARCHIVED',
+                    ],
                     if (_canPublishListing) 'PUBLISHED',
                   ])
                     button(
-                      status == 'PUBLISHED' &&
+                      status == 'DRAFT' &&
                               widget.repository.session.identity?.role ==
                                   'OWNER'
+                          ? 'Unpublish listing'
+                          : status == 'PUBLISHED' &&
+                                widget.repository.session.identity?.role ==
+                                    'OWNER'
                           ? 'Publish listing'
                           : status.replaceAll('_', ' '),
                       () => action(
@@ -1626,6 +1806,10 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                   ),
                 ],
                 if (widget.module == 'team') ...[
+                  if (widget.item['linked'] != true)
+                    const Text(
+                      'This is a team contact. Lead assignment requires an active member linked to a HomeZone account. Contact HomeZone support for authorized account linking.',
+                    ),
                   button(
                     'Edit team member',
                     () => form('Team member', '/api/pro/team/$id', [
@@ -1694,16 +1878,22 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                           ? [
                               const FieldSpec('unitNumber', 'Unit number'),
                               const FieldSpec('unitType', 'Unit type'),
-                              _price,
+                              const FieldSpec(
+                                'price',
+                                'Price',
+                                number: true,
+                                positive: true,
+                              ),
                               const FieldSpec(
                                 'areaValue',
                                 'Area',
                                 number: true,
+                                positive: true,
                               ),
                             ]
                           : widget.module == 'towers'
                           ? [
-                              _name,
+                              _towerName,
                               const FieldSpec(
                                 'floors',
                                 'Floors',
@@ -1776,6 +1966,17 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                         {'action': value},
                       ),
                     ),
+                if (widget.module == 'providerProfile' &&
+                    widget.item['suspended'] == true)
+                  const Text(
+                    'This service business is suspended. Contact HomeZone support before accepting work.',
+                  ),
+                if (widget.module == 'providerProfile' &&
+                    widget.item['verified'] != true &&
+                    widget.item['suspended'] != true)
+                  const Text(
+                    'Your account is registered. Your service business must be verified before it can receive work. Contact HomeZone support for verification.',
+                  ),
                 if (widget.module == 'providerProfile')
                   button(
                     'Edit provider information',
@@ -1799,12 +2000,15 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                           'Quote amount',
                           required: true,
                           number: true,
+                          positive: true,
                         ),
                         const FieldSpec(
                           'message',
                           'Quote details',
                           required: true,
                           lines: 3,
+                          minLength: 2,
+                          maxLength: 1000,
                         ),
                         const FieldSpec(
                           'validUntil',
@@ -1864,6 +2068,33 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                         ),
                   ],
                 if (widget.module == 'serviceBookings')
+                  if (widget.item['canReview'] == true)
+                    button(
+                      'Review completed service',
+                      () => form(
+                        'Review service',
+                        '/api/service-bookings/$id/reviews',
+                        const [
+                          FieldSpec(
+                            'rating',
+                            'Rating (1–5)',
+                            required: true,
+                            number: true,
+                            integer: true,
+                            minimum: 1,
+                            maximum: 5,
+                          ),
+                          FieldSpec(
+                            'comment',
+                            'Your review',
+                            lines: 4,
+                            maxLength: 1000,
+                          ),
+                        ],
+                        initial: const {},
+                      ),
+                    ),
+                if (widget.module == 'serviceBookings')
                   button(
                     'Open website payment controls',
                     () => openWebsite('/dashboard/services'),
@@ -1922,10 +2153,7 @@ class _WorkspaceDetailState extends State<WorkspaceDetail> {
                         {'action': 'approve'},
                       ),
                     ),
-                  if ([
-                    'DELIVERED',
-                    'QUALITY_CHECK',
-                  ].contains(widget.item['status']))
+                  if (widget.item['status'] == 'DELIVERED')
                     button(
                       'Request revision',
                       () => form(
@@ -2130,6 +2358,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   late final String? owner = widget.repository.session.identity?.id;
   late final int ownerGeneration = widget.repository.coordinator.generation;
   bool busy = false;
+  bool _createUncertain = false;
   String? error;
   List<SelectedListingPhoto> _photos = const [];
   bool _pickingPhoto = false,
@@ -2207,7 +2436,11 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   }
 
   Future<void> submit() async {
-    if (!current || busy || _pickingPhoto || _listingCreateStarted) {
+    if (!current ||
+        busy ||
+        _pickingPhoto ||
+        _listingCreateStarted ||
+        _createUncertain) {
       return;
     }
     // A captured submit callback cannot skip the guided review step.
@@ -2318,7 +2551,11 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                 'Return to Listings and refresh before trying to create it again.';
           } else {
             _listingCreateStarted = false;
-            error = marketplaceError(e, mutation: !_isListingCreate);
+            _createUncertain =
+                widget.method == 'POST' && !_definitelyRejected(e);
+            error = _createUncertain
+                ? 'Saving could not be confirmed. This record may already exist. Go back and refresh the records before creating it again.'
+                : marketplaceError(e, mutation: !_isListingCreate);
           }
         });
       }
@@ -2572,14 +2809,19 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
           .map((v) => v.trim())
           .where((v) => v.isNotEmpty)
           .toSet();
-      if (values.length > 100 || values.any((v) => v.length > 120)) {
-        return 'Use up to 100 amenities, at most 120 characters each';
+      if (values.length > field.maxItems ||
+          values.any((v) => v.length > field.itemMaxLength)) {
+        return 'Use up to ${field.maxItems} entries, at most ${field.itemMaxLength} characters each';
+      }
+      if (field.urlList && values.any((v) => !_validHttpsUrl(v))) {
+        return 'Use a public HTTPS URL on each line';
       }
     }
     if (field.number) {
       final number = num.tryParse(value);
       if (number == null ||
           !number.isFinite ||
+          (field.positive && number <= 0) ||
           number < (field.minimum ?? 0) ||
           (field.maximum != null && number > field.maximum!) ||
           (field.integer && number != number.round())) {
@@ -2595,11 +2837,20 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
         !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value)) {
       return 'Enter a valid email';
     }
-    if (field.key.toLowerCase().endsWith('url') &&
-        Uri.tryParse(value)?.scheme != 'https') {
+    if (field.key.toLowerCase().endsWith('url') && !_validHttpsUrl(value)) {
       return 'Use an approved HTTPS URL';
     }
     return null;
+  }
+
+  bool _validHttpsUrl(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.host.isNotEmpty &&
+        uri.userInfo.isEmpty &&
+        !uri.hasFragment &&
+        uri.port == 443;
   }
 
   // ListView may dispose offscreen FormFields. Validate the retained values as
@@ -2632,7 +2883,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                   child: Text(_workspaceOptionLabel(field, value)),
                 ),
             ],
-            onChanged: busy || _listingCreateStarted
+            onChanged: busy || _listingCreateStarted || _createUncertain
                 ? null
                 : (value) =>
                       setState(() => controls[field.key]!.text = value ?? ''),
@@ -2640,7 +2891,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
           )
         : TextFormField(
             controller: controls[field.key],
-            enabled: !busy && !_listingCreateStarted,
+            enabled: !busy && !_listingCreateStarted && !_createUncertain,
             readOnly: field.date,
             maxLength: field.maxLength ?? (field.lines > 1 ? 2000 : 240),
             maxLines: field.lines,
@@ -3017,7 +3268,11 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                         ),
                       ),
                     FilledButton(
-                      onPressed: busy || _pickingPhoto || _listingCreateStarted
+                      onPressed:
+                          busy ||
+                              _pickingPhoto ||
+                              _listingCreateStarted ||
+                              _createUncertain
                           ? null
                           : submit,
                       child: Text(
@@ -3030,6 +3285,11 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
                         child: const Text('Back to listings'),
+                      ),
+                    if (_createUncertain && !busy)
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Back to records'),
                       ),
                     const SizedBox(height: 12),
                     const Text(
@@ -3173,9 +3433,13 @@ const _recordLabels = <String, String>{
   'saleValue': 'Sale value',
   'priceLabel': 'Pricing',
   'availability': 'Availability',
+  'verified': 'Business verified',
+  'suspended': 'Business suspended',
+  'experienceYears': 'Years of experience',
+  'certifications': 'Certifications',
+  'serviceAreas': 'Service areas',
+  'review': 'Customer review',
   'active': 'Active',
-  'verified': 'Verified',
-  'suspended': 'Suspended',
   'createdAt': 'Created',
   'viewedAt': 'Viewed',
   'readAt': 'Read',

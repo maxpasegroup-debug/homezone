@@ -25,18 +25,17 @@ export const serviceCategoryTitles = [
 export const serviceProviderInclude = {
   bookings: {
     include: {
-      customer: true,
-      request: true,
-      review: true
+      customer: { select: { id: true, fullName: true } },
+      request: { select: { id: true, category: true, city: true, status: true } },
+      review: { select: { id: true, rating: true, comment: true } }
     },
     orderBy: {
       updatedAt: "desc"
     }
   },
-  profile: true,
   quotes: {
     include: {
-      request: true
+      request: { select: { id: true, category: true, city: true, status: true } }
     },
     orderBy: {
       createdAt: "desc"
@@ -44,13 +43,42 @@ export const serviceProviderInclude = {
   },
   reviews: {
     include: {
-      reviewer: true
+      reviewer: { select: { id: true, fullName: true, avatarUrl: true } }
     },
     orderBy: {
       createdAt: "desc"
     }
   }
 } satisfies Prisma.ServiceProviderInclude;
+
+// A missing city must never broaden discovery to all cities. Directed requests
+// and previously quoted requests remain visible to their eligible provider.
+export function providerRequestWhere(provider: { id: string; category: string; city: string | null }): Prisma.ServiceRequestWhereInput {
+  return {
+    OR: [
+      { providerId: provider.id },
+      ...(provider.city ? [{ providerId: null, category: provider.category, city: provider.city,
+        status: { in: ["requested", "quoted"] as ("requested" | "quoted")[] } }] : []),
+      { quotes: { some: { providerId: provider.id } } }
+    ]
+  };
+}
+
+export function serviceRequestSelect(providerId?: string) {
+  return {
+    id: true, category: true, city: true, budget: true, message: true, status: true, createdAt: true,
+    provider: { select: { id: true, businessName: true } },
+    // A provider's historic quote does not grant access to a booking awarded to
+    // a competitor, including the competing accepted price.
+    booking: providerId ? false : { select: { id: true, amount: true, currency: true, status: true, scheduledAt: true } },
+    quotes: {
+      ...(providerId ? { where: { providerId } } : {}),
+      select: { id: true, amount: true, currency: true, message: true, status: true,
+        revision: true, validUntil: true, provider: { select: { id: true, businessName: true } } },
+      orderBy: { createdAt: "desc" as const }
+    }
+  } satisfies Prisma.ServiceRequestSelect;
+}
 
 export async function requireServiceRequestAccess(requestId: string, profile: { id: string; role: string }) {
   const request = await db.serviceRequest.findUnique({
@@ -137,22 +165,20 @@ export async function getProviderDashboardData(profileId: string) {
   const provider = await db.serviceProvider.findFirst({
     include: serviceProviderInclude,
     where: {
-      profileId
+      profileId,
+      verified: true,
+      suspended: false,
+      profile: { role: "SERVICE_PROVIDER", verificationStatus: { not: "SUSPENDED" } }
     }
   });
   if (!provider) return null;
 
   const quoteRequests = await db.serviceRequest.findMany({
-    include: {
-      quotes: true
-    },
+    select: serviceRequestSelect(provider.id),
     orderBy: {
       createdAt: "desc"
     },
-    where: {
-      category: provider.category,
-      city: provider.city ?? undefined
-    },
+    where: { AND: [providerRequestWhere(provider), { requesterId: { not: profileId } }] },
     take: 50
   });
 

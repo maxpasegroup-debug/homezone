@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { auditLog } from "@/lib/audit";
 import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import {
+  apiError,
   forbidden,
   handleApiError,
   ok,
@@ -18,6 +19,7 @@ import { getPaymentProduct } from "@/lib/payments/catalog";
 import { createInvoiceNumber, isAllowedForRole } from "@/lib/payments/catalog";
 import { createRazorpayOrder, getRazorpayKeyId } from "@/lib/payments/razorpay";
 import { invoiceMetadata } from "@/lib/payments/service";
+import { isServicePayment, reserveServicePayment } from "@/lib/payments/service-checkout";
 
 export async function POST(request: Request) {
   try {
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
     }
 
     const profile = await getOrCreateProfile(session.user);
+    if (profile.verificationStatus === "SUSPENDED") return forbidden();
     const product = parsed.data.product as PaymentProduct;
     const config = getPaymentProduct(product);
 
@@ -54,6 +57,48 @@ export async function POST(request: Request) {
     const propertyId = parsed.data.propertyId;
     const serviceBookingId = parsed.data.serviceBookingId;
     let studioRequestId = parsed.data.studioRequestId;
+
+    if (isServicePayment(product)) {
+      if (!serviceBookingId || propertyId || studioRequestId) {
+        return apiError("A service booking is required for this payment", 400);
+      }
+      let keyId: string;
+      try {
+        // This validates both provider keys without making a request. A known
+        // configuration failure must not leave an ambiguous durable reservation.
+        keyId = getRazorpayKeyId();
+      } catch {
+        return handleApiError(new Error("Service payment configuration unavailable"), {
+          route: "POST /api/payments/checkout", stage: "service-payment-configuration"
+        });
+      }
+      const reserved = await reserveServicePayment({ bookingId: serviceBookingId, product, actor: profile });
+      if ("error" in reserved) return apiError(reserved.error, reserved.status);
+      const payment = reserved.payment;
+      let orderId = payment.razorpayOrderId;
+      if (!reserved.reuse) {
+        try {
+          const order = await createRazorpayOrder({ amount: payment.amount, currency: payment.currency,
+            notes: { paymentId: payment.id, product }, receipt: payment.invoiceNumber });
+          if (!order.id || order.amount !== payment.amount || order.currency !== payment.currency || order.receipt !== payment.invoiceNumber) {
+            throw new Error("Payment order acknowledgment mismatch");
+          }
+          await db.payment.update({ where: { id: payment.id }, data: { razorpayOrderId: order.id, status: "PENDING" } });
+          orderId = order.id;
+        } catch {
+          // An interrupted request can have created an external order. Keep the
+          // reservation; never silently create another charge or log provider bodies.
+          return handleApiError(new Error("Service payment order confirmation unavailable"), {
+            route: "POST /api/payments/checkout", stage: "service-order-confirmation"
+          });
+        }
+        await auditLog({ action: "PAYMENT_ORDER_CREATED", actorId: profile.id, entityId: payment.id,
+          entityType: "payment", metadata: { product } });
+      }
+      return ok({ amount: payment.amount, currency: payment.currency, description: payment.description,
+        invoiceNumber: payment.invoiceNumber, keyId, orderId, paymentId: payment.id, product });
+    }
+    if (serviceBookingId) return apiError("This product does not accept a service booking", 400);
 
     if (config.requiresProperty) {
       if (!propertyId) {
@@ -116,25 +161,6 @@ export async function POST(request: Request) {
         }
       });
       studioRequestId = studioRequest.id;
-    }
-
-    if (serviceBookingId) {
-      const booking = await db.serviceBooking.findUnique({
-        include: {
-          provider: true
-        },
-        where: {
-          id: serviceBookingId
-        }
-      });
-      if (
-        !booking ||
-        (booking.customerId !== profile.id &&
-          booking.provider.profileId !== profile.id &&
-          !isAdminRole(profile.role))
-      ) {
-        return forbidden("You can only pay for your own service bookings");
-      }
     }
 
     const invoiceNumber = createInvoiceNumber();

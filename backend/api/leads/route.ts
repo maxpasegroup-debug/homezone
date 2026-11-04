@@ -13,6 +13,7 @@ import { leadInboxFilterSchema, leadSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 import { addLeadTimeline, buyerEnquiryData, buyerEnquirySelect, createLeadNotification, leadAccessWhere } from "@/lib/leads/access";
+import { publicPropertyForMutation } from "@/lib/properties/public-write";
 
 export async function GET(request: Request) {
   try {
@@ -122,23 +123,13 @@ export async function POST(request: Request) {
     }
 
     const profile = await getOrCreateProfile(session.user);
-    let ownerId: string | null | undefined;
-
-    if (parsed.data.propertyId) {
-      const property = await db.property.findUnique({
-        where: {
-          id: parsed.data.propertyId
-        }
-      });
-
-      if (!property) {
-        return notFound("Property not found");
+    const result = await db.$transaction(async (tx) => {
+      let ownerId: string | null | undefined;
+      if (parsed.data.propertyId) {
+        const property = await publicPropertyForMutation(tx, parsed.data.propertyId, profile.id, true);
+        if (!property) return { error: notFound("Property not found") } as const;
+        ownerId = property.ownerId;
       }
-
-      ownerId = property.ownerId;
-    }
-
-    const lead = await db.$transaction(async (tx) => {
       const createdLead = await tx.lead.create({
         data: {
           aiScore: 60,
@@ -194,23 +185,26 @@ export async function POST(request: Request) {
         });
       }
 
-      return createdLead;
-    });
+      if (ownerId) {
+        await createLeadNotification({
+          leadId: createdLead.id,
+          message: `${parsed.data.name} contacted you about your property.`,
+          recipientId: ownerId,
+          title: "New property lead",
+          type: "NEW_LEAD"
+        }, tx);
+        await addLeadTimeline({
+          actorId: ownerId,
+          eventType: "OWNER_NOTIFIED",
+          leadId: createdLead.id,
+          message: "Owner notification created."
+        }, tx);
+      }
 
-    await createLeadNotification({
-      leadId: lead.id,
-      message: `${parsed.data.name} contacted you about your property.`,
-      recipientId: ownerId,
-      title: "New property lead",
-      type: "NEW_LEAD"
+      return { lead: createdLead } as const;
     });
-
-    await addLeadTimeline({
-      actorId: ownerId,
-      eventType: "OWNER_NOTIFIED",
-      leadId: lead.id,
-      message: "Owner notification created."
-    });
+    if ("error" in result) return result.error;
+    const lead = result.lead;
 
     await auditLog({
       action: "LEAD_CREATED",

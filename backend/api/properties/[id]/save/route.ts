@@ -4,6 +4,7 @@ import { checkRateLimit, rateLimitKey } from "@/lib/api/rate-limit";
 import { handleApiError, notFound, ok, rateLimited, unauthorized } from "@/lib/api/response";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
+import { publicPropertyForMutation } from "@/lib/properties/public-write";
 
 type RouteContext = {
   params: Promise<{
@@ -31,29 +32,24 @@ export async function POST(_request: Request, context: RouteContext) {
 
     const { id } = await context.params;
     const profile = await getOrCreateProfile(session.user);
-    const property = await db.property.findUnique({
-      where: {
-        id
-      }
-    });
-
-    if (!property) {
-      return notFound("Property not found");
-    }
-
-    await db.savedProperty.upsert({
-      where: {
-        userId_propertyId: {
+    const saved = await db.$transaction(async (tx) => {
+      if (!await publicPropertyForMutation(tx, id, profile.id)) return false;
+      await tx.savedProperty.upsert({
+        where: {
+          userId_propertyId: {
+            userId: profile.id,
+            propertyId: id
+          }
+        },
+        update: {},
+        create: {
           userId: profile.id,
           propertyId: id
         }
-      },
-      update: {},
-      create: {
-        userId: profile.id,
-        propertyId: id
-      }
+      });
+      return true;
     });
+    if (!saved) return notFound("Property not found");
 
     await auditLog({
       action: "property_saved",

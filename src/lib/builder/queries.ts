@@ -80,7 +80,50 @@ export async function getBuilderPlan(profileId: string) {
   };
 }
 
+type BuilderAdmission = { error: Response } | { allowed: true };
+
+export async function requireBuilderActor(
+  profile: { id: string; role: string },
+  store: Pick<Prisma.TransactionClient, "profile"> = db
+): Promise<BuilderAdmission> {
+  if (profile.role !== "BUILDER" && !isAdminRole(profile.role)) {
+    return { error: forbidden() } as const;
+  }
+  const current = await store.profile.findUnique({
+    where: { id: profile.id }, select: { role: true, verificationStatus: true }
+  });
+  if (!current || current.role !== profile.role || current.verificationStatus === "SUSPENDED") {
+    return { error: forbidden() } as const;
+  }
+  return { allowed: true };
+}
+
+// Mutations lock account admission before the parent resource. A role change,
+// suspension or ownership transfer cannot race the subsequent child writes.
+export async function requireBuilderWriteAccess(
+  tx: Prisma.TransactionClient,
+  profile: { id: string; role: string },
+  projectId?: string
+): Promise<BuilderAdmission> {
+  await tx.$queryRaw`SELECT id FROM "Profile" WHERE id=${profile.id} FOR UPDATE`;
+  const admission = await requireBuilderActor(profile, tx);
+  if ("error" in admission) return admission;
+  if (projectId) {
+    await tx.$queryRaw`SELECT id FROM "BuilderProject" WHERE id=${projectId} FOR UPDATE`;
+    const project = await tx.builderProject.findUnique({
+      where: { id: projectId }, select: { id: true, builderId: true }
+    });
+    if (!project) return { error: notFound("Builder project not found") } as const;
+    if (project.builderId !== profile.id && !isAdminRole(profile.role)) {
+      return { error: forbidden() } as const;
+    }
+  }
+  return admission;
+}
+
 export async function requireBuilderProjectAccess(projectId: string, profile: { id: string; role: string }) {
+  const admission = await requireBuilderActor(profile);
+  if ("error" in admission) return admission;
   const project = await db.builderProject.findUnique({
     include: builderProjectInclude,
     where: {

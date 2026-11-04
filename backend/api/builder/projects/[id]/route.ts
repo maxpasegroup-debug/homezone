@@ -1,10 +1,9 @@
 import { auth } from "@/auth";
-import { forbidden, handleApiError, notFound, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { builderProjectSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
-import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
-import { addBuilderActivity } from "@/lib/builder/queries";
+import { requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
 
 type RouteContext = {
   params: Promise<{
@@ -22,19 +21,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const profile = await getOrCreateProfile(session.user);
     const { id } = await context.params;
-    const project = await db.builderProject.findUnique({
-      where: {
-        id
-      }
-    });
-
-    if (!project) {
-      return notFound("Project not found");
-    }
-
-    if (!isAdminRole(profile.role) && project.builderId !== profile.id) {
-      return forbidden();
-    }
+    const access = await requireBuilderProjectAccess(id, profile);
+    if ("error" in access) return access.error;
 
     const parsed = await parseJson(request, builderProjectSchema.partial());
 
@@ -42,23 +30,30 @@ export async function PATCH(request: Request, context: RouteContext) {
       return parsed.error;
     }
 
-    const updated = await db.builderProject.update({
-      where: {
-        id
-      },
-      data: {
-        ...parsed.data,
-        completionDate: parsed.data.completionDate ? new Date(parsed.data.completionDate) : undefined
-      }
+    const result = await db.$transaction(async (tx) => {
+      const admission = await requireBuilderWriteAccess(tx, profile, id);
+      if ("error" in admission) return admission;
+      const saved = await tx.builderProject.update({
+        where: {
+          id
+        },
+        data: {
+          ...parsed.data,
+          completionDate: parsed.data.completionDate ? new Date(parsed.data.completionDate) : undefined
+        }
+      });
+      await tx.builderActivityLog.create({
+        data: {
+          action: "PROJECT_UPDATED",
+          builderId: profile.id,
+          message: `Project updated: ${saved.name}.`,
+          projectId: saved.id
+        }
+      });
+      return { project: saved };
     });
-    await addBuilderActivity({
-      action: "PROJECT_UPDATED",
-      builderId: profile.id,
-      message: `Project updated: ${updated.name}.`,
-      projectId: updated.id
-    });
-
-    return ok({ project: updated });
+    if ("error" in result) return result.error;
+    return ok({ project: result.project });
   } catch (error) {
     return handleApiError(error, {
       route: "PATCH /api/builder/projects/[id]"

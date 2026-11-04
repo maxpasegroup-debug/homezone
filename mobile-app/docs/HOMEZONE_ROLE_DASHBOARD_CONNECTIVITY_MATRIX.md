@@ -1,5 +1,128 @@
 # Five-role dashboard connectivity matrix
 
+## Role workflow corrections - 2026-11-04
+
+Implementation baseline: clean `main` / `4994a03589b80acbfc1fce535d61319e1af98374`.
+The source changes below supersede the corresponding open source defects in the
+earlier cross-check, which is retained below for traceability. **SOURCE IMPLEMENTED;
+live five-role acceptance is still NOT VERIFIED.** No deployment or live data
+operation was performed. Current registration remains Name + Email + Password;
+the existing role choices, sessions, preview and separate PIN infrastructure remain.
+
+### Delivered corrections
+
+| Finding | Current result | Evidence / boundary |
+| --- | --- | --- |
+| F1 Enquiry account isolation | FIXED IN SOURCE | `marketplace_screen.dart` binds the draft to its opening repository, actor, role, session generation and property; clears contact fields on session change; rejects stale callbacks and late responses. Ambiguous submission locks resubmission and directs the user to My Enquiries. |
+| F2 Provider request disclosure | FIXED IN SOURCE | `service-requests/route.ts` and `services/marketplace.ts` enforce current provider role/business eligibility, directed/open-city/own-quote scoping and minimal projections. Competing quotes, private profiles and competitor booking amounts are excluded. Own customer requests remain accessible. |
+| F3 Foreign Builder tower | FIXED IN SOURCE | Units validate tower membership in the authorized project before insertion. Fresh Builder role/suspension and parent ownership are repeated under transaction locks in legacy and native edit APIs. Demotion cannot retain Builder powers through old ownership. |
+| F4 Service checkout amounts | FIXED IN SOURCE | `payments/service-checkout.ts` uses exact booking amounts in paise, paid balance, stage and INR currency; serializes reservation per booking; reuses a matching pending order and blocks uncertain duplicates. Provider configuration is checked before a reservation. Provider transport has one 15-second deadline, no retries/redirects and sanitized errors. No real charge was attempted. |
+| F5 Unpublished public writes | FIXED IN SOURCE | Enquiry/favorite/shortlist additions require PUBLISHED within the mutation transaction. Profile/property locks prevent visibility races. Unsave/remove and separate authorized CRM semantics remain. |
+| F6 Partial multi-write saves | FIXED FOR IDENTIFIED HANDLERS | Builder project/unit/tower/team/campaign/booking changes and Broker commissions include counters/activity/timeline in their transaction. Enquiry notifications/timeline also commit atomically. Generic native POST forms block uncertain retries until records are refreshed. There is no new universal idempotency system. |
+| F7 Owner hiding/restoration | SAFE REVERSIBLE ACTION ADDED | Owner `Unpublish listing` uses existing DRAFT and can later be published through existing photo/permission checks. Owner no longer receives self-archive as the hide action. Old ARCHIVED records remain support-only because their moderation origin cannot be inferred safely. |
+| F8 Broker account linking | CAPABILITY STILL MISSING | Existing contacts and active linked-member assignment work in source. Arbitrary profile linking stays forbidden. The app explains that a contact needs authorized account linking; no invitation/acceptance architecture was invented. |
+| F9 Builder project publication/media | SOURCE CONNECTED | Create/Edit now submits supported project status, amenities, address and existing image/floor-plan/master-plan/brochure URL fields. Owned API projection returns those fields for editing. This does not create Buyer Property listings or add a device project-upload endpoint. |
+| F10 Studio revision | FIXED IN SOURCE | Revision appears only at DELIVERED, matching the existing server rule. QUALITY_CHECK cannot offer a guaranteed-to-fail action. |
+| F11 Stale photo role | FIXED IN SOURCE | Final attachment transaction repeats current role and suspension/ownership checks after external upload. A changed role cannot attach using old admission. |
+| F12 Monthly Builder plan | POLICY DECISION REMAINS | Existing monthly-to-BASIC/yearly-to-PRO mapping remains. No commercial entitlement was changed without a policy decision. |
+| F13 Form parity | TARGETED CORRECTIONS | Project name/description limits, positive inventory price/area, tower name boundaries, quote/message fields and DASHBOARD attribution match their supported action contracts. This is not an assertion of exhaustive optional-field coverage across every business form. |
+| F14 Provider setup/reviews/currency | SOURCE CONNECTION EXTENDED | Profile exposes existing experience/certifications/areas/photo/portfolio fields; setup errors explain business verification. Booking projection includes currency and server-derived review/manage capabilities. Completed customers can submit rating/comment through the existing review API; review and published rating aggregate are atomic and duplicate-safe. Arbitrary business-hours JSON has no new native editor. |
+
+Broker commission attribution is additionally constrained to self or an active,
+already linked member of the Broker's own team; the existing administrator
+override remains. Roles are never derived from a local menu choice. Current
+Builder/Admin checks preserve existing project administrator override and the
+native BUILDER-only workspace contract.
+
+### Current local verification
+
+- Complete `npm test`: PASS, including TypeScript, six smoke checks and **338 Node
+  tests**. The new `test:role-workflows` command runs six independent mocked suites
+  (26 public-write/upload, 30 Builder/Broker, 18 provider/payment, 10 reviews,
+  8 workspace contract and 10 payment transport checks).
+- Focused Flutter Owner/role regression: **100 passed**. The initial new Owner
+  Unpublish fixture omitted its required confirmation tap; it was corrected,
+  without bypassing the app confirmation. Earlier duplicate-label compilation
+  and fixture scheduling issues were resolved before final checks.
+- Final complete Flutter suite: **532 passed**. Static analysis: zero errors/
+  warnings, 78 informational lints. Explicit staging APK compilation passed;
+  artifact, hash, configuration and preserved previous APK are recorded in
+  `HOMEZONE_COMPLETE_INTEGRATION_STATUS.md`. It was not installed/launched.
+- All new checks use synthetic in-process accounts and mocked storage/provider
+  boundaries. Test transaction/lock assertions are not evidence from real
+  PostgreSQL; actual multi-instance database contention remains a release check.
+
+### Exact changed-file inventory for this implementation
+
+Backend Builder/Broker:
+
+- `backend/api/builder/projects/route.ts`
+- `backend/api/builder/projects/[id]/route.ts`
+- `backend/api/builder/projects/[id]/units/route.ts`
+- `backend/api/builder/projects/[id]/towers/route.ts`
+- `backend/api/builder/projects/[id]/team/route.ts`
+- `backend/api/builder/projects/[id]/campaigns/route.ts`
+- `backend/api/builder/projects/[id]/bookings/route.ts`
+- `backend/api/builder/bookings/[id]/route.ts`
+- `backend/api/builder/reports/route.ts`
+- `backend/api/pro/leads/[id]/commission/route.ts`
+- `src/lib/builder/queries.ts`
+- `src/app/api/mobile/workspace/[id]/route.ts`
+
+Backend public property/services/payments:
+
+- `backend/api/leads/route.ts`
+- `backend/api/properties/[id]/save/route.ts`
+- `backend/api/shortlists/[id]/properties/route.ts`
+- `src/lib/properties/public-write.ts` (new)
+- `src/lib/leads/access.ts`
+- `src/lib/platform/notifications.ts`
+- `src/app/api/mobile/upload/route.ts`
+- `backend/api/service-requests/route.ts`
+- `src/lib/services/marketplace.ts`
+- `backend/api/service-bookings/[id]/reviews/route.ts`
+- `backend/api/payments/checkout/route.ts`
+- `src/lib/payments/service-checkout.ts` (new)
+- `src/lib/payments/razorpay.ts`
+- `src/app/api/mobile/workspace/route.ts`
+
+Flutter, checks and documentation:
+
+- `mobile-app/lib/features/marketplace/marketplace_screen.dart`
+- `mobile-app/lib/features/workspace/workspace_screen.dart`
+- `mobile-app/test/role_action_safety_test.dart` (new)
+- `tests/role-public-write-boundaries.test.mjs` (new)
+- `tests/role-builder-integrity.test.mjs` (new)
+- `tests/role-provider-payment.test.mjs` (new)
+- `tests/role-service-reviews.test.mjs` (new)
+- `tests/role-workspace-contract.test.mjs` (new)
+- `tests/razorpay-order.test.mjs` (new)
+- `package.json` (include new safety suites in the normal test command)
+- This matrix, `HOMEZONE_COMPLETE_INTEGRATION_STATUS.md` and
+  `HOMEZONE_REMAINING_BLOCKERS.md`.
+
+### Remaining release and business boundaries
+
+No schema/migration or new environment-variable name is required by this slice.
+Existing Auth.js, photo storage, Razorpay, private-file/scanner and exact-host
+configuration still require private compliance evidence. Payment checkout here
+supports INR; unsupported currency, inconsistent balances or uncertain past
+orders require reconciliation, not a guessed charge. No external payment,
+notification delivery or business verification was simulated.
+
+Before claiming every role works live: reconcile the exact staging service/SHA,
+matching backend and APK, existing migration pending set and recoverability.
+Then obtain approval for the concrete staging release and disposable role records,
+and execute actual Android action -> authenticated request -> correct scoped
+response -> visible UI/readback for all five roles, foreign-record denial,
+restart/restore/logout and failure cases. Approve payment sandbox separately.
+Railway predeploy still applies all pending migrations; source approval does not
+authorize that pending set. Keep production untouched.
+
+No live database access, migration, account/property mutation, provider request,
+Railway variable change, deployment, restart, device installation/launch, commit
+or push was performed by this implementation.
+
 ## Current role function cross check 2026-11-04
 
 Baseline: main / bfcabf4486c9f4bfb4fe62b398682b87cb380d6c.

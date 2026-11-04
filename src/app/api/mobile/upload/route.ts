@@ -38,8 +38,8 @@ export async function POST(request:Request){
     const uploaded=new URL(result.url);if(uploaded.username||uploaded.password||uploaded.hash)return apiError("Upload confirmation unavailable",502);
     const attached=await db.$transaction(async tx=>{
       await tx.$queryRaw`SELECT id FROM "Profile" WHERE id=${profile.id} FOR UPDATE`;
-      const actor=await tx.profile.findUnique({where:{id:profile.id},select:{verificationStatus:true}});
-      if(!actor||actor.verificationStatus==="SUSPENDED")return false;
+      const actor=await tx.profile.findUnique({where:{id:profile.id},select:{role:true,verificationStatus:true}});
+      if(!actor||actor.verificationStatus==="SUSPENDED"||actor.role!==profile.role||!["OWNER","BROKER"].includes(actor.role))return false;
       await tx.$queryRaw`SELECT id FROM "Property" WHERE id=${property.id} FOR UPDATE`;
       const current=await tx.property.findFirst({where:{id:property.id,ownerId:profile.id},select:{mediaUrls:true,status:true}});
       if(!current||current.mediaUrls.length>=40)return false;

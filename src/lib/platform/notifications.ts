@@ -23,10 +23,10 @@ export async function createNotification({
   recipientId,
   title,
   type
-}: CreateNotificationInput) {
+}: CreateNotificationInput, client: Pick<Prisma.TransactionClient, "notification"> = db) {
   if (!recipientId) return null;
 
-  return db.notification.create({
+  return client.notification.create({
     data: {
       actionUrl,
       channels,

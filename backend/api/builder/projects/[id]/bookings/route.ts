@@ -3,7 +3,7 @@ import { forbidden, handleApiError, ok, parseJson, unauthorized } from "@/lib/ap
 import { builderBookingSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addBuilderActivity, requireBuilderProjectAccess } from "@/lib/builder/queries";
+import { requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -18,6 +18,8 @@ export async function POST(request: Request, context: RouteContext) {
     const parsed = await parseJson(request, builderBookingSchema);
     if ("error" in parsed) return parsed.error;
     const result = await db.$transaction(async (tx) => {
+      const admission = await requireBuilderWriteAccess(tx, profile, id);
+      if ("error" in admission) return admission;
       // Acquire the unit row before creating a booking. Competing admissions
       // recheck AVAILABLE after waiting for this transaction to finish.
       const claim = await tx.builderUnit.updateMany({
@@ -45,18 +47,21 @@ export async function POST(request: Request, context: RouteContext) {
           unitId: parsed.data.unitId
         }
       });
-      await tx.builderProject.updateMany({where:{id,availableUnits:{gt:0}},data:{availableUnits:{decrement:1}}});
-      return booking;
+      await tx.builderProject.updateMany({ where: { id, availableUnits: { gt: 0 } }, data: { availableUnits: { decrement: 1 } } });
+      await tx.builderActivityLog.create({
+        data: {
+          action: "UNIT_RESERVED",
+          builderId: profile.id,
+          message: "Unit reserved.",
+          metadata: { unitId: parsed.data.unitId },
+          projectId: id
+        }
+      });
+      return { booking };
     });
     if (!result) return forbidden("Unit is not available for reservation");
-    await addBuilderActivity({
-      action: "UNIT_RESERVED",
-      builderId: profile.id,
-      message: "Unit reserved.",
-      metadata: { unitId: parsed.data.unitId },
-      projectId: id
-    });
-    return ok({ booking: result });
+    if ("error" in result) return result.error;
+    return ok({ booking: result.booking });
   } catch (error) {
     return handleApiError(error, { route: "POST /api/builder/projects/[id]/bookings" });
   }

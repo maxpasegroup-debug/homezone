@@ -2499,14 +2499,48 @@ class EnquiryForm extends StatefulWidget {
 }
 
 class _EnquiryFormState extends State<EnquiryForm> {
+  late final MarketplaceRepository _repository;
+  late final String? _actor, _role;
+  late final int _generation;
+  late final String _propertyId;
+  bool get current =>
+      mounted &&
+      identical(widget.repository, _repository) &&
+      widget.property.id == _propertyId &&
+      _actor != null &&
+      _repository.session.verified &&
+      _repository.session.identity?.id == _actor &&
+      _repository.session.identity?.role == _role &&
+      _repository.coordinator.generation == _generation;
   final form = GlobalKey<FormState>();
   final name = TextEditingController(),
       phone = TextEditingController(),
       message = TextEditingController();
   bool sending = false, sent = false;
+  bool _uncertain = false;
   String? error;
   @override
+  void initState() {
+    super.initState();
+    _repository = widget.repository;
+    _actor = _repository.session.identity?.id;
+    _role = _repository.session.identity?.role;
+    _generation = _repository.coordinator.generation;
+    _propertyId = widget.property.id;
+    _repository.session.addListener(_sessionChanged);
+  }
+
+  void _sessionChanged() {
+    if (!current) {
+      name.clear();
+      phone.clear();
+      message.clear();
+    }
+  }
+
+  @override
   void dispose() {
+    _repository.session.removeListener(_sessionChanged);
     name.dispose();
     phone.dispose();
     message.dispose();
@@ -2514,24 +2548,43 @@ class _EnquiryFormState extends State<EnquiryForm> {
   }
 
   Future<void> submit() async {
-    if (sending || sent || !form.currentState!.validate()) return;
+    if (!current ||
+        sending ||
+        sent ||
+        _uncertain ||
+        !(form.currentState?.validate() ?? false)) {
+      return;
+    }
     setState(() {
       sending = true;
       error = null;
     });
     try {
-      await widget.repository.enquire(
-        widget.property.id,
+      await _repository.enquire(
+        _propertyId,
         name.text,
         phone.text,
         message.text,
       );
-      if (mounted && widget.repository.session.verified) {
+      if (current) {
         setState(() => sent = true);
       }
     } catch (failure) {
-      if (mounted) {
-        setState(() => error = marketplaceError(failure, mutation: true));
+      if (current) {
+        setState(() {
+          _uncertain =
+              failure is! ApiException ||
+              !const {
+                ApiFailure.validation,
+                ApiFailure.forbidden,
+                ApiFailure.unauthorized,
+                ApiFailure.notFound,
+                ApiFailure.rateLimited,
+              }.contains(failure.failure);
+          error = _uncertain
+              ? 'Your enquiry may have been submitted, but confirmation was not received. Go back and check My Enquiries before sending it again.'
+              : marketplaceError(failure, mutation: true);
+        });
       }
     } finally {
       if (mounted) setState(() => sending = false);
@@ -2543,10 +2596,10 @@ class _EnquiryFormState extends State<EnquiryForm> {
     appBar: AppBar(title: const Text('Property enquiry')),
     body: AnimatedBuilder(
       animation: widget.repository.session,
-      builder: (context, _) => !widget.repository.session.verified
+      builder: (context, _) => !current
           ? const Center(
               child: Text(
-                'Your session ended. Sign in again before submitting an enquiry.',
+                'Your account or session changed. Reopen this listing to start a new enquiry.',
               ),
             )
           : Form(
@@ -2568,7 +2621,7 @@ class _EnquiryFormState extends State<EnquiryForm> {
                   else ...[
                     TextFormField(
                       controller: name,
-                      enabled: !sending,
+                      enabled: !sending && !_uncertain,
                       maxLength: 120,
                       decoration: const InputDecoration(labelText: 'Name'),
                       validator: (value) => (value?.trim().length ?? 0) < 2
@@ -2577,7 +2630,7 @@ class _EnquiryFormState extends State<EnquiryForm> {
                     ),
                     TextFormField(
                       controller: phone,
-                      enabled: !sending,
+                      enabled: !sending && !_uncertain,
                       maxLength: 32,
                       keyboardType: TextInputType.phone,
                       decoration: const InputDecoration(
@@ -2592,7 +2645,7 @@ class _EnquiryFormState extends State<EnquiryForm> {
                     ),
                     TextFormField(
                       controller: message,
-                      enabled: !sending,
+                      enabled: !sending && !_uncertain,
                       maxLength: 1000,
                       minLines: 3,
                       maxLines: 6,
@@ -2603,9 +2656,14 @@ class _EnquiryFormState extends State<EnquiryForm> {
                     ),
                     if (error != null) Text(error!),
                     FilledButton(
-                      onPressed: sending ? null : submit,
+                      onPressed: sending || _uncertain ? null : submit,
                       child: Text(sending ? 'Submitting…' : 'Submit enquiry'),
                     ),
+                    if (_uncertain)
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Back to listing'),
+                      ),
                   ],
                 ],
               ),

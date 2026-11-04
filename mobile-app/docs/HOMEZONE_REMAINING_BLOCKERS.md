@@ -1,5 +1,48 @@
 # HOMEZONE remaining integration blockers
 
+## After role-workflow source repairs - 2026-11-04
+
+The four high-priority findings from the role cross-check have source fixes and
+local regression coverage: enquiry account isolation, provider request/privacy
+scope, Builder tower/role ownership and service payment amounts. Identified
+multi-write transactions, published-only public writes, post-upload role checks,
+Studio state controls, customer reviews and targeted forms are also corrected.
+See the current implementation section of
+`HOMEZONE_ROLE_DASHBOARD_CONNECTIVITY_MATRIX.md` for exact files/evidence.
+
+**Do not call every role/function RUNTIME VERIFIED.** Remaining gates:
+
+1. Matching staging backend and Android artifact: confirm service/domain/SHA,
+   private configuration compliance and deployment pending migrations/recovery
+   evidence; separately approve the exact release. This slice adds no schema or
+   migration, but `railway.json` still runs ALL pending migrations before deploy.
+2. Controlled five-role acceptance: separately approve accounts/fixtures and each
+   intended staging write, then actual Android actions, session/profile role,
+   permitted mutation/readback, foreign-record denial, restore/logout and errors.
+   A successful local fixture or historical catalogue GET does not close this.
+3. Broker team invitations/account linking: contact CRUD is not account membership.
+   Existing active linked members can be assigned; a new secure invitation/
+   acceptance capability is still required. Do not accept arbitrary profile IDs.
+4. Existing Owner ARCHIVED records need support/admin review. New Owner hiding
+   uses reversible Unpublish -> DRAFT; administrative takedowns remain effective.
+5. Confirm the commercial intent of monthly Builder BASIC versus yearly PRO.
+   No paid entitlement is changed speculatively.
+6. Provider verification, photo storage, exact media hosts, private-file scanner/
+   encryption, Razorpay sandbox and payment reconciliation require operational
+   readiness evidence. New account role alone does not verify a service business.
+   Service checkout supports INR and blocks inconsistent/uncertain past orders.
+7. Native password recovery, approved legal/policy consent, native push and real
+   external fulfillment/payment operations retain their documented boundaries.
+   The in-app notification/history/request records are not those external actions.
+
+Full Flutter suite **532 passed**; focused Owner/role checks **100 passed**.
+Full backend **338 Node tests + six smoke checks + TypeScript passed**; analysis
+has no errors/warnings and 78 informational lints. A fresh explicit staging APK
+compiled; artifact/hash are in `HOMEZONE_COMPLETE_INTEGRATION_STATUS.md`.
+No live data, account, infrastructure, deployment, device installation/launch,
+commit or push was performed. Historical sections below describe earlier source
+and releases, not automatic proof of the current candidate.
+
 ## Owner single-submission publication acceptance - 2026-11-04
 
 The final new-listing action remains Publish listing, as clarified by the founder.

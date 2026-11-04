@@ -3,6 +3,7 @@ import { forbidden, handleApiError, notFound, ok, parseJson, unauthorized } from
 import { shortlistPropertySchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
+import { publicPropertyForMutation } from "@/lib/properties/public-write";
 
 type RouteContext = {
   params: Promise<{
@@ -50,32 +51,28 @@ export async function POST(request: Request, context: RouteContext) {
       return owned.error;
     }
 
-    const property = await db.property.findUnique({
-      where: {
-        id: parsed.data.propertyId
-      },
-      select: {
-        id: true
-      }
-    });
-
-    if (!property) {
-      return notFound("Property not found");
-    }
-
-    await db.shortlistProperty.upsert({
-      where: {
-        shortlistId_propertyId: {
+    const added = await db.$transaction(async (tx) => {
+      if (!await publicPropertyForMutation(tx, parsed.data.propertyId, profile.id)) return false;
+      // Recheck ownership at the write boundary rather than trusting the earlier
+      // response; removal remains possible after a listing becomes unavailable.
+      const shortlist = await tx.propertyShortlist.findUnique({ where: { id }, select: { userId: true } });
+      if (shortlist?.userId !== profile.id) return false;
+      await tx.shortlistProperty.upsert({
+        where: {
+          shortlistId_propertyId: {
+            shortlistId: id,
+            propertyId: parsed.data.propertyId
+          }
+        },
+        update: {},
+        create: {
           shortlistId: id,
           propertyId: parsed.data.propertyId
         }
-      },
-      update: {},
-      create: {
-        shortlistId: id,
-        propertyId: parsed.data.propertyId
-      }
+      });
+      return true;
     });
+    if (!added) return notFound("Property not found");
 
     return ok({ ok: true, added: true });
   } catch (error) {

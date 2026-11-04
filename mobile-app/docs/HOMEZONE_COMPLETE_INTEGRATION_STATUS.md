@@ -1,5 +1,79 @@
 # HOMEZONE integration implementation status
 
+## Five-role workflow repairs - SOURCE IMPLEMENTED / COMPILED / LOCAL CHECKED - 2026-11-04
+
+Baseline `main` / `4994a03589b80acbfc1fce535d61319e1af98374` was clean before
+this implementation. Source corrections now address the confirmed high-priority
+cross-check findings. This section supersedes the old open-source defect status;
+it does not supersede the requirement for current staging/Android acceptance.
+
+- Buyer: enquiries are bound to the opening account/role/session and cannot be
+  submitted or acknowledged under a different account. Uncertain enquiries and
+  generic creates cannot be replayed from the same form. Public enquiries,
+  favorites and shortlist additions require a currently published property.
+- Owner: the existing two-photo/six-selection single Publish listing flow stays
+  intact. Final photo attachment repeats current role/ownership admission. New
+  `Unpublish listing` uses reversible DRAFT instead of self-archive; changing
+  listing status requires matching property ID/status acknowledgment. Historical
+  ARCHIVED records remain support-only to preserve moderation.
+- Broker: commissions and lead/timeline updates are atomic, with fresh admission
+  and authorized own-team agent attribution. Manual leads identify DASHBOARD
+  source. Team contacts are clearly distinguished from linked account members.
+- Builder: foreign tower IDs are rejected; primary records/counters/activity and
+  reservations/status changes commit together. Fresh Builder role/suspension and
+  project ownership are checked under locks across legacy/native writes. Project
+  forms can submit existing status/media/plan fields; inventory positive values
+  and tower/project field limits match their server contracts.
+- Provider/common services: legacy incoming reads enforce business eligibility
+  and recipient/quote isolation. Business setup guidance, existing profile
+  fields, booking currency and customer review are connected. Reviews and
+  published rating totals commit atomically. Studio revision follows DELIVERED.
+- Payments: service orders use the stored INR booking balance, not fixed catalog
+  fees; serialized reservations and pending-order reuse prevent repeat charges.
+  Fresh role/suspension admission precedes reservation. Configuration is checked
+  before saving; external dispatch and acknowledgment share a 15-second deadline
+  with sanitized failures and no automatic retries/redirects. Live payment
+  processing is not verified.
+
+Complete Flutter suite: **532 passed**, zero failures. Focused Owner/role suite:
+**100 passed**. Complete `npm test` passed TypeScript, six smoke checks and
+**338 Node tests**, including the final transactional payment-admission checks.
+Final Flutter analysis exited zero with no errors/warnings and **78 informational
+lints**; no rules were weakened. Diff whitespace checks passed.
+All tests use local synthetic fixtures; they
+do not prove PostgreSQL contention, native secure storage, Android presentation
+or live five-role business behavior.
+
+Fresh staging candidate compiled with the existing explicit workflow:
+
+```cmd
+cd /d C:\Users\kkyad\OneDrive\Desktop\homezone\homezone\mobile-app
+node scripts/build-android.mjs --mode service --config config/staging.local.json
+```
+
+Artifact: `build/app/outputs/apk/debug/app-debug.apk`, **184,939,163 bytes**.
+SHA-256: `d61f1a89674a91c2aba4626db2fb9962f994c85963aa75c759cc596bbf26d168`.
+Build record: `build/android-source-builds/2026-11-04T09-06-23-883Z-29116/build-record.json`.
+Hash and bytes independently checked against the record. API enabled, service
+mode, staging origin exactly `https://homezone-staging.up.railway.app`; debug
+ARMv7/ARM64/x86_64. Previous APK is preserved beside the build record.
+The script uses cached offline compilation. It does not install, launch or
+contact APIs. `runtimeVerified` and `liveServiceVerified` remain false.
+
+No authentication redesign, schema/migration, environment setting or production
+change. Existing roles, direct public registration, website/admin authentication,
+separate PIN infrastructure, photo host/TLS policy and fictional preview remain.
+Full changed-file list and findings F1-F14 status:
+`HOMEZONE_ROLE_DASHBOARD_CONNECTIVITY_MATRIX.md` (current implementation section).
+
+Still incomplete or external: Broker invitation/account-linking capability,
+commercial monthly Builder entitlement decision, actual Provider business
+verification, private-file/scanner/provider/media configuration, native recovery,
+approved legal content/consent and external delivery/payment acceptance. Project
+media controls use supported URLs, not a new native project-upload service.
+No real account, property, payment, database operation, Railway/deployment,
+device installation/launch, commit or push was performed.
+
 ## Owner single-submission publication - SOURCE IMPLEMENTED / COMPILED - 2026-11-04
 
 New Owner creation keeps the founder's final **Publish listing** action. After

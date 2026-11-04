@@ -3,7 +3,7 @@ import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response"
 import { builderTowerSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
-import { addBuilderActivity, requireBuilderProjectAccess } from "@/lib/builder/queries";
+import { requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -17,21 +17,29 @@ export async function POST(request: Request, context: RouteContext) {
     if ("error" in access) return access.error;
     const parsed = await parseJson(request, builderTowerSchema);
     if ("error" in parsed) return parsed.error;
-    const tower = await db.builderTower.create({
-      data: {
-        floors: parsed.data.floors,
-        name: parsed.data.name,
-        projectId: id,
-        status: parsed.data.status
-      }
+    const result = await db.$transaction(async (tx) => {
+      const admission = await requireBuilderWriteAccess(tx, profile, id);
+      if ("error" in admission) return admission;
+      const created = await tx.builderTower.create({
+        data: {
+          floors: parsed.data.floors,
+          name: parsed.data.name,
+          projectId: id,
+          status: parsed.data.status
+        }
+      });
+      await tx.builderActivityLog.create({
+        data: {
+          action: "TOWER_CREATED",
+          builderId: profile.id,
+          message: `Tower created: ${created.name}.`,
+          projectId: id
+        }
+      });
+      return { tower: created };
     });
-    await addBuilderActivity({
-      action: "TOWER_CREATED",
-      builderId: profile.id,
-      message: `Tower created: ${tower.name}.`,
-      projectId: id
-    });
-    return ok({ tower });
+    if ("error" in result) return result.error;
+    return ok({ tower: result.tower });
   } catch (error) {
     return handleApiError(error, { route: "POST /api/builder/projects/[id]/towers" });
   }

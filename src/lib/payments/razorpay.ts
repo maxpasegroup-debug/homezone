@@ -44,26 +44,46 @@ export async function createRazorpayOrder({
 }) {
   const { keyId, keySecret } = requireRazorpayKeys();
   const credentials = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-  const response = await fetch("https://api.razorpay.com/v1/orders", {
-    body: JSON.stringify({
-      amount,
-      currency,
-      notes,
-      receipt
-    }),
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      "Content-Type": "application/json"
-    },
-    method: "POST"
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Razorpay order creation failed: ${body}`);
+  if (!Number.isSafeInteger(amount) || amount <= 0 || !/^[A-Z]{3}$/.test(currency) || !receipt) {
+    throw new Error("Invalid payment order");
   }
-
-  return (await response.json()) as RazorpayOrderResponse;
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("Payment order deadline exceeded"));
+    }, 15_000);
+  });
+  try {
+    return await Promise.race([
+      (async () => {
+        const response = await fetch("https://api.razorpay.com/v1/orders", {
+          body: JSON.stringify({ amount, currency, notes, receipt }),
+          headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/json" },
+          method: "POST", redirect: "error", signal: controller.signal
+        });
+        // Provider bodies can include account information. Never read them into
+        // exceptions or logs, including rejected orders and malformed JSON.
+        if (!response.ok) throw new Error("Payment order rejected");
+        const order: unknown = await response.json();
+        if (!order || typeof order !== "object" || Array.isArray(order)) throw new Error("Invalid payment order acknowledgment");
+        const value = order as Record<string, unknown>;
+        if (typeof value.id !== "string" || !value.id || value.id.length > 128 || value.amount !== amount ||
+          value.currency !== currency || value.receipt !== receipt || typeof value.status !== "string" || !value.status || value.status.length > 64) {
+          throw new Error("Invalid payment order acknowledgment");
+        }
+        return order as RazorpayOrderResponse;
+      })(),
+      deadline
+    ]);
+  } catch {
+    // Timeout/transport errors do not prove the provider failed to create an
+    // order. Callers must preserve their reservation and must not retry a charge.
+    throw new Error(controller.signal.aborted ? "Razorpay order confirmation timed out" : "Razorpay order confirmation unavailable");
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 export function getRazorpayKeyId() {
