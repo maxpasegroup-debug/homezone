@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/cookie_request_coordinator.dart';
 import '../../core/api/password_auth_protocol.dart';
@@ -327,8 +328,9 @@ final class SignInController extends ChangeNotifier {
     if (_vault.scope != _protocol.coordinator.credentialScope) return;
     _pending = true;
     final generation = _protocol.coordinator.generation;
+    var restoreStage = 'vault_read';
     try {
-      final headers = await _vault.read().timeout(const Duration(seconds: 5));
+      final headers = await _vault.read();
       if (_vault.scope != _protocol.coordinator.credentialScope) return;
       if (_disposed ||
           generation != _protocol.coordinator.generation ||
@@ -336,18 +338,26 @@ final class SignInController extends ChangeNotifier {
           headers.isEmpty)
         return;
       _ownedGeneration = generation;
+      restoreStage = 'credential_import';
       if (!_protocol.coordinator.restoreCredentialHeaders(
         headers,
         generation,
       )) {
+        if (kDebugMode) {
+          debugPrint('HOMEZONE session restore: credential_import_rejected');
+        }
         clearLocalSession();
         return;
       }
+      restoreStage = 'session_verification';
       final result = await _protocol.verifyOwned(_owner);
       if (_disposed || generation != _protocol.coordinator.generation) return;
       if (!result.authenticatedSnapshot ||
           result.expires == null ||
           !result.expires!.isAfter(_clock().toUtc())) {
+        if (kDebugMode) {
+          debugPrint('HOMEZONE session restore: session_not_confirmed');
+        }
         clearLocalSession();
         return;
       }
@@ -364,7 +374,31 @@ final class SignInController extends ChangeNotifier {
       });
       notifyListeners();
       await _saveStored(generation);
-    } catch (_) {
+    } catch (failure) {
+      // Fixed diagnostic stages only; never include credentials, storage values
+      // or the caught exception in Android logs.
+      if (restoreStage == 'vault_read') {
+        final category = switch (failure) {
+          TimeoutException() => 'vault_timeout',
+          PlatformException() => 'vault_unavailable',
+          MissingPluginException() => 'vault_bridge_missing',
+          FormatException() => 'vault_payload_invalid',
+          _ => 'vault_read_failed',
+        };
+        if (kDebugMode) {
+          debugPrint('HOMEZONE session restore failed: $category');
+        }
+        // No credential has been imported and no session has been verified.
+        // A temporary native-storage failure is not evidence that the stored
+        // credential is invalid. Preserve it for a later explicit retry.
+        if (failure is TimeoutException ||
+            failure is PlatformException ||
+            failure is MissingPluginException) {
+          return;
+        }
+      } else if (kDebugMode) {
+        debugPrint('HOMEZONE session restore failed: $restoreStage');
+      }
       if (!_disposed && generation == _protocol.coordinator.generation) {
         _ownedGeneration = generation;
         clearLocalSession();

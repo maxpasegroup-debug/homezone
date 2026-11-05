@@ -3,10 +3,374 @@
 Implementation date: 2026-11-05. Starting source baseline:
 `49cb11af9d43a58b7f46c7029c27c694aa2d34af`.
 
-Status: SOURCE IMPLEMENTED; local fixture checks and staging APK compilation
-completed. These changes have not been deployed, migrated or verified against
-live accounts, payment providers or Android presentation. Earlier catalogue and
-property WebSocket verification does not verify private chat or subscriptions.
+Current status: **FREE CHAT AND RECEIPTS ACTIVATED ON STAGING / ANDROID VERIFIED**
+after the founder's explicit activation/test approval. Plus purchases remain disabled.
+The earlier source-only and blocked results below are retained as history and
+are superseded by the activation evidence here. Production was not accessed.
+
+## Message ticks and acknowledgements - BACKEND CONNECTED / ANDROID VERIFIED - 2026-11-05
+
+This section supersedes earlier source-only, activation-pending and receipt-absent
+entries below. The current receipt deployment is active on staging, with controlled
+API and actual Android presentation evidence. The corrected Owner cold restart is
+also device-verified below; successful receipts do not verify every application module.
+
+- One grey tick: an outgoing message was acknowledged as saved by the server.
+- Two grey ticks: the recipient app explicitly acknowledged receiving/decoding it.
+- Two blue ticks: the recipient app explicitly acknowledged displaying it in the
+  current foreground chat. This means displayed, not proof a human read the text.
+- Incoming messages do not show sender ticks. No optimistic double ticks, delivery
+  inferred from a GET, historical backfill or fake read confirmations are used.
+
+### Contracts and protections
+
+`ChatMessage` gains nullable `deliveredAt` and `readAt`. Migration
+`20261105140000_chat_message_receipts` adds these fields and a CHECK requiring
+delivery before/equal to read; existing rows remain null. It depends on the
+existing chat tables from `20261105120000_buyer_membership_chat`. The approved
+staging predeploy found 23 migrations and applied **only**
+`20261105140000_chat_message_receipts` at 2026-11-05 11:52:05 UTC. No schema reset,
+historical receipt backfill or destructive database operation was performed.
+
+`POST /api/mobile/conversations/[id]/receipts` accepts only `deliveredIds` and
+`readIds` arrays (default empty), each unique and at most 50, with a nonempty
+union of at most 50. Read implies delivery; the Flutter client avoids duplicating
+IDs between arrays. The existing 12KiB body bound still applies. All IDs must
+belong to this conversation and have been sent by the other participant. The
+whole batch validates before writes; own, missing or foreign IDs receive the
+same generic 400. Only authenticated current participants can acknowledge.
+
+The existing Auth.js/revocation, Origin/Sec-Fetch-Site, current profile, suspension,
+published listing and ownership checks are preserved. Blocked pairs cannot
+acknowledge or obtain fresh receipt state. The existing database-backed admission
+infrastructure enforces a separate `messages-receipts` quota: 60/minute per
+profile and the helper's aggregate 6,000/minute budget. Server-generated first
+timestamps are written only while null, under the existing transaction/lock
+order, and never regress. Receipts neither notify nor reorder the inbox.
+
+History GET remains read-only. It now advertises `receiptsSupported: true` and
+accepts an optional unique comma-separated `receiptIds` list, at most 50, for
+the caller's own messages. Response `receipts` contains `{id, deliveredAt,
+readAt}` independently of the message cursor, including empty forward polls.
+Message/send projections also carry nullable receipt timestamps. Bodies,
+credentials, cookies and receipt payloads are not logged.
+
+Flutter rotates bounded snapshots across retained outgoing messages and merges
+only server-confirmed status without regression. Parsed incoming messages are
+explicitly acknowledged; read IDs additionally require an attached, laid-out
+bubble substantially visible within the chat viewport after a 300ms debounce
+(at least 60% of the smaller of bubble/viewport height). Covered routes,
+background/inactive apps, offscreen bubbles and stale account generations do not
+generate read acknowledgements. Scrolling and keyboard changes recheck visibility.
+Failed acknowledgements are retried idempotently with Retry-After/backoff and a
+nonblocking status-delay message; they never resend chat messages. Existing
+send/retry safeguards and the compact composer remain unchanged.
+
+An older backend without `receiptsSupported` is handled safely: no receipt POST
+or new GET parameter is sent and saved messages retain one tick. There is no
+private receipt WebSocket or background delivery service; updates use the existing
+approximately four-second foreground polling. A recipient who has not opened the
+thread has not downloaded its message bodies and will not produce delivery ticks.
+
+### Approved activation and runtime evidence
+
+Active staging deployment **`967b0c35-876f-42ec-8051-264fed2fd336` is SUCCESS**, created
+2026-11-05 11:46:49.525 UTC. Target: project
+`1f8c9007-2993-426c-bbd0-b8dd0a0b17da`, environment
+`2181eadf-21a0-4ca3-8269-b6b6f28af9f4`, backend
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00`, database
+`8a0f4b40-a4d6-4924-8b07-79e82065fe24`. CLI upload used the reviewed working tree
+based on `1b091c0fdbb68030f5b14927322f61bcd140a603`; it is not a new committed SHA.
+No variables were changed in this receipt activation. Existing realtime start,
+empty config selector, engagement/checkout flags and photo volume were preserved.
+
+Before migration, a staging database-volume backup was created and listed:
+`4aadc027-526f-4f82-992c-0a3096646797`, 2026-11-05 11:45:34.731 UTC.
+This supersedes older "no listed backup" observations. **Restore has not been
+tested**; a listed backup does not establish proven recovery or a backup schedule.
+
+| Check | Actual result / limit |
+| --- | --- |
+| Controlled receipt API acceptance | **35/35 PASS** using existing controlled Buyer/Owner accounts; no new accounts or OTPs. |
+| Native outgoing tick progression | Actual Buyer Android send showed one grey tick; explicit Owner API delivery acknowledgement changed it to two grey ticks; read acknowledgement changed it to two blue ticks. Normal Android PNGs were visually reviewed. |
+| Native recipient foreground behavior | Owner API reply stayed undelivered/unread while Buyer was backgrounded for six seconds. After resume, the actual Buyer conversation displayed it and acknowledged read. |
+| Native traffic attribution | Same deployment logs show Dart message POST 200 at 11:55:45.567 UTC and receipt POST 200 at 11:55:12.629 and 12:07:13.346 UTC. |
+| Composer and alignment | Send icon is beside the field with keyboard visible and a 48dp target. Outgoing bubbles are right-aligned; incoming bubbles are left-aligned. |
+| Final Owner conversation | `receipt-owner-thread-final.png` was visually reviewed: outgoing right/blue double ticks, incoming left/no ticks, and send icon beside the field. |
+| Accessibility evidence | Tick icon semantics could not be attributed conclusively from the Android accessibility dump. Visual PNG evidence, not an assumed accessibility label, establishes the displayed ticks. |
+| Existing services | Public catalogue returned 200/source database/four properties; existing public property WebSocket returned 101/ready. |
+| Test writes and cleanup | Three labelled messages in the existing controlled thread during this turn. All temporary API sessions signed out. Final Buyer and Owner native signouts were confirmed; Owner returned to unauthenticated role selection, with zero encrypted-storage entries and no private chat open. No new accounts, properties, OTPs, payments or contact-credit operations. |
+
+Sanitized evidence is under ignored `build/chat-verification/`, including
+`receipt-acceptance-20261105T113717Z-5220d26f.json`,
+`receipt-deployment-status.json`, `receipt-deployment-log-summary.json`,
+`receipt-deployment-source-manifest.json`, `receipt-backup-list.json`,
+`receipt-backup-workflow.json`, `receipt-dart-http-evidence.json`,
+`receipt-service-regression.json`, `device-receipt-send.json`,
+`device-receipt-peerdeliver.json`, `device-receipt-peerread.json`,
+`device-receipt-peer-reply.json`, `receipt-final-evidence.json`,
+`receipt-owner-thread-final.png` and the `device-receipt-inspect-*.png` captures.
+Use Railway/server timestamps for correlation; local/emulator clock skew exists.
+No credentials, cookies, message bodies or secret values are included in the report.
+
+### Local checks, latest APK and separate session defect
+
+- Full backend `npm test`: **398/398 tests across 23 files**, plus **6/6 platform
+  smoke assertions**, pass; TypeScript typecheck passes. Tests use synthetic
+  stores/providers and loopback realtime sockets, not live database acceptance.
+- Focused Flutter engagement/receipt tests: **32/32 PASS**. The complete Flutter
+  suite after the session-persistence correction passed **585/585 across 42 files**.
+  Evidence: `build/chat-verification/flutter-final-tests-20261105.log` and
+  `flutter-final-tests-20261105-summary.json`. The earlier 581/581 run predates
+  that correction and is superseded by this final run.
+- Prisma schema validation and local compatible-client generation passed; these
+  local operations did not establish deployed migration status. Exact predeploy
+  execution and real receipt operations establish the staging evidence above.
+- Actual cold restart exposed a separate session-vault read deadline of five
+  seconds expiring before a session HTTP request. The source correction uses a
+  20-second read deadline inside the ordered vault operation and preserves stored
+  credentials on transient failures while refusing unverified authenticated access.
+  **9/9 persistence tests pass.** The final APK was installed with data retained:
+  the existing encrypted Owner session restored to the actual Owner dashboard
+  with property image, then a second explicit force-stop/relaunch restored it
+  again without login. **Owner cold restart is DEVICE VERIFIED on this emulator.**
+  Same-deployment Dart session/account GETs both returned 200 after APK update
+  (12:44:23.447 and 12:44:24.693 UTC), then again after explicit force-stop/start
+  (12:44:52.107 and 12:44:52.650 UTC), matching actual Owner dashboard restoration.
+  No claim is made about the precise native-storage latency/Keystore cause.
+  Final native logout returned to role selection and cleared the encrypted vault.
+  Sessions whose credential was lost
+  during the earlier regression may remain until ordinary expiry; no broad
+  revoke-all operation was performed or claimed.
+- Explicit staging build uses
+  `node scripts/build-android.mjs --mode service --config config/staging.local.json`.
+  Latest APK: `build/app/outputs/apk/debug/app-debug.apk`, SHA256
+  `8ef4ce33c96a0561c57b58dc49a769b6039ecb821a320b2183e8fd50fc4264b3`.
+  Build record: `build/android-source-builds/2026-11-05T12-26-34-541Z-22636/build-record.json`;
+  explicit service/staging configuration and exact staging origin were recorded.
+  This final session-corrected artifact is installed and passed the controlled
+  Owner cold-restart check; receipt evidence and restore evidence remain separate.
+  A later vault-comment clarification does not alter the built executable behavior;
+  source/artifact precision is noted in `receipt-final-evidence.json`.
+
+The approved work included a staging backup, additive migration, deployment and
+controlled session/message/receipt writes. No production access, variable changes,
+secret rotation, database reset, account creation, commit or push was performed.
+
+### Rollback and remaining verification
+
+Rollback uses the last compatible backend/APK while retaining the additive
+columns and receipt data. Do not drop columns, rewrite old messages or reset
+migration history. Legacy clients ignore extra fields; this APK detects an older
+backend and keeps single ticks. Rollback does not itself revoke user sessions.
+
+## Historical compact chat composer checkpoint - 2026-11-05
+
+The message field and circular send button now share one bottom row. The send
+button sits to the right, remains 48px square, and stays aligned with multiline
+input. Sending and uncertain-retry states keep the existing duplicate protection
+and accessible tooltips. The 2,000-character limit remains enforced.
+
+All 17 focused Flutter engagement tests passed, including a 320px-wide screen
+with an open keyboard and four-line draft; analysis reported no issues. The
+explicit staging debug build succeeded using
+`node scripts/build-android.mjs --mode service --config config/staging.local.json`.
+APK SHA256: `6e8dd55ac15f2279dfa235ec1419c7091498a93d87db68003b43e155db6e6d22`.
+Build evidence: `build/android-source-builds/2026-11-05T11-03-10-301Z-8272/`.
+ADB listed no connected devices at this check, so this layout has not been
+installed or visually verified on Android. No new messages, backend changes or
+deployment were needed for the composer correction. Receipts were absent at that
+checkpoint; the activation and device evidence above supersede that limitation.
+
+## Historical initial free-chat staging activation and Android check - 2026-11-05
+
+### Exact target and root cause
+
+Project `1f8c9007-2993-426c-bbd0-b8dd0a0b17da` (`homezone`), environment
+`2181eadf-21a0-4ca3-8269-b6b6f28af9f4` (`staging`), backend
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00` (`HomeZone`), public domain
+`https://homezone-staging.up.railway.app`. Current Railway metadata confirms
+these identities, domain mapping and staging PostgreSQL service
+`8a0f4b40-a4d6-4924-8b07-79e82065fe24` (`Postgres-9ZqA`). Private variable
+comparison confirmed backend/database host, database and credentials match;
+no credential value was printed or saved in the evidence.
+
+The old active deployment was `d8ac7cd0-a7bb-4f92-b47e-86747023af2f`, SUCCESS,
+created09:07:19.999UTC on commit `1b091c0fdbb68030f5b14927322f61bcd140a603`.
+It already contained the chat routes. Its predeploy logs explicitly record22
+migrations, applying `20261105120000_buyer_membership_chat` at09:11:18UTC and
+successful completion. The confirmed503 cause was the **missing
+`HOMEZONE_ENGAGEMENT_ENABLED` variable**, not an established DB failure or missing
+route. Canonical staging URL compliance and existing realtime flag were correct.
+
+### Changes and deployment
+
+Saved exactly these nonsecret staging backend variables, initially with
+`--skip-deploys`, then deployed the reviewed working tree through official CLI:
+
+```text
+HOMEZONE_ENGAGEMENT_ENABLED=true
+HOMEZONE_BUYER_PLUS_CHECKOUT_ENABLED=false
+```
+
+New active deployment **`f3975667-61c6-4ea8-90ce-456aaea913bb` is SUCCESS**, created
+09:39:50.602UTC. Local base commit remains `1b091c0...`; CLI upload included the
+uncommitted backend timestamp and Flutter server-cursor corrections. No commit
+or push was performed. Source hashes are recorded in
+`build/chat-verification/deployment-source-manifest.json`; backend
+`conversations.ts` SHA256 is
+`fae48b5e1e50e53bcfb2790a48bcba7f71827c29ab6f69fb241f9fe801e4e3b6`.
+Do not assume a future Git-only deployment includes the uncommitted corrections.
+
+New predeploy logs at09:42:31UTC report22 migrations and **no pending migrations**.
+The existing `prisma migrate deploy` hook ran; this task applied **zero new schema
+migrations** and issued no direct SQL. No database account/property backfill,
+reset or restore was performed. A direct schema-query attempt stopped before
+execution because SSH keys were unavailable and no public DB endpoint was
+configured; no key, public proxy or TLS exception was added. Migration readiness
+is supported by the exact deployment execution logs and successful live chat
+queries/writes, not a claimed independent schema catalog/checksum query.
+
+Runtime manifest still starts `npm run start:realtime`; its existing empty
+config-file selector and `/app/property-media` mount were retained. Public
+catalogue GET after rollout returned200/source database; the existing property
+WebSocket returned101/ready. `AUTH_URL`, `NEXTAUTH_URL`, `AUTH_STAGING_ORIGIN`,
+authentication secrets, database credentials and volume configuration were not
+changed. No Railway backup was listed for the DB volume at this initial check.
+The receipt rollout above subsequently created/listed a backup; restore testing
+and scheduling remain operational gaps. No destructive DB operation or new
+migration occurred during this earlier rollout.
+
+### Actual acceptance evidence
+
+| Check | Result |
+| --- | --- |
+| Disabled gate removed | Unauthenticated chat GET now401 `Sign in to continue.`, instead of503. |
+| Real authenticated API trial | **27/27 checks PASS** with existing encrypted controlled USER, OWNER and unrelated BROKER fixtures. No new accounts. |
+| Buyer message / Owner reply | Actual staging create/reopen, saved message, Owner inbox/read/reply and Buyer forward-cursor read all200. |
+| Idempotency and persistence | Same client message ID returns same stored ID; one copy. Fresh authenticated session reads both saved messages. |
+| Isolation and revocation | Unrelated account read/send404; anonymous read401; post-logout old cookie replay401. |
+| Actual Buyer Android app | Corrected staging APK installed with `-r` preserving app data; existing Buyer logged in. Native Messages showed persisted messages, sent a new labelled message, and Owner API readback matched its SHA256. |
+| Automatic incoming update | While the Buyer conversation stayed open, a labelled Owner API reply appeared without refresh/navigation; message hash matched. |
+| Actual Owner Android app | Buyer UI signed out. Role-first OWNER sign-in opened Owner dashboard; More -> Messages showed the same thread and Buyer message. Owner sent a labelled native reply; a separate Buyer session read its matching hash and mine=false. |
+| Actual Flutter traffic | Railway HTTP logs identify **two Dart/3.12 (dart:io) message POSTs, both200**, on the exact new deployment:09:52:07.303UTC and10:13:55.505UTC. Subsequent Dart GETs returned200 at approximately4-second intervals. |
+| Cleanup | All temporary API sessions signed out. Buyer/Owner native sessions signed out; final app screen is unauthenticated Sign In, with no private chat visible. |
+
+Used only existing controlled property `cmw32s2dt0003ox0xo3ydesx7`, already
+PUBLISHED and owned by the controlled Owner. Conversation
+`cmw3d31et0001pp0xogbrl8km` contains **five labelled authorized test messages**:
+two API-only acceptance messages, one native Buyer send, its Owner API reply,
+and one native Owner send. Duplicate/denied sends created no extra messages.
+Normal session/quota/notification writes also occurred. No listing was created
+or published; no contact sharing, credits, report or payment was changed/tested.
+Test records are retained; no cleanup deletion was authorized or performed.
+
+Sanitized evidence under ignored `build/chat-verification/`:
+`staging-before.json`, `staging-after.json`,
+`staging-config-compliance-before.json`, `staging-database-target-guards.json`,
+`staging-runtime-backups.json`, `staging-gate-after.json`,
+`chat-acceptance-20261105T093052Z-b047953d.json`, `device-send.json`,
+`device-owner-reply-latest.json`, `device-buyer-reply-visible.json`,
+`device-owner-inbox-visible.json`, `device-owner-send.json`,
+`device-owner-send-visible.json`, `owner-device-reply-readback.json`,
+`staging-chat-http-metadata.json`, `staging-chat-posts.json`,
+`device-cleanup.json`, `existing-services-after.json`,
+`activation-acceptance-summary.json`, `buyer-chat-live-reply.png` and
+`owner-chat-native-reply.png`. Credentials remained in the existing DPAPI store
+or process memory; cookies, credentials and message bodies are absent from JSON
+evidence. Android screenshots show only controlled labelled test conversation.
+Use Railway/server timestamps for correlation: the host/device clock lagged by
+approximately16 minutes.
+
+Initial diagnostic helper stopped before messages because it incorrectly expected
+profile.id; source confirms that endpoint intentionally omits it. Correcting the
+helper yielded the full PASS. The first Owner UI snapshot was too early/offscreen
+to confirm its send; no automatic retry was made. Server readback and later native
+UI/hash confirmation proved exactly one saved message. Owner logout correctly
+returns Sign In, rather than the role screen initially expected by the helper.
+These observation corrections did not require application changes.
+
+### Scope and rollback
+
+This verifies a controlled staging **free-chat workflow** through actual Android
+presentation and backend persistence, not every device/network/load condition.
+Private chat still uses foreground HTTP polling (~4seconds); it has no private
+WebSocket/background push, attachments or older-history browser. Read receipts
+were absent during this initial check and were verified in the later rollout above.
+Two roles were exercised sequentially on one emulator, with an authenticated API
+peer for the automatic-update trial; two simultaneous physical devices were not
+tested. Pair blocking/reporting, quotas and races have local tests but no live
+stress/abuse trial. Paid plans/contact-credit spending remain runtime unverified
+and checkout stays off. Production rollout/backup recovery are separate work.
+
+Safe rollback is to disable `HOMEZONE_ENGAGEMENT_ENABLED` on this same staging
+backend and redeploy/restart its existing compatible artifact, preserving realtime
+startup and the photo mount. Keep paid checkout false. Retain schema/migration
+history, messages and financial records; no drop/reset or destructive downgrade.
+The prior deployment ID is recorded above if an artifact rollback is needed.
+
+Permanent source changes in this activation task: documentation updates only
+(this file, integration status and remaining blockers). The existing seven-file
+cursor correction working tree was preserved and uploaded, not committed/reset.
+Ignored local CLI/verification helpers and evidence were added. Production was
+not contacted, no secrets were rotated and no real charge was attempted.
+
+## Historical chat verification before activation - 2026-11-05
+
+Review baseline: `main/1b091c0fdbb68030f5b14927322f61bcd140a603`; clean checkout
+before this follow-up. Source corrections are not deployed by this check.
+
+| Check | Result | Evidence / limit |
+| --- | --- | --- |
+| Staging chat availability | BLOCKED | Unauthenticated GET `/api/mobile/conversations` returned HTTP503 and `Chat and contact plans are not available yet.`; server Date 2026-11-05 09:16:14 UTC. Matches the fail-closed `HOMEZONE_ENGAGEMENT_ENABLED !== "true"` branch before authentication. |
+| New membership route responds | VERIFIED HTTP boundary only | GET `/api/mobile/membership` returned401 Unauthorized without cookies. This proves neither entitlement/database access nor the exact deployed SHA. |
+| Deployment/migration identity | UNKNOWN | Neither public response establishes an active deployment ID/SHA or whether `20261105120000_buyer_membership_chat` was applied. No DB inspection/CLI deployment/variable read was performed. |
+| Backend send/reply and isolation | LOCAL VERIFIED | 19 synthetic handler/service tests and full TypeScript check passed. Buyer starts, sends, Owner reads/replies, Buyer reads reply; foreign read/send/block/report denied. |
+| Flutter navigation/send/reply and session safety | LOCAL VERIFIED | 16 focused widget/contract tests passed; Dart analysis found no issues. Includes Buyer property action, inbox/reply projections, cursor invariant, idempotent retry, polling lifecycle and revoked-session clearing. |
+| Corrected backend / Android packaging | COMPILED | Isolated Next.js build passed; explicit staging debug APK compiled. Neither build was deployed, installed or launched. |
+| Real two-account delivery | NOT VERIFIED | No live messages, login sessions, account creation or database writes were performed. |
+
+Read-only HTTP evidence: ignored `build/chat-verification/staging-readiness.json`.
+It records both local observation time and server Date; the local clock lagged
+the server, so use the server timestamp for deployment-log correlation. Redirects
+were not followed, cookies were not sent or logged, and only the approved staging
+host was contacted. Current HTTP503 is an activation gate, not evidence that the
+database is broken or that the migration is absent.
+
+The review found and corrected a backend cursor race: PostgreSQL `now()` is the
+transaction-start timestamp. A send waiting on a lock could commit after another
+send while receiving an earlier timestamp, falling behind a cursor already read.
+`src/lib/engagement/conversations.ts` now selects the latest message timestamp
+under the existing conversation lock and assigns `max(Date.now(), latest+1ms)`
+to the new message and inbox update. No schema or existing record rewrite is
+needed. The backward-clock regression failed before the fix and passes afterward.
+
+Flutter `lib/features/engagement/engagement_screens.dart` also no longer derives
+the read cursor from a locally acknowledged sent message after an empty read.
+Only a server history-read cursor can establish that earlier messages were read.
+Its deterministic regression failed before correction and passes afterward.
+The existing serialized cookie transport mitigates overlapping wire requests;
+this correction enforces the invariant rather than claiming a live observed
+missing-message incident. No auth, session, permission or schema behavior changed.
+
+Staging activation still requires separate approval to verify target/recoverability
+and pending migrations, apply the approved set, deploy the corrected source,
+enable `HOMEZONE_ENGAGEMENT_ENABLED` and exchange labelled test messages between
+two approved existing accounts. Keep Plus checkout disabled for this chat trial.
+Migration, settings/deployment and test-message/session writes are separate from
+the read-only HTTP/local-fixture checks performed here.
+
+Corrected APK: `build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes,
+SHA-256 `ed31aba9b1d14b17e9c158446415c53a58e6e220bcd4b82e07b98fc1f9e3a87d`;
+record `build/android-source-builds/2026-11-05T09-06-43-994Z-36712/build-record.json`.
+Verified record/hash targets `https://homezone-staging.up.railway.app`, service
+mode. No new migration is needed for the two cursor corrections; the original
+chat schema migration still requires its staging status and deployment approval.
+
+Follow-up changed files: this document, `HOMEZONE_COMPLETE_INTEGRATION_STATUS.md`,
+`HOMEZONE_REMAINING_BLOCKERS.md`, `src/lib/engagement/conversations.ts`,
+`tests/engagement.test.mjs`, `lib/features/engagement/engagement_screens.dart`
+and `test/engagement_test.dart`. No environment, auth or permission code changed.
 
 ## Product implemented in this slice
 
@@ -61,8 +425,9 @@ credit count, participant identity, owner identity or role assignment.
 | POST same | No body | Explicit unlock; same status union. Transactionally spends one credit and creates the unique buyer/owner ledger record. |
 | GET `/api/mobile/conversations` | None | `conversations`: at most 100 participant-scoped property summaries. No phone or message text in inbox summaries. |
 | POST same | `propertyId` | `conversation`; only USER buyers initiate to a published property's current OWNER/BROKER/BUILDER. |
-| GET `/api/mobile/conversations/[id]/messages` | Optional `after` message ID | `messages`, `nextCursor`, `hasMore`, `blocked`, `blockedByMe`, `propertyTitle`. First read is latest 50 in chronological order; cursor reads page forward. |
+| GET `/api/mobile/conversations/[id]/messages` | Optional `after`; optional unique comma-separated `receiptIds`, at most 50 own message IDs | `messages` including nullable deliveredAt/readAt, `nextCursor`, `hasMore`, `blocked`, `blockedByMe`, `propertyTitle`, `receiptsSupported:true`, `receipts`. Receipt snapshots refresh independently of history cursor. First read is latest 50 in chronological order; cursor reads page forward. |
 | POST same | `body`, `clientMessageId` | Persisted `message`; body 1-2000 characters. Same sender/conversation/client ID + same body is idempotent; changed body with reused ID is rejected. |
+| POST `/api/mobile/conversations/[id]/receipts` | `deliveredIds`, `readIds`; unique arrays, nonempty union of at most 50 peer message IDs | Server-generated first delivery/read timestamps; read implies delivery. Recipient-only, transactional, idempotent. GET never acknowledges. |
 | PATCH `/api/mobile/conversations/[id]` | `blocked` | Updates only the caller's pair-wide block; blocks also prevent paid contact disclosure across the pair's properties. |
 | POST same | `reason`, 3-500 characters | Idempotent report marker and entry in existing protected `/admin/reports` queue. |
 
@@ -83,8 +448,8 @@ conversation reference, not message bodies or contact numbers.
 Private chat uses authenticated HTTP, polling about every four seconds only
 while the conversation/inbox is visible and the app is foreground. Existing
 public property WebSocket traffic is unchanged and carries no chat/contact data.
-There is no private WebSocket, background push, read receipt, attachment or older
-history browser in this slice. Inbox is bounded to 100; first view shows latest
+There is no private WebSocket, background push, attachment or older-history
+browser. Receipt status also refreshes over foreground HTTP. Inbox is bounded to 100; first view shows latest
 50 messages, forward paging catches new messages, and Flutter retains at most 500.
 
 Reads are single-flight, honor Retry-After, preserve confirmed content during
@@ -97,7 +462,7 @@ client ID and body. No local optimistic message is presented as server success.
 ## Database and concurrency
 
 Migration file: `prisma/migrations/20261105120000_buyer_membership_chat/migration.sql`.
-It is additive and has NOT been executed. It adds:
+It is additive and was applied on staging by the initial chat deployment. It adds:
 
 - `PaymentProduct.BUYER_PLUS` and Subscription contactLimit/contactsUsed (existing
   subscriptions default to zero; the migration grants no premium access).
@@ -108,6 +473,10 @@ It is additive and has NOT been executed. It adds:
 - `ConversationReport`: unique conversation/reporter.
 - `BuyerOwnerBlock`: durable pair-wide two-way independent flags.
 
+Receipt migration `prisma/migrations/20261105140000_chat_message_receipts/migration.sql`
+was applied in the approved receipt deployment above. It adds nullable delivery/read
+timestamps and a delivery-before-read CHECK; no historical receipt state is inferred.
+
 Foreign keys, indexes and SQL CHECKs constrain allowances, consent, normalized
 phone syntax, distinct participants and message/report lengths. The contact
 ledger's subscription FK is RESTRICT: do not delete referenced financial history
@@ -117,8 +486,9 @@ Sorted Profile locks, then Property/Conversation or Subscription locks serialize
 permission changes and writes. Unlock counter + ledger commit together; concurrent
 retries cannot double-debit a pair. Valid overlapping plans use available credits
 in expiry/ID order. Entitlement/payment changes commit together under a Payment
-row lock. Synthetic tests exercise these code paths but do not establish real
-PostgreSQL contention/performance; staging transaction verification remains a gate.
+row lock. Controlled free-chat/receipt transactions passed on staging as recorded
+above; synthetic tests and those trials do not establish PostgreSQL contention,
+load performance or paid-credit concurrency behavior.
 
 ## Quotas and security
 
@@ -129,6 +499,7 @@ keys. Keys contain internal profile IDs, not phone/email/message text.
 | Action | Per account |
 | --- | --- |
 | Inbox, messages, contact reads (separate buckets) | 60/minute each |
+| Delivery/read acknowledgement (separate bucket) | 60/minute |
 | Send message | 30/minute |
 | Start conversation | 10/minute |
 | Contact unlock | 20/minute |
@@ -146,7 +517,7 @@ stage labels only, not exception objects, PINs, credentials, phones or messages.
 
 ## Billing and activation gates
 
-New feature variables (names only; no values provisioned):
+Activation settings (nonsecret flags; no secret values are documented):
 
 - `HOMEZONE_ENGAGEMENT_ENABLED`: literal true only after migration + deployment
   are approved and ready. Otherwise chat/contact routes return 503, not fake data.
@@ -187,7 +558,7 @@ privacy/retention, invalid-contact review, dispute handling and provider test mo
 No automated contact replacement or refund execution is claimed. Owner sharing
 permission is implemented; it is not a substitute for approved legal policy text.
 
-## Controlled activation and verification
+## Historical initial activation procedure; paid verification still pending
 
 1. Founder approves the exact staging project/environment/backend/database IDs,
    additive migration and recoverability plan. Reconcile the FULL pending migration
@@ -210,7 +581,9 @@ permission is implemented; it is not a substitute for approved legal policy text
    message bodies, cookies, payment secrets or credentials.
 
 No account creation, provider request, charge, DB access, Railway variable change,
-deploy/restart or production access occurred in this implementation task.
+deploy/restart or production access occurred during that initial source-only
+implementation task. The approved staging activations and writes are recorded
+at the top of this document; paid acceptance remains pending.
 
 Rollback: disable the new checkout/engagement gates through separately approved
 staging configuration change, then use the last compatible artifact. Preserve

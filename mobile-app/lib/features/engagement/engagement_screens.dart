@@ -878,8 +878,12 @@ class _ConversationState extends State<ConversationScreen>
   final composer = TextEditingController();
   final messages = <ChatMessage>[];
   final scroll = ScrollController();
+  final messageViewport = GlobalKey();
+  final messageKeys = <String, GlobalKey>{};
   Timer? timer;
+  Timer? receiptTimer;
   DateTime? retryAt;
+  DateTime? receiptRetryAt;
   RouteObserver<ModalRoute<dynamic>>? observer;
   ModalRoute<dynamic>? route;
   bool foreground = true,
@@ -890,10 +894,13 @@ class _ConversationState extends State<ConversationScreen>
       acting = false,
       blocked = false,
       blockedByMe = false,
-      hasMore = false;
-  String? cursor, error;
+      hasMore = false,
+      receiptsSupported = false,
+      receiptWriting = false,
+      receiptFrameQueued = false;
+  String? cursor, error, receiptError;
   (String, String)? pending;
-  int epoch = 0;
+  int epoch = 0, receiptOffset = 0;
   bool get active =>
       current && foreground && visible && (route?.isCurrent ?? true);
   @override
@@ -904,6 +911,7 @@ class _ConversationState extends State<ConversationScreen>
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     WidgetsBinding.instance.addObserver(this);
+    scroll.addListener(_queueReceiptCheck);
     _load(initial: true);
   }
 
@@ -932,13 +940,18 @@ class _ConversationState extends State<ConversationScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     foreground = state == AppLifecycleState.resumed;
     timer?.cancel();
+    receiptTimer?.cancel();
     if (active) _load();
   }
+
+  @override
+  void didChangeMetrics() => _queueReceiptCheck();
 
   @override
   void didPushNext() {
     visible = false;
     timer?.cancel();
+    receiptTimer?.cancel();
   }
 
   @override
@@ -951,13 +964,16 @@ class _ConversationState extends State<ConversationScreen>
   void didPop() {
     visible = false;
     timer?.cancel();
+    receiptTimer?.cancel();
   }
 
   @override
   void clearPrivateState() {
     epoch++;
     timer?.cancel();
+    receiptTimer?.cancel();
     messages.clear();
+    messageKeys.clear();
     composer.clear();
     pending = null;
     cursor = null;
@@ -966,12 +982,19 @@ class _ConversationState extends State<ConversationScreen>
     reading = false;
     sending = false;
     retryAt = null;
+    receiptRetryAt = null;
+    receiptError = null;
+    receiptsSupported = false;
+    receiptWriting = false;
+    receiptFrameQueued = false;
+    receiptOffset = 0;
   }
 
   @override
   void dispose() {
     epoch++;
     timer?.cancel();
+    receiptTimer?.cancel();
     observer?.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
     composer.dispose();
@@ -1001,21 +1024,42 @@ class _ConversationState extends State<ConversationScreen>
       final result = await engagement.messages(
         widget.conversation.id,
         after: cursor,
+        receiptIds: _receiptIds(),
       );
       if (!active || request != epoch) return;
       setState(() {
-        final ids = messages.map((item) => item.id).toSet();
-        messages.addAll(result.messages.where((item) => ids.add(item.id)));
+        for (final message in result.messages) {
+          final index = messages.indexWhere((item) => item.id == message.id);
+          if (index < 0) {
+            messages.add(message);
+          } else {
+            messages[index] = messages[index].withReceipt(
+              MessageReceipt.parse({
+                'id': message.id,
+                'deliveredAt': message.deliveredAt?.toIso8601String(),
+                'readAt': message.readAt?.toIso8601String(),
+              }),
+            );
+          }
+        }
+        _mergeReceipts(result.receipts);
         _sortMessages();
         if (result.cursor != null) cursor = result.cursor;
-        if (cursor == null && messages.isNotEmpty) cursor = messages.last.id;
+        // A send receipt is not a complete history read. Only the server's
+        // read cursor can establish which earlier messages have been received.
         hasMore = result.hasMore;
         blocked = result.blocked;
         blockedByMe = result.blockedByMe;
+        receiptsSupported = result.receiptsSupported;
+        if (blocked || !receiptsSupported) {
+          receiptTimer?.cancel();
+          receiptError = null;
+        }
         error = null;
         retryAt = null;
       });
       if (followLatest) _showLatest();
+      _queueReceiptCheck();
     } catch (failure) {
       if (current && request == epoch) {
         setState(() {
@@ -1038,6 +1082,129 @@ class _ConversationState extends State<ConversationScreen>
       return time == 0 ? a.id.compareTo(b.id) : time;
     });
     if (messages.length > 500) messages.removeRange(0, messages.length - 500);
+    final ids = messages.map((message) => message.id).toSet();
+    messageKeys.removeWhere((id, _) => !ids.contains(id));
+  }
+
+  // Receipt changes do not advance the history cursor. Rotate bounded snapshots
+  // so an older retained outgoing message can still receive its final status.
+  List<String> _receiptIds() {
+    if (!receiptsSupported || blocked) return const [];
+    final ids = messages
+        .where((message) => message.mine && message.readAt == null)
+        .map((message) => message.id)
+        .toList();
+    if (ids.isEmpty) return const [];
+    receiptOffset %= ids.length;
+    final batch = List.generate(
+      min(50, ids.length),
+      (index) => ids[(receiptOffset + index) % ids.length],
+    );
+    receiptOffset = (receiptOffset + batch.length) % ids.length;
+    return batch;
+  }
+
+  void _mergeReceipts(List<MessageReceipt> receipts) {
+    for (final receipt in receipts) {
+      final index = messages.indexWhere((message) => message.id == receipt.id);
+      if (index >= 0) messages[index] = messages[index].withReceipt(receipt);
+    }
+  }
+
+  bool _messageVisible(String id) {
+    final viewport = messageViewport.currentContext?.findRenderObject();
+    final bubble = messageKeys[id]?.currentContext?.findRenderObject();
+    if (viewport is! RenderBox ||
+        bubble is! RenderBox ||
+        !viewport.attached ||
+        !bubble.attached ||
+        !viewport.hasSize ||
+        !bubble.hasSize) {
+      return false;
+    }
+    final viewRect = viewport.localToGlobal(Offset.zero) & viewport.size;
+    final bubbleRect = bubble.localToGlobal(Offset.zero) & bubble.size;
+    final intersection = viewRect.intersect(bubbleRect);
+    // A meaningful part of the bubble must actually be on screen. Merely
+    // fetching history, prebuilding a widget or polling in the background is
+    // never evidence that the recipient displayed a message.
+    return intersection.width > 0 &&
+        intersection.height > 0 &&
+        intersection.height >= min(bubbleRect.height, viewRect.height) * .6;
+  }
+
+  void _queueReceiptCheck() {
+    if (!active || !receiptsSupported || blocked || receiptFrameQueued) return;
+    receiptFrameQueued = true;
+    final request = epoch;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || request != epoch) return;
+      receiptFrameQueued = false;
+      if (!active || !receiptsSupported || blocked) return;
+      receiptTimer?.cancel();
+      final wait = receiptRetryAt?.difference(DateTime.now()) ?? Duration.zero;
+      receiptTimer = Timer(
+        wait > const Duration(milliseconds: 300)
+            ? wait
+            : const Duration(milliseconds: 300),
+        _acknowledgeMessages,
+      );
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  Future<void> _acknowledgeMessages() async {
+    if (!active || !receiptsSupported || blocked || receiptWriting) return;
+    if (receiptRetryAt?.isAfter(DateTime.now()) ?? false) {
+      _queueReceiptCheck();
+      return;
+    }
+    final incoming = messages.where((message) => !message.mine).toList();
+    final readIds = incoming
+        .where(
+          (message) => message.readAt == null && _messageVisible(message.id),
+        )
+        .take(50)
+        .map((message) => message.id)
+        .toList();
+    final deliveredIds = incoming
+        .where(
+          (message) =>
+              message.deliveredAt == null && !readIds.contains(message.id),
+        )
+        .take(50 - readIds.length)
+        .map((message) => message.id)
+        .toList();
+    if (readIds.isEmpty && deliveredIds.isEmpty) return;
+    receiptWriting = true;
+    final request = epoch;
+    try {
+      final receipts = await engagement.acknowledge(
+        widget.conversation.id,
+        deliveredIds: deliveredIds,
+        readIds: readIds,
+      );
+      if (!active || request != epoch) return;
+      setState(() {
+        _mergeReceipts(receipts);
+        receiptError = null;
+        receiptRetryAt = null;
+      });
+    } catch (failure) {
+      if (active && request == epoch) {
+        setState(() {
+          receiptError = 'Message status updates are delayed.';
+          receiptRetryAt =
+              _retryDeadline(failure) ??
+              DateTime.now().add(const Duration(seconds: 4));
+        });
+      }
+    } finally {
+      if (mounted && request == epoch) {
+        receiptWriting = false;
+        _queueReceiptCheck();
+      }
+    }
   }
 
   void _showLatest() {
@@ -1154,6 +1321,27 @@ class _ConversationState extends State<ConversationScreen>
     }
   }
 
+  Widget _messageStatus(ChatMessage message) {
+    final read = message.readAt != null;
+    final delivered = message.deliveredAt != null;
+    final label = read
+        ? 'Read'
+        : delivered
+        ? 'Delivered'
+        : 'Sent';
+    return Tooltip(
+      message: label,
+      child: Icon(
+        delivered ? Icons.done_all : Icons.check,
+        size: 16,
+        color: read
+            ? const Color(0xFF168AC0)
+            : Theme.of(context).colorScheme.onSurfaceVariant,
+        semanticLabel: label,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -1213,6 +1401,7 @@ class _ConversationState extends State<ConversationScreen>
                         label: 'Loading messages',
                       )
                     : ListView(
+                        key: messageViewport,
                         controller: scroll,
                         padding: const EdgeInsets.all(16),
                         children: [
@@ -1229,6 +1418,10 @@ class _ConversationState extends State<ConversationScreen>
                                   ? Alignment.centerRight
                                   : Alignment.centerLeft,
                               child: Container(
+                                key: messageKeys.putIfAbsent(
+                                  message.id,
+                                  GlobalKey.new,
+                                ),
                                 margin: const EdgeInsets.only(bottom: 10),
                                 padding: const EdgeInsets.all(12),
                                 constraints: const BoxConstraints(
@@ -1249,11 +1442,20 @@ class _ConversationState extends State<ConversationScreen>
                                   children: [
                                     SelectableText(message.body),
                                     const SizedBox(height: 5),
-                                    Text(
-                                      '${_day(message.createdAt.toLocal())} · '
-                                      '${message.createdAt.toLocal().hour.toString().padLeft(2, '0')}:'
-                                      '${message.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(fontSize: 10),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '${_day(message.createdAt.toLocal())} · '
+                                          '${message.createdAt.toLocal().hour.toString().padLeft(2, '0')}:'
+                                          '${message.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(fontSize: 10),
+                                        ),
+                                        if (message.mine) ...[
+                                          const SizedBox(width: 6),
+                                          _messageStatus(message),
+                                        ],
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -1272,6 +1474,14 @@ class _ConversationState extends State<ConversationScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _error(context, error!, reading ? null : _load),
                 ),
+              if (receiptError != null && !blocked)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                  child: Text(
+                    receiptError!,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
               if (blocked)
                 Padding(
                   padding: const EdgeInsets.all(16),
@@ -1286,31 +1496,45 @@ class _ConversationState extends State<ConversationScreen>
                   top: false,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        TextField(
-                          controller: composer,
-                          readOnly: sending || pending != null,
-                          minLines: 1,
-                          maxLines: 4,
-                          maxLength: 2000,
-                          decoration: const InputDecoration(
-                            labelText: 'Message',
-                            hintText: 'Ask about this property',
+                        Expanded(
+                          child: TextField(
+                            controller: composer,
+                            readOnly: sending || pending != null,
+                            minLines: 1,
+                            maxLines: 4,
+                            maxLength: 2000,
+                            decoration: const InputDecoration(
+                              labelText: 'Message',
+                              hintText: 'Ask about this property',
+                              counterText: '',
+                            ),
                           ),
                         ),
-                        FilledButton.icon(
-                          onPressed: sending || acting || loading
-                              ? null
-                              : _send,
-                          icon: const Icon(Icons.send_outlined),
-                          label: Text(
-                            sending
+                        const SizedBox(width: 8),
+                        SizedBox.square(
+                          dimension: 48,
+                          child: IconButton.filled(
+                            onPressed: sending || acting || loading
+                                ? null
+                                : _send,
+                            tooltip: sending
                                 ? 'Sending…'
                                 : pending != null
                                 ? 'Retry same message'
                                 : 'Send message',
+                            style: IconButton.styleFrom(
+                              shape: const CircleBorder(),
+                            ),
+                            icon: Icon(
+                              sending
+                                  ? Icons.more_horiz
+                                  : pending != null
+                                  ? Icons.refresh
+                                  : Icons.send_rounded,
+                            ),
                           ),
                         ),
                       ],

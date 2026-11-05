@@ -57,14 +57,52 @@ class EngagementRepository {
         ),
       );
 
-  Future<MessagePage> messages(String conversationId, {String? after}) async =>
-      MessagePage.parse(
-        await marketplace.call(
-          'GET',
-          '/api/mobile/conversations/${_id(conversationId)}/messages',
-          query: {if (after != null) 'after': _id(after)},
-        ),
-      );
+  Future<MessagePage> messages(
+    String conversationId, {
+    String? after,
+    List<String> receiptIds = const [],
+  }) async {
+    final ids = _receiptIds(receiptIds);
+    final page = MessagePage.parse(
+      await marketplace.call(
+        'GET',
+        '/api/mobile/conversations/${_id(conversationId)}/messages',
+        query: {
+          if (after != null) 'after': _id(after),
+          if (ids.isNotEmpty) 'receiptIds': ids.join(','),
+        },
+      ),
+    );
+    if (page.receipts.any((receipt) => !ids.contains(receipt.id))) _invalid();
+    return page;
+  }
+
+  Future<List<MessageReceipt>> acknowledge(
+    String conversationId, {
+    List<String> deliveredIds = const [],
+    List<String> readIds = const [],
+  }) async {
+    final delivered = _receiptIds(deliveredIds);
+    final read = _receiptIds(readIds);
+    final expected = {...delivered, ...read};
+    if (expected.isEmpty || expected.length > 50) _invalid();
+    final result = await marketplace.call(
+      'POST',
+      '/api/mobile/conversations/${_id(conversationId)}/receipts',
+      body: {'deliveredIds': delivered, 'readIds': read},
+    );
+    final receipts = _receipts(result['receipts']);
+    if (receipts.length != expected.length ||
+        receipts.any((receipt) => !expected.contains(receipt.id)) ||
+        receipts.any(
+          (receipt) =>
+              (delivered.contains(receipt.id) && receipt.deliveredAt == null) ||
+              (read.contains(receipt.id) && receipt.readAt == null),
+        )) {
+      _invalid();
+    }
+    return receipts;
+  }
 
   Future<ChatMessage> send(
     String conversationId,
@@ -121,6 +159,22 @@ int _count(Object? value) => value is int && value >= 0 ? value : _invalid();
 DateTime _date(Object? value) {
   final date = value is String ? DateTime.tryParse(value) : null;
   return date ?? _invalid();
+}
+
+List<String> _receiptIds(List<String> values) {
+  if (values.length > 50 || values.toSet().length != values.length) _invalid();
+  return values.map(_id).toList(growable: false);
+}
+
+List<MessageReceipt> _receipts(Object? value) {
+  if (value is! List || value.length > 50) _invalid();
+  final receipts = value
+      .map((row) => MessageReceipt.parse(object(row)))
+      .toList(growable: false);
+  if (receipts.map((row) => row.id).toSet().length != receipts.length) {
+    _invalid();
+  }
+  return receipts;
 }
 
 class Membership {
@@ -231,16 +285,75 @@ class Conversation {
 }
 
 class ChatMessage {
-  ChatMessage._(this.id, this.body, this.mine, this.createdAt);
-  factory ChatMessage.parse(JsonObject json) => ChatMessage._(
-    _id(json['id']),
-    _string(json['body']),
-    _bool(json['mine']),
-    _date(json['createdAt']),
+  ChatMessage._(
+    this.id,
+    this.body,
+    this.mine,
+    this.createdAt,
+    this.deliveredAt,
+    this.readAt,
   );
+  factory ChatMessage.parse(JsonObject json) {
+    final receipt = MessageReceipt.parse(json);
+    final createdAt = _date(json['createdAt']);
+    _validateReceiptCreation(receipt, createdAt);
+    return ChatMessage._(
+      receipt.id,
+      _string(json['body']),
+      _bool(json['mine']),
+      createdAt,
+      receipt.deliveredAt,
+      receipt.readAt,
+    );
+  }
   final String id, body;
   final bool mine;
   final DateTime createdAt;
+  final DateTime? deliveredAt, readAt;
+
+  /// Receipts may arrive out of order. Never erase an acknowledged status;
+  /// retain the earliest server-confirmed timestamp for each first receipt.
+  ChatMessage withReceipt(MessageReceipt receipt) {
+    if (receipt.id != id) _invalid();
+    _validateReceiptCreation(receipt, createdAt);
+    DateTime? first(DateTime? current, DateTime? incoming) {
+      if (current == null) return incoming;
+      if (incoming == null || current.isBefore(incoming)) return current;
+      return incoming;
+    }
+
+    return ChatMessage._(
+      id,
+      body,
+      mine,
+      createdAt,
+      first(deliveredAt, receipt.deliveredAt),
+      first(readAt, receipt.readAt),
+    );
+  }
+}
+
+class MessageReceipt {
+  MessageReceipt._(this.id, this.deliveredAt, this.readAt);
+  factory MessageReceipt.parse(JsonObject json) {
+    final delivered = json['deliveredAt'] == null
+        ? null
+        : _date(json['deliveredAt']);
+    final read = json['readAt'] == null ? null : _date(json['readAt']);
+    if (read != null && (delivered == null || read.isBefore(delivered))) {
+      _invalid();
+    }
+    return MessageReceipt._(_id(json['id']), delivered, read);
+  }
+  final String id;
+  final DateTime? deliveredAt, readAt;
+}
+
+void _validateReceiptCreation(MessageReceipt receipt, DateTime createdAt) {
+  if ((receipt.deliveredAt?.isBefore(createdAt) ?? false) ||
+      (receipt.readAt?.isBefore(createdAt) ?? false)) {
+    _invalid();
+  }
 }
 
 class MessagePage {
@@ -251,10 +364,31 @@ class MessagePage {
     this.blocked,
     this.blockedByMe,
     this.propertyTitle,
+    this.receiptsSupported,
+    this.receipts,
   );
   factory MessagePage.parse(JsonObject json) {
-    final messages = objects(json['messages']).map(ChatMessage.parse).toList();
-    if (messages.length > 50) _invalid();
+    final rows = objects(json['messages']);
+    if (rows.length > 50) _invalid();
+    final messages = rows.map(ChatMessage.parse).toList(growable: false);
+    if (messages.map((message) => message.id).toSet().length !=
+        messages.length) {
+      _invalid();
+    }
+    final supported = json['receiptsSupported'] == null
+        ? false
+        : _bool(json['receiptsSupported']);
+    final receipts = json['receipts'] == null
+        ? <MessageReceipt>[]
+        : _receipts(json['receipts']);
+    if (!supported &&
+        (receipts.isNotEmpty ||
+            messages.any(
+              (message) =>
+                  message.deliveredAt != null || message.readAt != null,
+            ))) {
+      _invalid();
+    }
     final cursor = json['nextCursor'];
     final more = _bool(json['hasMore']);
     if (cursor != null) _id(cursor);
@@ -266,12 +400,15 @@ class MessagePage {
       _bool(json['blocked']),
       _bool(json['blockedByMe']),
       _string(json['propertyTitle'], max: 160),
+      supported,
+      receipts,
     );
   }
   final List<ChatMessage> messages;
   final String? cursor;
-  final bool hasMore, blocked, blockedByMe;
+  final bool hasMore, blocked, blockedByMe, receiptsSupported;
   final String propertyTitle;
+  final List<MessageReceipt> receipts;
 }
 
 String engagementError(Object error, {bool mutation = false}) {

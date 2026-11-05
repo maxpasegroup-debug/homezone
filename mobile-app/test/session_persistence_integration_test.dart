@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -58,7 +59,11 @@ class PersistenceTransport extends RoleFlowTransport {
 }
 
 class PersistenceHarness {
-  PersistenceHarness(this.configuration, {String role = 'OWNER'}) {
+  PersistenceHarness(
+    this.configuration, {
+    String role = 'OWNER',
+    Duration readTimeout = const Duration(seconds: 20),
+  }) {
     transport = PersistenceTransport(role);
     client = ApiClient(configuration: configuration, transport: transport);
     coordinator = CookieRequestCoordinator(
@@ -67,7 +72,7 @@ class PersistenceHarness {
     );
     controller = SignInController(
       PasswordAuthProtocol(client: client, coordinator: coordinator),
-      vault: SessionVault(scope),
+      vault: SessionVault(scope, readTimeout: readTimeout),
     );
     repository = MarketplaceRepository(
       client: client,
@@ -96,15 +101,21 @@ void main() {
   const channel = MethodChannel('homezone/session-vault');
   final storage = <String, String>{};
   var fixture = 0;
+  PlatformException? readFailure;
+  Completer<String?>? delayedRead;
 
   setUp(() {
     storage.clear();
+    readFailure = null;
+    delayedRead = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           final arguments = Map<String, dynamic>.from(call.arguments as Map);
           final scope = arguments['scope'] as String;
           switch (call.method) {
             case 'read':
+              if (readFailure != null) throw readFailure!;
+              if (delayedRead != null) return delayedRead!.future;
               return storage[scope];
             case 'write':
               storage[scope] = arguments['value'] as String;
@@ -175,6 +186,123 @@ void main() {
       );
     },
   );
+
+  test(
+    'temporary native read failure preserves credentials without granting access',
+    () async {
+      final original = PersistenceHarness(configuration());
+      await signIn(original);
+      final stored = storage[original.scope];
+      expect(stored, isNotNull);
+      final restored = PersistenceHarness(original.configuration);
+      original.dispose();
+      addTearDown(restored.dispose);
+
+      readFailure = PlatformException(code: 'SESSION_STORAGE');
+      await restored.controller.restoreSession();
+      expect(restored.controller.verified, isFalse);
+      expect(storage[restored.scope], stored);
+      expect(restored.transport.requests, isEmpty);
+      await expectLater(
+        restored.repository.confirmedProfile(),
+        throwsA(isA<ApiException>()),
+      );
+      expect(restored.transport.requests, isEmpty);
+
+      readFailure = null;
+      await restored.controller.restoreSession();
+      expect(restored.controller.verified, isTrue);
+      expect(restored.controller.identity?.role, 'OWNER');
+      expect(restored.transport.requests.map((request) => request.uri.path), [
+        '/api/auth/session',
+      ]);
+      expect((await restored.repository.confirmedProfile())['role'], 'OWNER');
+    },
+  );
+
+  test(
+    'timed out native read preserves credentials and late completion cannot authenticate',
+    () async {
+      final original = PersistenceHarness(configuration());
+      await signIn(original);
+      final stored = storage[original.scope];
+      expect(stored, isNotNull);
+      final restored = PersistenceHarness(
+        original.configuration,
+        readTimeout: const Duration(milliseconds: 20),
+      );
+      original.dispose();
+      addTearDown(restored.dispose);
+
+      final pendingRead = Completer<String?>();
+      delayedRead = pendingRead;
+      await restored.controller.restoreSession();
+      expect(restored.controller.verified, isFalse);
+      expect(storage[restored.scope], stored);
+      expect(restored.transport.requests, isEmpty);
+      await expectLater(
+        restored.repository.confirmedProfile(),
+        throwsA(isA<ApiException>()),
+      );
+
+      delayedRead = null;
+      pendingRead.complete(stored);
+      await Future<void>.delayed(Duration.zero);
+      expect(restored.controller.verified, isFalse);
+      expect(storage[restored.scope], stored);
+      expect(restored.transport.requests, isEmpty);
+
+      await restored.controller.restoreSession();
+      expect(restored.controller.verified, isTrue);
+      expect(restored.controller.identity?.role, 'OWNER');
+      expect(restored.transport.requests.map((request) => request.uri.path), [
+        '/api/auth/session',
+      ]);
+      expect((await restored.repository.confirmedProfile())['role'], 'OWNER');
+    },
+  );
+
+  test(
+    'timed out read releases queued clear and write and ignores its late result',
+    () async {
+      final scope = 'staging:https://vault-${fixture++}.example.invalid';
+      final oldPayload = jsonEncode(['synthetic-old-credential']);
+      const newHeaders = ['synthetic-replacement-credential'];
+      storage[scope] = oldPayload;
+      final vault = SessionVault(
+        scope,
+        readTimeout: const Duration(milliseconds: 20),
+      );
+      final pendingRead = Completer<String?>();
+      delayedRead = pendingRead;
+      await expectLater(vault.read(), throwsA(isA<TimeoutException>()));
+
+      // The native read is still unresolved. Mutations must nevertheless reach
+      // the platform in their original order after its deadline has elapsed.
+      await vault.clear().timeout(const Duration(seconds: 1));
+      expect(storage.containsKey(scope), isFalse);
+      await vault
+          .write(newHeaders, () => true)
+          .timeout(const Duration(seconds: 1));
+      expect(storage[scope], jsonEncode(newHeaders));
+
+      pendingRead.complete(oldPayload);
+      delayedRead = null;
+      await Future<void>.delayed(Duration.zero);
+      expect(storage[scope], jsonEncode(newHeaders));
+      await vault.clear();
+      expect(storage.containsKey(scope), isFalse);
+    },
+  );
+
+  test('session vault read deadline must be positive', () {
+    for (final duration in [Duration.zero, const Duration(milliseconds: -1)]) {
+      expect(
+        () => SessionVault('invalid-timeout', readTimeout: duration),
+        throwsArgumentError,
+      );
+    }
+  });
 
   test(
     'a revoked stored session cannot restore identity or reach protected APIs',

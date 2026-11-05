@@ -1,6 +1,159 @@
 # HOMEZONE integration implementation status
 
-## Free property chat and Plus contacts - SOURCE IMPLEMENTED / APK COMPILED - 2026-11-05
+## Chat receipt ticks - BACKEND CONNECTED / ANDROID VERIFIED - 2026-11-05
+
+Outgoing messages show Sent (one grey tick), Delivered (two grey ticks) and
+Read/displayed (two blue ticks), exclusively from server-confirmed acknowledgements.
+Recipient acknowledgements are authenticated, participant-only, bounded,
+transactional, idempotent and database-rate-limited; GET does not mark messages.
+Flutter reads only substantially visible messages in the current foreground chat,
+retains account-generation safeguards, and refreshes outgoing status even on
+empty history polls. Legacy backends safely keep single ticks.
+
+Founder-approved receipt activation is complete on staging deployment
+`967b0c35-876f-42ec-8051-264fed2fd336`, SUCCESS, created
+2026-11-05 11:46:49.525 UTC. Target remains project `1f8c9007-2993-426c-bbd0-b8dd0a0b17da`,
+environment `2181eadf-21a0-4ca3-8269-b6b6f28af9f4`, backend
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00`. CLI upload is the reviewed uncommitted
+working tree based on `1b091c0fdbb68030f5b14927322f61bcd140a603`.
+
+Staging DB-volume backup `4aadc027-526f-4f82-992c-0a3096646797` was created/listed
+at 11:45:34.731 UTC; it has **not been restore-tested**. Predeploy found 23
+migrations and applied only `20261105140000_chat_message_receipts` at 11:52:05 UTC.
+No variables changed; existing realtime start, empty selector, flags and photo
+volume were retained. Public catalogue 200/source database/four properties and
+public property WSS 101/ready passed after deployment.
+
+**Actual receipt acceptance:** 35/35 controlled API checks pass. Actual Buyer
+Android send showed one grey tick, then two grey ticks after explicit Owner API
+delivery, then two blue ticks after read. Android PNGs were visually reviewed.
+The Owner API reply remained undelivered/unread during six seconds with Buyer
+backgrounded; after resume the actual native Buyer conversation displayed and
+acknowledged it. Same-deployment logs identify Dart message POST 200 at
+11:55:45.567 UTC and receipt POSTs 200 at 11:55:12.629 and 12:07:13.346 UTC.
+Tick accessibility attribution remains UNKNOWN; visual evidence establishes ticks.
+Outgoing messages are right-aligned, incoming left-aligned, and the 48dp send
+button is beside the field with the keyboard open. Three labelled messages were
+created in the existing controlled thread; all temporary API sessions signed out.
+No new accounts, OTPs, listings, payments or contact-credit writes were performed.
+
+**Local checks:** full backend `npm test` passed 398/398 tests across 23 files plus
+6/6 platform smoke assertions and TypeScript typecheck. Focused Flutter receipt/
+engagement checks passed 32/32; the final complete Flutter suite after the session
+correction passed **585/585 across 42 files**. Prisma schema/client checks and
+staging build pass.
+These fixture checks do not establish every staging business workflow.
+
+**Separate cold-restart correction:** actual restart exposed a five-second vault
+read timeout before session HTTP verification. The ordered vault read now has a
+20-second deadline; transient verification failure retains protected credentials
+but grants no unverified access. Nine persistence regression tests pass. Final
+APK SHA256 is `8ef4ce33c96a0561c57b58dc49a769b6039ecb821a320b2183e8fd50fc4264b3`.
+Record: `build/android-source-builds/2026-11-05T12-26-34-541Z-22636/build-record.json`,
+with explicit service/staging configuration and the exact staging origin.
+Installed with data retained: Owner session restored to the real dashboard with
+property image, then a second explicit force-stop/relaunch again restored Owner
+without login. **Owner cold restart is DEVICE VERIFIED on this emulator**;
+the precise native-storage latency/cryptographic cause is not established.
+Same-deployment Dart session/account GETs returned 200 after the APK update
+(12:44:23.447/12:44:24.693 UTC) and after explicit force-stop/start
+(12:44:52.107/12:44:52.650 UTC), correlated with the actual restored dashboard.
+Final Owner thread PNG also confirms outgoing right/blue double ticks, incoming
+left/no ticks and side-by-side send. Native logout completed through the normal
+flow, returning Owner to role selection with zero encrypted-vault entries and no
+private chat visible; all temporary API sessions were signed out. The final full
+Flutter suite passed; evidence is `build/chat-verification/flutter-final-tests-20261105.log`
+and its summary JSON. Earlier regression-lost sessions may remain until normal
+expiry; no revoke-all claim is made. Evidence:
+`build/chat-verification/receipt-final-evidence.json`.
+
+Receipt contracts, sanitized evidence filenames and rollback are documented in
+`SUBSCRIPTIONS_AND_CHAT.md`. Keep schema/receipt data on artifact rollback; no
+drop/reset or migration-history rewrite. Private chat remains foreground HTTP
+polling (~4 seconds), with no private chat WebSocket/push. Paid checkout remains
+disabled. No production access, secret rotation, database reset, commit or push.
+
+## Historical chat send-button source/build checkpoint - 2026-11-05
+
+The circular send icon now sits beside the message field in a compact bottom
+row; sending, same-message retry and duplicate-submission safeguards are
+preserved. All 17 engagement tests passed and changed-file analysis found no
+issues. The staging debug build succeeded with the explicit staging config.
+Latest APK SHA256 is
+`6e8dd55ac15f2279dfa235ec1419c7091498a93d87db68003b43e155db6e6d22`, superseding
+the artifact below. Evidence is in
+`build/android-source-builds/2026-11-05T11-03-10-301Z-8272/`. ADB detected no
+device, so this new layout is not device-verified and was not installed/launched.
+No backend, database or deployment changes were made for this UI correction.
+
+## Historical initial free-chat staging activation - 2026-11-05
+
+Founder-approved activation is complete. Exact staging deployment
+`f3975667-61c6-4ea8-90ce-456aaea913bb` is SUCCESS on project
+`1f8c9007-2993-426c-bbd0-b8dd0a0b17da`, environment
+`2181eadf-21a0-4ca3-8269-b6b6f28af9f4`, service
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00`. The actual503 cause was the missing
+engagement flag. Enabled `HOMEZONE_ENGAGEMENT_ENABLED=true` and explicitly kept
+`HOMEZONE_BUYER_PLUS_CHECKOUT_ENABLED=false`; all canonical/auth/DB secrets are
+unchanged. CLI upload included current uncommitted cursor fixes; Git was not
+committed/pushed. Base commit is `1b091c0...`, not a claimed new clean commit.
+
+Prior deployed1b logs prove chat migration applied successfully at09:11UTC.
+This rollout's predeploy reported22/no pending: zero new migrations applied.
+Existing realtime start/flag, empty config-file selector and photo volume remain.
+Post-deploy catalogue200 and existing public WSS101/ready passed.
+
+ACTUAL ACCEPTANCE:27 API checks passed using existing controlled Buyer/Owner/
+unrelated Broker accounts: send/reply, same-ID deduplication, persisted fresh-login
+read, foreign404, anonymous401 and old-cookie post-logout401. No accounts created.
+On emulator-5554, installed corrected staging APK with data retained. Buyer sent
+from actual Flutter; Owner API received matching message and replied; the reply
+appeared in the still-open Buyer screen without manual refresh. After Buyer
+logout, native role-first Owner sign-in opened its dashboard; More -> Messages
+showed the thread and native Owner reply was saved/read by Buyer. Railway logs
+show two Dart message POSTs200 on this deployment, plus foreground polling GETs200.
+All temporary API sessions and both native UI sessions were signed out.
+
+One existing published test property/conversation and five labelled test messages
+were used; no properties, contact preferences, credits, reports or payments changed.
+The APK hash remains `ed31aba9b1d14b17e9c158446415c53a58e6e220bcd4b82e07b98fc1f9e3a87d`.
+Actual Android screenshots, sanitized HTTP/session results, IDs, rollback and limits
+are indexed in `SUBSCRIPTIONS_AND_CHAT.md` under the approved activation section.
+
+Scope: controlled free chat verified on staging, not production/payment readiness.
+Polling is approximately4seconds while foreground; no private WebSocket/push.
+Simultaneous physical devices, offline/outage/load and paid contact plans remain
+unverified. No production access, secret rotation, DB reset, commit or push.
+The earlier blocked/source-only entries below are historical and superseded for
+this free-chat activation.
+
+## Historical chat verification - LOCAL VERIFIED / STAGING BLOCKED - 2026-11-05
+
+Read-only staging GET `/api/mobile/conversations` returned503 `Chat and contact
+plans are not available yet.` (server Date09:16:14UTC). The handler is reachable
+but its feature gate is off; public evidence does not identify its active SHA or
+confirm the new migration. Membership GET correctly returned401 without a session.
+No live send/reply, account/session creation or DB operation was performed.
+
+Fixed a confirmed backend forward-cursor ordering race by assigning strictly
+increasing message timestamps under the conversation lock. The 19 backend
+synthetic tests and full TypeScript check passed, including two-account
+send/reply, duplicate acknowledgment, isolation and backward-clock regressions.
+Flutter now advances history only from server read cursors, never a local send
+receipt after an empty read. Its 16 focused tests pass and analysis reports no
+issues, covering Buyer entry, inbox/replies, retry and revoked-session clearing.
+No schema change is required for these corrections. Scope/evidence/approvals:
+`SUBSCRIPTIONS_AND_CHAT.md`.
+
+Corrected Next.js build passed. Updated staging APK COMPILED at
+`build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes; SHA-256
+`ed31aba9b1d14b17e9c158446415c53a58e6e220bcd4b82e07b98fc1f9e3a87d`.
+Record: `build/android-source-builds/2026-11-05T09-06-43-994Z-36712/build-record.json`.
+Explicit service/staging origin verified; no installation, launch, migration,
+deployment or live chat acceptance occurred. This is the current APK, superseding
+the initial implementation artifact below.
+
+## Historical original free-chat and Plus source/build checkpoint - 2026-11-05
 
 Added Buyer-to-listing-owner messages, inbox, block/report, owner contact-sharing
 preferences and Free/Plus membership screens using the existing API/session

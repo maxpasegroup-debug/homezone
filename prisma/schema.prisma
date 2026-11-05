@@ -1689,6 +1689,8 @@ model ChatMessage {
   clientMessageId String
   body            String               @db.Text
   createdAt       DateTime             @default(now())
+  deliveredAt     DateTime?
+  readAt          DateTime?
 
   @@unique([conversationId, senderId, clientMessageId])
   @@index([conversationId, createdAt, id])

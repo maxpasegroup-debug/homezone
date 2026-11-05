@@ -10,6 +10,15 @@ export const messageSchema = z.object({ body: z.string().trim().min(1).max(2000)
   clientMessageId: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/) }).strict();
 export const blockSchema = z.object({ blocked: z.boolean() }).strict();
 export const reportSchema = z.object({ reason: z.string().trim().min(3).max(500) }).strict();
+export const receiptIdsSchema = z.array(engagementId).max(50)
+  .refine(ids => new Set(ids).size === ids.length);
+export const receiptSchema = z.object({
+  deliveredIds: receiptIdsSchema.default([]), readIds: receiptIdsSchema.default([])
+}).strict().refine(input => {
+  const count = new Set([...input.deliveredIds, ...input.readIds]).size;
+  return count > 0 && count <= 50;
+});
+const receiptSelect = { id: true, deliveredAt: true, readAt: true } as const;
 
 function unavailable(): never { throw new EngagementError(404, "This conversation is no longer available."); }
 const participantSelect = { id: true, role: true, verificationStatus: true, fullName: true } as const;
@@ -83,10 +92,16 @@ export async function startConversation(actor: EngagementActor, propertyId: stri
   });
 }
 
-export async function readMessages(actor: EngagementActor, id: string, after?: string) {
+export async function readMessages(actor: EngagementActor, id: string, after?: string, receiptIds: string[] = []) {
   await admitEngagement(actor.id, "messages-read", 60);
   return db.$transaction(async tx => {
     const access = await lockConversation(tx, actor, id);
+    // Receipt refreshes are independent of the forward history cursor. A sender
+    // may inspect only their own messages, never another participant's receipts.
+    const receipts = receiptIds.length ? await tx.chatMessage.findMany({
+      where: { id: { in: receiptIds }, conversationId: id, senderId: actor.id }, select: receiptSelect
+    }) : [];
+    if (receipts.length !== receiptIds.length) throw new EngagementError(400, "Invalid message selection.");
     let position: { id: string; createdAt: Date } | null = null;
     if (after) {
       position = await tx.chatMessage.findFirst({ where: { id: after, conversationId: id }, select: { id: true, createdAt: true } });
@@ -95,10 +110,13 @@ export async function readMessages(actor: EngagementActor, id: string, after?: s
     const rows = await tx.chatMessage.findMany({ where: { conversationId: id,
       ...(position ? { OR: [{ createdAt: { gt: position.createdAt } }, { createdAt: position.createdAt, id: { gt: position.id } }] } : {}) },
       orderBy: [{ createdAt: position ? "asc" : "desc" }, { id: position ? "asc" : "desc" }], take: 51,
-      select: { id: true, senderId: true, body: true, createdAt: true } });
+      select: { id: true, senderId: true, body: true, createdAt: true, deliveredAt: true, readAt: true } });
     const messages = position ? rows.slice(0, 50) : rows.slice(0, 50).reverse();
-    return { messages: messages.map(row => ({ id: row.id, body: row.body, mine: row.senderId === actor.id, createdAt: row.createdAt })),
+    return { messages: messages.map(row => ({ id: row.id, body: row.body, mine: row.senderId === actor.id,
+      createdAt: row.createdAt, deliveredAt: access.blocked ? null : row.deliveredAt,
+      readAt: access.blocked ? null : row.readAt })),
       nextCursor: messages.at(-1)?.id ?? after ?? null, hasMore: !!position && rows.length > 50,
+      receiptsSupported: true, receipts: access.blocked ? [] : receipts,
       blocked: access.blocked, blockedByMe: access.blockedByMe, propertyTitle: access.conversation.property.title };
   });
 }
@@ -109,20 +127,58 @@ export async function sendMessage(actor: EngagementActor, id: string, input: z.i
     const access = await lockConversation(tx, actor, id);
     const previous = await tx.chatMessage.findUnique({ where: {
       conversationId_senderId_clientMessageId: { conversationId: id, senderId: actor.id, clientMessageId: input.clientMessageId }
-    }, select: { id: true, body: true, createdAt: true } });
+    }, select: { id: true, body: true, createdAt: true, deliveredAt: true, readAt: true } });
     if (previous) {
       if (previous.body !== input.body) throw new EngagementError(409, "This message changed. Start a new message before sending.");
-      return { message: { ...previous, mine: true } };
+      return { message: { ...previous, mine: true,
+        deliveredAt: access.blocked ? null : previous.deliveredAt, readAt: access.blocked ? null : previous.readAt } };
     }
     if (access.blocked) throw new EngagementError(403, "Messaging is blocked for this conversation.");
     if (access.conversation.property.status !== "PUBLISHED") throw new EngagementError(409, "This listing is unavailable. New messages cannot be sent.");
+    // PostgreSQL now() is the transaction-start time, which may precede a
+    // message committed while this transaction waited for the conversation
+    // lock. Assign a strictly increasing timestamp under that same lock so
+    // forward cursors cannot miss a later send, including across clock skew.
+    const latest = await tx.chatMessage.findFirst({ where: { conversationId: id },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { createdAt: true } });
+    const createdAt = new Date(Math.max(Date.now(), latest ? latest.createdAt.getTime() + 1 : 0));
     const message = await tx.chatMessage.create({ data: { conversationId: id, senderId: actor.id,
-      clientMessageId: input.clientMessageId, body: input.body }, select: { id: true, body: true, createdAt: true } });
-    await tx.propertyConversation.update({ where: { id }, data: { updatedAt: new Date() } });
+      clientMessageId: input.clientMessageId, body: input.body, createdAt },
+      select: { id: true, body: true, createdAt: true, deliveredAt: true, readAt: true } });
+    await tx.propertyConversation.update({ where: { id }, data: { updatedAt: createdAt } });
     await createNotification({ recipientId: access.mine ? access.conversation.ownerId : access.conversation.buyerId,
       module: "PROPERTY", type: "PROPERTY_CHAT_MESSAGE", title: "New property message",
       message: "You have a new message in HomeZone.", metadata: { conversationId: id } }, tx);
     return { message: { ...message, mine: true } };
+  });
+}
+
+/** Explicit recipient acknowledgement; a GET/history read never marks messages. */
+export async function acknowledgeMessages(actor: EngagementActor, id: string, input: z.infer<typeof receiptSchema>) {
+  await admitEngagement(actor.id, "messages-receipts", 60);
+  return db.$transaction(async tx => {
+    const access = await lockConversation(tx, actor, id);
+    if (access.blocked) throw new EngagementError(403, "Messaging is blocked for this conversation.");
+    const ids = [...new Set([...input.deliveredIds, ...input.readIds])];
+    const messages = await tx.chatMessage.findMany({ where: { id: { in: ids }, conversationId: id },
+      select: { id: true, senderId: true, createdAt: true, deliveredAt: true } });
+    // Validate the whole batch before writing. Neither a sender nor a foreign
+    // conversation can manufacture delivery/read acknowledgements.
+    if (messages.length !== ids.length || messages.some(message => message.senderId === actor.id)) {
+      throw new EngagementError(400, "Invalid message selection.");
+    }
+    const now = new Date(Math.max(Date.now(), ...messages.map(message => Math.max(
+      message.createdAt.getTime(), message.deliveredAt?.getTime() ?? 0
+    ))));
+    await tx.chatMessage.updateMany({ where: { id: { in: ids }, conversationId: id, deliveredAt: null },
+      data: { deliveredAt: now } });
+    if (input.readIds.length) {
+      await tx.chatMessage.updateMany({ where: { id: { in: input.readIds }, conversationId: id, readAt: null },
+        data: { readAt: now } });
+    }
+    // First timestamps are permanent; repeated/out-of-order acknowledgements
+    // cannot regress state or reorder the inbox or create notifications.
+    return { receipts: await tx.chatMessage.findMany({ where: { id: { in: ids }, conversationId: id }, select: receiptSelect }) };
   });
 }
 

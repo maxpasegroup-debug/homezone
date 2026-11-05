@@ -8,7 +8,8 @@ import ts from "typescript";
 // Real engagement routes/services, synthetic identities and transactional stores.
 // No network, provider, Prisma client or database connection is used.
 const state = { actor: null, profiles: [], properties: [], preferences: [], subscriptions: [], unlocks: [],
-  conversations: [], blocks: [], messages: [], reports: [], adminReports: [], notifications: [], counters: [], locks: [] };
+  conversations: [], blocks: [], messages: [], reports: [], adminReports: [], notifications: [], counters: [], locks: [],
+  messageDefaultCreatedAt: null };
 globalThis.__engagementFixture = state;
 function matches(row, where = {}) {
   if (!row) return false;
@@ -90,7 +91,10 @@ const db = {
     findUnique: async args => projected(state.messages.find(row => matches(row, args.where.conversationId_senderId_clientMessageId)), args.select),
     findFirst: async args => many(state.messages, args)[0] ?? null,
     findMany: async args => many(state.messages, args),
-    create: async args => { const row = { id: `message-${String(state.messages.length).padStart(6, "0")}`, createdAt: new Date(), ...args.data };
+    updateMany: async args => { const rows = state.messages.filter(item => matches(item, args.where));
+      rows.forEach(row => Object.assign(row, args.data)); return { count: rows.length }; },
+    create: async args => { const row = { id: `message-${String(state.messages.length).padStart(6, "0")}`,
+      createdAt: state.messageDefaultCreatedAt ?? new Date(), deliveredAt: null, readAt: null, ...args.data };
       state.messages.push(row); return projected(row, args.select); }
   },
   conversationReport: {
@@ -128,6 +132,7 @@ const hooks = registerHooks({
 });
 const conversations = await import("../src/app/api/mobile/conversations/route.ts");
 const messages = await import("../src/app/api/mobile/conversations/[id]/messages/route.ts");
+const receipts = await import("../src/app/api/mobile/conversations/[id]/receipts/route.ts");
 const conversation = await import("../src/app/api/mobile/conversations/[id]/route.ts");
 const contact = await import("../src/app/api/mobile/properties/[id]/contact/route.ts");
 const preferences = await import("../src/app/api/mobile/contact-preferences/route.ts");
@@ -136,6 +141,7 @@ const buyerId = "buyer-000001", ownerId = "owner-000001", propertyId = "property
 function reset() {
   process.env.HOMEZONE_ENGAGEMENT_ENABLED = "true";
   state.denied = false;
+  state.messageDefaultCreatedAt = null;
   state.profiles = [
     { id: buyerId, userId: "user-buyer-001", role: "USER", fullName: "Synthetic Buyer", verificationStatus: "PENDING" },
     { id: ownerId, userId: "user-owner-001", role: "OWNER", fullName: "Synthetic Owner", verificationStatus: "PENDING" }
@@ -206,8 +212,101 @@ test("send acknowledgments are idempotent and conflicting client IDs are rejecte
   assert.equal(state.messages.length, 1); assert.equal(state.notifications.length, 1);
   assert.equal((await send({ ...body, body: "Changed text" })).status, 409);
   const read = await (await messages.GET(request("/messages"), context(conversationId))).json();
-  assert.deepEqual(Object.keys(read.messages[0]).sort(), ["body", "createdAt", "id", "mine"]);
+  assert.deepEqual(Object.keys(read.messages[0]).sort(), ["body", "createdAt", "deliveredAt", "id", "mine", "readAt"]);
   assert.equal(read.messages[0].mine, true); assert.equal(read.nextCursor, first.message.id);
+});
+
+test("Buyer and Owner exchange real service messages with private inboxes and participant-specific projections", async () => {
+  reset();
+  state.conversations = [];
+  const started = await conversations.POST(request("/conversations", "POST", { propertyId }));
+  assert.equal(started.status, 200);
+  const threadId = (await started.json()).conversation.id;
+  assert.equal(state.conversations.length, 1);
+  const reopened = await conversations.POST(request("/conversations", "POST", { propertyId }));
+  assert.equal(reopened.status, 200);
+  assert.equal((await reopened.json()).conversation.id, threadId);
+  assert.equal(state.conversations.length, 1);
+  const sendThread = body => messages.POST(request(`/conversations/${threadId}/messages`, "POST", body), context(threadId));
+  const buyerSent = await (await sendThread({ body: "Is this property available?", clientMessageId: "buyer-message-001" })).json();
+  assert.equal(state.notifications[0].recipientId, ownerId);
+  state.actor = state.profiles[1];
+  const inbox = await (await conversations.GET(request("/conversations"))).json();
+  assert.equal(inbox.conversations.length, 1);
+  assert.equal(inbox.conversations[0].id, threadId);
+  assert.equal(inbox.conversations[0].peerName, "Synthetic Buyer");
+  const ownerRead = await (await messages.GET(request("/messages"), context(threadId))).json();
+  assert.equal(ownerRead.messages[0].mine, false);
+  assert.equal(ownerRead.messages[0].body, "Is this property available?");
+  const ownerSent = await (await sendThread({ body: "Yes, a visit is available.", clientMessageId: "owner-message-001" })).json();
+  assert.equal(state.notifications[1].recipientId, buyerId);
+  state.actor = state.profiles[0];
+  const buyerRead = await (await messages.GET(request(`/messages?after=${buyerSent.message.id}`), context(threadId))).json();
+  assert.deepEqual(buyerRead.messages.map(row => [row.id, row.mine, row.body]), [
+    [ownerSent.message.id, false, "Yes, a visit is available."]
+  ]);
+  assert.equal(JSON.stringify(state.notifications).includes("Is this property available?"), false);
+  assert.equal(JSON.stringify(state.notifications).includes("Yes, a visit is available."), false);
+  state.profiles.push({ id: "foreign-buyer", userId: "foreign-user", role: "USER", verificationStatus: "PENDING" });
+  state.actor = state.profiles[2];
+  const foreignInbox = await (await conversations.GET(request("/conversations"))).json();
+  assert.deepEqual(foreignInbox.conversations, []);
+});
+
+test("a send after a committed cursor remains visible when transaction time and application clock move backwards", async () => {
+  reset();
+  const realNow = Date.now;
+  const previousTime = realNow();
+  const previousId = "previous-message-001";
+  state.messages.push({ id: previousId, conversationId, senderId: ownerId, body: "Previous committed message",
+    clientMessageId: "previous-client-001", createdAt: new Date(previousTime) });
+  // PostgreSQL CURRENT_TIMESTAMP is the transaction-start time. A transaction
+  // that started earlier can acquire the conversation lock after the previous
+  // send committed; a different replica can also have an earlier wall clock.
+  state.messageDefaultCreatedAt = new Date(previousTime - 5000);
+  Date.now = () => previousTime - 5000;
+  try {
+    const sent = await send({ body: "Later committed message", clientMessageId: "later-client-001" });
+    assert.equal(sent.status, 200);
+    const acknowledgment = await sent.json();
+    assert.ok(new Date(acknowledgment.message.createdAt).getTime() > previousTime);
+    const poll = await (await messages.GET(request(`/messages?after=${previousId}`), context(conversationId))).json();
+    assert.deepEqual(poll.messages.map(row => row.id), [acknowledgment.message.id]);
+  } finally { Date.now = realNow; }
+});
+
+test("foreign participants cannot read, send, block or report another conversation", async () => {
+  reset();
+  state.profiles.push({ id: "foreign-buyer", userId: "foreign-user", role: "USER", verificationStatus: "PENDING" });
+  state.actor = state.profiles[2];
+  assert.equal((await messages.GET(request("/messages"), context(conversationId))).status, 404);
+  assert.equal((await send({ body: "Foreign message", clientMessageId: "foreign-client-001" })).status, 404);
+  assert.equal((await conversation.PATCH(request("/conversation", "PATCH", { blocked: true }), context(conversationId))).status, 404);
+  assert.equal((await conversation.POST(request("/conversation", "POST", { reason: "Foreign report" }), context(conversationId))).status, 404);
+  assert.equal(state.messages.length, 0); assert.equal(state.blocks.length, 0);
+  assert.equal(state.reports.length, 0); assert.equal(state.adminReports.length, 0);
+});
+
+test("forward message pagination is bounded and foreign or ambiguous cursors are rejected", async () => {
+  reset();
+  const timestamp = new Date(Date.now() - 5000);
+  for (let i = 0; i < 120; i++) state.messages.push({ id: `page-message-${String(i).padStart(4, "0")}`,
+    conversationId, senderId: i % 2 ? buyerId : ownerId, body: `Synthetic message ${i}`,
+    clientMessageId: `page-client-${i}`, createdAt: timestamp });
+  const initial = await (await messages.GET(request("/messages"), context(conversationId))).json();
+  assert.equal(initial.messages.length, 50);
+  assert.equal(initial.messages[0].id, "page-message-0070");
+  assert.equal(initial.nextCursor, "page-message-0119");
+  const forward = await (await messages.GET(request("/messages?after=page-message-0000"), context(conversationId))).json();
+  assert.equal(forward.messages.length, 50); assert.equal(forward.hasMore, true);
+  assert.equal(forward.nextCursor, "page-message-0050");
+  const next = await (await messages.GET(request(`/messages?after=${forward.nextCursor}`), context(conversationId))).json();
+  assert.equal(next.messages[0].id, "page-message-0051");
+  state.messages.push({ id: "foreign-message-001", conversationId: "foreign-conversation", senderId: ownerId,
+    body: "Foreign private text", createdAt: timestamp });
+  assert.equal((await messages.GET(request("/messages?after=foreign-message-001"), context(conversationId))).status, 400);
+  assert.equal((await messages.GET(request("/messages?after=page-message-0000&after=page-message-0001"), context(conversationId))).status, 400);
+  assert.equal((await messages.GET(request("/messages?secret=unexpected"), context(conversationId))).status, 400);
 });
 
 test("pair blocking prevents new-property bypass and contact disclosure", async () => {
@@ -323,4 +422,153 @@ test("contact reads consume their own admission budget before acquiring heavy ro
   assert.equal(state.counters[0].every(counter => counter.key.includes("contact-read")), true);
   assert.equal(state.locks.length, 0);
   assert.equal(state.unlocks.length, 0);
+});
+
+const acknowledge = (body, headers = {}, id = conversationId) => receipts.POST(
+  request(`/api/mobile/conversations/${id}/receipts`, "POST", body, headers), context(id));
+function receiptMessage(id, senderId = ownerId, conversation = conversationId, timestamp = Date.now() - 1000) {
+  const message = { id, conversationId: conversation, senderId, clientMessageId: `${id}-client`,
+    body: "Synthetic receipt fixture", createdAt: new Date(timestamp), deliveredAt: null, readAt: null };
+  state.messages.push(message);
+  return message;
+}
+
+test("history GET is read-only and legacy messages remain unacknowledged", async () => {
+  reset(); const message = receiptMessage("receipt-legacy-001");
+  const response = await messages.GET(request("/messages"), context(conversationId));
+  assert.equal(response.status, 200);
+  const page = await response.json();
+  assert.equal(page.receiptsSupported, true);
+  assert.deepEqual(page.receipts, []);
+  assert.equal(page.messages[0].deliveredAt, null); assert.equal(page.messages[0].readAt, null);
+  assert.equal(message.deliveredAt, null); assert.equal(message.readAt, null);
+  assert.equal(state.notifications.length, 0);
+});
+
+test("recipient delivery and read acknowledgements are explicit, idempotent and monotonic", async () => {
+  reset(); const message = receiptMessage("receipt-delivery-001");
+  const inboxTime = state.conversations[0].updatedAt.getTime();
+  const realNow = Date.now;
+  const timestamp = realNow();
+  Date.now = () => timestamp;
+  try {
+    const delivered = await acknowledge({ deliveredIds: [message.id] });
+    assert.equal(delivered.status, 200);
+    assert.deepEqual(await delivered.json(), { receipts: [{ id: message.id, deliveredAt: new Date(timestamp).toISOString(), readAt: null }] });
+    assert.equal(message.deliveredAt.getTime(), timestamp); assert.equal(message.readAt, null);
+    Date.now = () => timestamp + 1000;
+    assert.equal((await acknowledge({ deliveredIds: [message.id], readIds: [message.id] })).status, 200);
+    assert.equal(message.deliveredAt.getTime(), timestamp);
+    assert.equal(message.readAt.getTime(), timestamp + 1000);
+    Date.now = () => timestamp - 10000;
+    assert.equal((await acknowledge({ readIds: [message.id] })).status, 200);
+    assert.equal((await acknowledge({ deliveredIds: [message.id] })).status, 200);
+    assert.equal(message.deliveredAt.getTime(), timestamp);
+    assert.equal(message.readAt.getTime(), timestamp + 1000);
+    assert.equal(state.conversations[0].updatedAt.getTime(), inboxTime);
+    assert.equal(state.notifications.length, 0);
+  } finally { Date.now = realNow; }
+});
+
+test("read implies delivery and server timestamps cannot precede message or existing delivery time", async () => {
+  reset(); const timestamp = Date.now() + 30000;
+  const fresh = receiptMessage("receipt-future-001", ownerId, conversationId, timestamp);
+  const delivered = receiptMessage("receipt-future-002");
+  delivered.deliveredAt = new Date(timestamp + 1000);
+  const result = await acknowledge({ readIds: [fresh.id, delivered.id] });
+  assert.equal(result.status, 200);
+  assert.equal(fresh.deliveredAt.getTime(), timestamp + 1000);
+  assert.equal(fresh.readAt.getTime(), timestamp + 1000);
+  assert.equal(delivered.deliveredAt.getTime(), timestamp + 1000);
+  assert.equal(delivered.readAt.getTime(), timestamp + 1000);
+});
+
+test("receipt batches reject own, missing and foreign IDs atomically without enumeration", async () => {
+  for (const scenario of ["own", "missing", "foreign"]) {
+    reset(); const valid = receiptMessage("receipt-valid-001");
+    const invalidId = "receipt-invalid-001";
+    if (scenario === "own") receiptMessage(invalidId, buyerId);
+    if (scenario === "foreign") receiptMessage(invalidId, ownerId, "conversation-foreign");
+    const result = await acknowledge({ deliveredIds: [valid.id], readIds: [invalidId] });
+    assert.equal(result.status, 400, scenario);
+    assert.deepEqual(await result.json(), { error: "Invalid message selection." });
+    assert.equal(valid.deliveredAt, null); assert.equal(valid.readAt, null);
+  }
+});
+
+test("receipt JSON is bounded, strict and permits at most 50 distinct IDs", async () => {
+  reset();
+  const ids = Array.from({ length: 51 }, (_, index) => `receipt-bound-${String(index).padStart(3, "0")}`);
+  for (const body of [{}, { deliveredIds: [] }, { readIds: ["short"] },
+    { deliveredIds: [ids[0], ids[0]] }, { deliveredIds: ids },
+    { deliveredIds: ids.slice(0, 50), readIds: [ids[50]] },
+    { readIds: [ids[0]], deliveredAt: new Date().toISOString() },
+    { readIds: [ids[0]], actorId: ownerId }]) {
+    assert.equal((await acknowledge(body)).status, 400);
+  }
+  for (const id of ids.slice(0, 50)) receiptMessage(id);
+  assert.equal((await acknowledge({ deliveredIds: ids.slice(0, 50), readIds: ids.slice(0, 50) })).status, 200);
+  assert.equal(state.messages.every(message => message.deliveredAt !== null && message.readAt !== null), true);
+});
+
+test("receipt endpoint retains authentication, Origin, suspension and ownership boundaries", async () => {
+  for (const scenario of ["anonymous", "origin", "cross-site", "foreign-actor", "suspended", "peer-suspended", "transfer", "unpublished"]) {
+    reset(); const message = receiptMessage("receipt-guard-001");
+    let headers = {}, expected = 404;
+    if (scenario === "anonymous") { state.actor = null; expected = 401; }
+    if (scenario === "origin") { headers = { Origin: "https://other.invalid" }; expected = 403; }
+    if (scenario === "cross-site") { headers = { "Sec-Fetch-Site": "cross-site" }; expected = 403; }
+    if (scenario === "foreign-actor") {
+      state.profiles.push({ id: "foreign-buyer", userId: "foreign-user", role: "USER", verificationStatus: "PENDING" });
+      state.actor = state.profiles[2];
+    }
+    if (scenario === "suspended") { state.profiles[0].verificationStatus = "SUSPENDED"; expected = 403; }
+    if (scenario === "peer-suspended") state.profiles[1].verificationStatus = "SUSPENDED";
+    if (scenario === "transfer") state.properties[0].ownerId = "different-owner";
+    if (scenario === "unpublished") state.properties[0].status = "ARCHIVED";
+    assert.equal((await acknowledge({ deliveredIds: [message.id] }, headers)).status, expected, scenario);
+    assert.equal(message.deliveredAt, null); assert.equal(message.readAt, null);
+  }
+});
+
+test("blocked conversations reject acknowledgements and suppress all receipt projections", async () => {
+  reset(); const incoming = receiptMessage("receipt-blocked-001");
+  const outgoing = receiptMessage("receipt-blocked-002", buyerId);
+  outgoing.deliveredAt = new Date(); outgoing.readAt = new Date();
+  state.blocks.push({ buyerId, ownerId, buyerBlocked: false, ownerBlocked: true });
+  assert.equal((await acknowledge({ readIds: [incoming.id] })).status, 403);
+  assert.equal(incoming.deliveredAt, null);
+  const page = await (await messages.GET(request(`/messages?receiptIds=${outgoing.id}`), context(conversationId))).json();
+  assert.equal(page.blocked, true); assert.deepEqual(page.receipts, []);
+  assert.equal(page.messages.every(message => message.deliveredAt === null && message.readAt === null), true);
+  const resend = await send({ body: outgoing.body, clientMessageId: outgoing.clientMessageId });
+  assert.equal(resend.status, 200);
+  assert.equal((await resend.json()).message.readAt, null);
+});
+
+test("empty forward polls return current own receipts without acknowledging any message", async () => {
+  reset(); const outgoing = receiptMessage("receipt-poll-own-001", buyerId);
+  const incoming = receiptMessage("receipt-poll-peer-001");
+  outgoing.deliveredAt = new Date(); outgoing.readAt = new Date();
+  const result = await messages.GET(request(`/messages?after=${incoming.id}&receiptIds=${outgoing.id}`), context(conversationId));
+  assert.equal(result.status, 200);
+  const page = await result.json();
+  assert.deepEqual(page.messages, []); assert.equal(page.receiptsSupported, true);
+  assert.equal(page.receipts[0].id, outgoing.id); assert.ok(page.receipts[0].readAt);
+  assert.deepEqual(Object.keys(page.receipts[0]).sort(), ["deliveredAt", "id", "readAt"]);
+  assert.equal(incoming.deliveredAt, null); assert.equal(incoming.readAt, null);
+  for (const query of [`receiptIds=${incoming.id}`, "receiptIds=receipt-missing-001",
+    `receiptIds=${outgoing.id},${outgoing.id}`, `receiptIds=${outgoing.id}&receiptIds=${outgoing.id}`, "receiptIds="]) {
+    assert.equal((await messages.GET(request(`/messages?${query}`), context(conversationId))).status, 400);
+  }
+});
+
+test("receipt admission is database-backed, independently named and denied before message writes", async () => {
+  reset(); const message = receiptMessage("receipt-rate-001"); state.denied = true;
+  const response = await acknowledge({ readIds: [message.id] });
+  assert.equal(response.status, 429); assert.ok(Number(response.headers.get("retry-after")) > 0);
+  assert.equal(message.deliveredAt, null); assert.equal(message.readAt, null);
+  assert.equal(state.counters[0].every(counter => counter.key.includes("messages-receipts")), true);
+  assert.equal(state.counters[0][1].max, 60);
+  assert.equal(state.locks.length, 0);
 });

@@ -5,10 +5,14 @@ import 'package:flutter/services.dart';
 /// Native OS protected storage only. Never stores passwords or trusted identity.
 /// Operations are ordered so a late write cannot overtake a queued deletion.
 final class SessionVault {
-  SessionVault(this.scope) {
+  SessionVault(this.scope, {this.readTimeout = const Duration(seconds: 20)}) {
+    if (readTimeout <= Duration.zero) {
+      throw ArgumentError.value(readTimeout, 'readTimeout', 'Must be positive');
+    }
     _owners[scope] = _lease;
   }
   final String scope;
+  final Duration readTimeout;
   final Object _lease = Object();
   static final _owners = <String, Object>{};
   bool get _current => identical(_owners[scope], _lease);
@@ -24,7 +28,12 @@ final class SessionVault {
 
   Future<List<String>?> read() => _ordered(() async {
     if (!_current) return null;
-    final raw = await _channel.invokeMethod<String>('read', {'scope': scope});
+    // Android cold starts hit the previous five-second caller deadline.
+    // Bound the read inside its ordered action: a timed-out read is read-only,
+    // and its late result must not hold up a later write or credential removal.
+    final raw = await _channel
+        .invokeMethod<String>('read', {'scope': scope})
+        .timeout(readTimeout);
     if (!_current) return null;
     if (raw == null) return null;
     if (raw.length > 32768) throw const FormatException('Session unavailable');

@@ -1,6 +1,111 @@
 # HOMEZONE remaining integration blockers
 
-## New chat and Plus activation - 2026-11-05
+## Receipt activation resolved; remaining limits - 2026-11-05
+
+Staging deployment `967b0c35-876f-42ec-8051-264fed2fd336` is SUCCESS. After a listed
+staging DB-volume backup (`4aadc027-526f-4f82-992c-0a3096646797`), predeploy found
+23 migrations and applied only `20261105140000_chat_message_receipts`. No variables
+changed; realtime start/selector/flags and photo volume remain intact. Public
+catalogue returned 200/source database/four properties; public WSS 101/ready passed.
+
+Receipt activation is **not blocked**: 35/35 controlled API checks pass, actual
+Android outgoing ticks progressed one grey -> two grey -> two blue, and an
+incoming Owner reply stayed undelivered/unread in Buyer background before being
+displayed/acknowledged after resume. PNG review confirms presentation, and
+same-deployment Dart message/receipt POSTs returned 200. Sent bubbles align right,
+received bubbles left; the send target sits beside the field with keyboard open.
+
+The runtime check also found a separate five-second vault-read timeout before
+session HTTP verification. The source uses a 20-second deadline inside the
+ordered read and preserves stored credentials on transient failures while denying
+unverified access. Nine persistence tests pass. Final staging APK
+`8ef4ce33c96a0561c57b58dc49a769b6039ecb821a320b2183e8fd50fc4264b3` was installed
+with data retained. Actual Owner dashboard restored without login on initial
+launch and again after explicit force-stop/relaunch. This closes the controlled
+Owner cold-restart regression on this emulator; it does not prove the precise
+native-storage latency cause or every device's storage behavior.
+Same-deployment Dart session/profile GETs returned 200 after the APK update and
+again after explicit force-stop/start (12:44:23-24 and 12:44:52 UTC), correlated
+with the actual Owner dashboard. Final Owner thread PNG confirms alignment/ticks.
+
+Remaining work/limits:
+
+- Final full Flutter suite passed **585/585 across 42 files**, including the
+  session-persistence correction. Final native logout completed normally,
+  returned Owner to role selection and left zero encrypted-vault entries/no private
+  chat visible. All temporary API sessions were signed out. Earlier sessions whose
+  credential was lost in the regression may remain until normal expiry; no broad
+  revoke-all operation was performed.
+  focused receipts passed 32/32. Full backend suite passes 398/398 plus six smoke
+  assertions and typecheck. These local results and scoped runtime checks do not
+  prove every business module, physical device or network condition.
+- Backup exists/listed, superseding historical no-backup evidence. Restore testing,
+  backup schedule and broader recovery readiness remain unverified.
+- Private chat still polls about every four seconds in foreground. No private
+  chat WebSocket, push, attachments or older-history browser is implemented.
+  Delivery requires the recipient app to download the thread; blue ticks mean
+  displayed in an active chat, not proof of human attention.
+- Controlled roles used one emulator with an API peer. Simultaneous physical
+  devices, outages/load, live abuse/block/report and real DB contention stress
+  remain outside the verified scope. Accessibility attribution of tick icons is
+  inconclusive; actual PNGs establish their appearance.
+- Paid checkout remains disabled; native billing/contact-credit/payment acceptance
+  and production release require their separate preparation/approval.
+- Deployed receipt/cursor changes remain in an uncommitted CLI-uploaded working
+  tree; a future Git-only release must include the reviewed source. Retain additive
+  columns/receipts on rollback and preserve realtime/photo-volume configuration.
+
+No new accounts, OTPs, payments, production operations, secret rotation, DB reset,
+commit or push. Detailed evidence and rollback: `SUBSCRIPTIONS_AND_CHAT.md`.
+
+## Historical initial free-chat activation checkpoint - 2026-11-05
+
+Staging engagement flag is now enabled and corrected working-tree source is
+deployed successfully as `f3975667-61c6-4ea8-90ce-456aaea913bb`. Migration was
+already applied by the previous1b deployment; current predeploy22/no pending.
+Actual Buyer/Owner Android send/read/reply and automatic incoming Buyer update
+were verified, with two successful Dart POSTs in the same deployment's HTTP logs.
+27 controlled API checks passed including persistence, deduplication, isolation
+and revocation; all temporary sessions were signed out. Catalogue200 and public
+property WSS101/ready remain healthy. Production was untouched.
+
+The503/missing engagement flag is resolved. Remaining limits:
+
+- Paid checkout stays false; native billing/channel setup and real credit/payment
+  acceptance remain separate approvals. No paid entitlement is faked.
+- Private chat uses foreground ~4second HTTP polling, not private WebSocket/push.
+  Initial history50, inbox100 and no older-history browser/attachments. Receipts
+  were absent at this checkpoint and have since been activated/verified above.
+- Two roles used one emulator sequentially plus API peer. Two simultaneous
+  physical devices, outages/reconnect, load, live abuse/block/report and real
+  PostgreSQL contention stress remain unverified.
+- No staging DB volume backup was listed at this checkpoint. A backup has since
+  been created/listed above; recovery testing/scheduling remain operational work.
+  This earlier rollout applied no new migration or destructive DB operation.
+- Cursor fixes remain uncommitted locally; future Git-only deploys must include
+  them. Preserve current realtime start/empty selector/photo mount on future releases.
+
+Full scoped evidence/rollback: `SUBSCRIPTIONS_AND_CHAT.md`. Historical blocked
+entries below document the earlier state; they are not the current chat status.
+
+## Historical chat live availability blocked - 2026-11-05
+
+Read-only staging chat GET returned503 `Chat and contact plans are not available
+yet.` (server Date09:16:14UTC). This is the default-off engagement gate, not proof
+of a DB failure. New membership GET returned401 without a session. No public
+response confirms deployed SHA, migration state or successful message delivery.
+
+The verification follow-up corrected a backend timestamp/cursor race and added
+two-account/isolation/pagination regressions (19 local backend tests and full
+typecheck pass). Flutter's server-owned read cursor invariant is also corrected;
+16 focused tests and Dart analysis pass. These are synthetic checks, not a staging messaging trial.
+Before claiming chat works live, approve target/schema/recoverability verification,
+the approved pending migration set, corrected-source deployment, engagement
+activation and controlled Buyer/Owner message/session writes. Keep paid checkout
+off for free-chat acceptance. Existing no-production/no-unapproved-write boundaries
+are preserved. Details and evidence: `SUBSCRIPTIONS_AND_CHAT.md`.
+
+## Historical initial chat and Plus activation requirements - 2026-11-05
 
 Chat/contact/membership source and an updated staging APK are implemented and
 locally checked; no deployment or live verification occurred for this feature.
