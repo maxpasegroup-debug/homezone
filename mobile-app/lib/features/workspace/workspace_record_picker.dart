@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/ui/loading_skeleton.dart';
 import '../marketplace/marketplace_repository.dart';
 
 /// A selection borrows the account; it owns no credentials or collections.
@@ -138,7 +139,7 @@ class _PickerState extends State<WorkspaceRecordPicker> {
                 onTap: loading ? null : () => Navigator.pop(context, row),
               ),
             ),
-        if (loading) const Center(child: CircularProgressIndicator()),
+        if (loading) const LoadingSkeleton(label: 'Loading available records'),
         if (current && !loading && error != null)
           TextButton(
             onPressed: () => load(reset: retryReset),

@@ -1,5 +1,43 @@
 # HOMEZONE remaining integration blockers
 
+## API loading shimmer - 2026-11-05
+
+Fetch indicators were replaced by shared shimmer placeholders in the active
+Buyer, role workspace, profile/session, photo and document-loading paths. The
+existing circular photo-picker opening indicator is local device interaction;
+upload/mutation progress remains explicit. Backend/authentication/WebSocket
+contracts and confirmed-content refresh behavior are preserved.
+
+Final focused local checks passed: 82 existing data-screen tests plus 17 shimmer
+and 30 authentication/navigation tests. Shared loading code has no analyzer
+issues; broader changed-file analysis has zero errors/warnings and existing
+informational lints. This is not new staging authentication or Android runtime
+evidence. Install the updated explicitly staging-configured APK to see this UI;
+previously installed builds retain the old loaders until updated.
+
+## WebSocket activation and foreground publication acceptance resolved - 2026-11-05
+
+The staging backend now runs `npm run start:realtime` with the feature enabled.
+Pinned deployment `39f07478-4329-44a9-b59f-9866cc0a285c` is SUCCESS on
+`9a2b1001b984c61d3fc9cc5d914a9934e105c75d`. Actual WSS 101/ready and server
+listener_ready were verified. Existing staging Flutter logged ready, then
+change_received after one authorized controlled Owner publication; its next
+catalogue HTTP response was 200. The already-open Buyer-facing card and photo
+updated without tapping refresh/navigation. Record `cmw32s2dt0003ox0xo3ydesx7`
+remains clearly labelled as an illustrative staging test. No new account,
+application code, schema, secret or production change was involved.
+
+Still unverified: a distinct Buyer-account login/device trial, rental-specific
+acceptance, outage/reconnect behavior, sustained load and multiple replicas.
+Photo backup/recovery/capacity and production Cloudinary release remain separate
+operational gates. Test publication used an existing controlled Owner API
+session and existing authorized test images; it did not repeat the earlier
+native upload acceptance. Current activation used an empty legacy config-file
+selector on staging only, because nonempty custom-file selection was rejected.
+Do not undo that selector or assume a stored setting proves the deployed start
+manifest. Settings, evidence and safe rollback: `LISTING_WEBSOCKETS.md`.
+This supersedes historical socket-pending blockers below.
+
 ## Photo-storage error resolved on staging - 2026-11-04
 
 Authorized volume activation is complete. Deployment
@@ -15,8 +53,9 @@ both photos using the installed updated staging APK. Both files survived a
 controlled backend restart with identical independent readback hashes. The old
 storage-unavailable screenshot is no longer the current result.
 
-Still pending: automatic appearance on an already-open Buyer screen, WebSocket
-acceptance, a distinct Buyer-account login test and rental-specific acceptance.
+Automatic appearance on an already-open Buyer-facing screen and WebSocket
+acceptance were subsequently verified above. Still pending: a distinct
+Buyer-account login test and rental-specific acceptance.
 The test used Owner-authenticated public discovery. Volume backup/restore and
 capacity operations remain unverified; Railway's assigned capacity was
 `sizeMB:50000` and no resize/backup schedule was requested. Production Cloudinary

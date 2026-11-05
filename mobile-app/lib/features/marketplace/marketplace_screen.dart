@@ -10,6 +10,7 @@ import 'listing_location.dart';
 import 'listing_media.dart';
 import 'buyer_presentation.dart';
 import '../../theme/design_tokens.dart';
+import '../../shared/ui/loading_skeleton.dart';
 import '../workspace/workspace_screen.dart';
 
 /// Reuses the existing HTTP client while a service-backed screen is visible.
@@ -257,6 +258,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
   int? accountGeneration;
   int tab = 0, page = 1, revision = 0;
   bool loading = false, more = false, mutating = false;
+  bool _loadingMore = false;
   bool savePending = false;
   int accountEpoch = 0;
   final collectionPending = <String>{};
@@ -416,6 +418,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
       _catalogRefreshPage = 1;
       _catalogRefreshLaterPage = 2;
       loading = false;
+      _loadingMore = false;
     });
   }
 
@@ -425,6 +428,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
     final generation = widget.repository.coordinator.generation;
     setState(() {
       loading = true;
+      _loadingMore = next;
       error = null;
       _catalogRefreshError = null;
       if (!next) {
@@ -477,7 +481,12 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
         setState(() => error = marketplaceError(failure));
       }
     } finally {
-      if (mounted && request == revision) setState(() => loading = false);
+      if (mounted && request == revision) {
+        setState(() {
+          loading = false;
+          _loadingMore = false;
+        });
+      }
     }
   }
 
@@ -583,14 +592,21 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
         (shortlist == null || shortlist['itemsLoaded'] == true))
       return const SizedBox.shrink();
     final pending = collectionPending.contains(parent ?? collection);
+    if (pending) {
+      return LoadingSkeleton(
+        layout: collection == 'saved' || collection == 'shortlistItems'
+            ? SkeletonLayout.listings
+            : SkeletonLayout.rows,
+        itemCount: 1,
+        label: 'Loading more ${parent == null ? collection : 'properties'}',
+      );
+    }
     return TextButton(
-      onPressed: pending || loading || mutating
+      onPressed: loading || mutating
           ? null
           : () => loadCollection(collection, parent: parent),
       child: Text(
-        pending
-            ? 'Loading…'
-            : parent != null && shortlist!['itemsLoaded'] != true
+        parent != null && shortlist!['itemsLoaded'] != true
             ? 'Load shortlist properties'
             : 'Load more ${parent == null ? collection : 'properties'}',
       ),
@@ -1051,7 +1067,21 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
                 label: const Text('Adjust filters'),
               ),
       ),
+    if (loading && listings.isNotEmpty && !_loadingMore)
+      const Padding(
+        padding: EdgeInsets.only(bottom: 16),
+        child: Shimmer(
+          label: 'Refreshing properties',
+          child: SkeletonLine(widthFactor: .45),
+        ),
+      ),
     ...listings.map(card),
+    if (loading && (listings.isEmpty || _loadingMore))
+      LoadingSkeleton(
+        layout: SkeletonLayout.listings,
+        itemCount: listings.isEmpty ? 2 : 1,
+        label: _loadingMore ? 'Loading more properties' : 'Loading properties',
+      ),
     if (page >= 1000 && !more && listings.isNotEmpty)
       const Text(
         'Search page limit reached. Refine your filters to narrow the results.',
@@ -1651,20 +1681,13 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
         const SizedBox(width: 8),
       ],
     ),
-    body: RefreshIndicator(
+    body: RefreshIndicator.noSpinner(
       onRefresh: () => load(),
       child: ListView(
         key: PageStorageKey('marketplace-$tab'),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          if (loading) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: const LinearProgressIndicator(minHeight: 3),
-            ),
-            const SizedBox(height: 16),
-          ],
           if (tab < 2 && _catalogRefreshError != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -1682,13 +1705,32 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
               ),
               child: const Text('Sign in'),
             ),
-          ] else
+          ] else if (loading && tab >= 2 && account == null)
+            LoadingSkeleton(
+              layout: tab == 4 ? SkeletonLayout.profile : SkeletonLayout.rows,
+              itemCount: 3,
+              label: switch (tab) {
+                2 => 'Loading saved properties and shortlists',
+                3 => 'Loading enquiries',
+                _ => 'Loading profile',
+              },
+            )
+          else ...[
+            if (loading && tab >= 2)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: Shimmer(
+                  label: 'Refreshing account information',
+                  child: SkeletonLine(widthFactor: .45),
+                ),
+              ),
             ...switch (tab) {
               0 || 1 => browsing(),
               2 => collections(),
               3 => enquiries(),
               _ => profile(),
             },
+          ],
           if (mutating) const LinearProgressIndicator(),
           if (error != null) ...[
             BuyerEmptyState(
@@ -1826,18 +1868,17 @@ class _ListingImageState extends State<ListingImage> {
       future: bytes,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return SizedBox(
-            height: widget.height,
-            child: const Center(child: CircularProgressIndicator()),
+          return Shimmer(
+            label: 'Loading property photograph',
+            child: SkeletonBox(
+              height: widget.height,
+              width: double.infinity,
+              borderRadius: 0,
+            ),
           );
         }
         if (snapshot.hasError) return fallback();
-        if (!snapshot.hasData) {
-          return SizedBox(
-            height: widget.height,
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        }
+        if (!snapshot.hasData) return fallback();
         return Image.memory(
           snapshot.data!,
           height: widget.height,
@@ -2000,7 +2041,12 @@ class _LivePropertyScreenState extends State<LivePropertyScreen>
         if (displayed == null &&
             !_unavailable &&
             snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingSkeleton(
+            layout: SkeletonLayout.detail,
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
+            scrollable: true,
+            label: 'Loading property details',
+          );
         }
         if (_unavailable || (snapshot.hasError && displayed == null)) {
           return Center(
@@ -2027,7 +2073,12 @@ class _LivePropertyScreenState extends State<LivePropertyScreen>
           );
         }
         if (displayed == null) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingSkeleton(
+            layout: SkeletonLayout.detail,
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
+            scrollable: true,
+            label: 'Loading property details',
+          );
         }
         final property = displayed;
         return ListView(
@@ -2320,9 +2371,11 @@ class _LivePropertyScreenState extends State<LivePropertyScreen>
                   if (snapshot.hasError)
                     return const Text('Related listings are unavailable.');
                   if (!snapshot.hasData)
-                    return const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: LinearProgressIndicator(),
+                    return const LoadingSkeleton(
+                      layout: SkeletonLayout.rows,
+                      itemCount: 2,
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      label: 'Loading related properties',
                     );
                   final rows = snapshot.data!.items
                       .where((item) => item.id != property.id)

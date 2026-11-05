@@ -10,6 +10,7 @@ import 'core/api/session_vault.dart';
 import 'features/auth/sign_in_controller.dart';
 import 'features/marketplace/marketplace_repository.dart';
 import 'features/marketplace/listing_realtime.dart';
+import 'shared/ui/loading_skeleton.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -105,18 +106,11 @@ class _ServiceStartupState extends State<_ServiceStartup> {
         darkTheme: AppTheme.dark,
         home: const Scaffold(
           body: SafeArea(
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 24),
-                    Text('Checking your saved HOMEZONE session…'),
-                  ],
-                ),
-              ),
+            child: LoadingSkeleton(
+              layout: SkeletonLayout.profile,
+              padding: EdgeInsets.all(24),
+              label: 'Checking your saved HOMEZONE session',
+              scrollable: true,
             ),
           ),
         ),

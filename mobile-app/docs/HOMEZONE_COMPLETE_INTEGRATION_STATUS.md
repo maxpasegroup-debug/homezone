@@ -1,5 +1,69 @@
 # HOMEZONE integration implementation status
 
+## API loading shimmer - SOURCE IMPLEMENTED / LOCAL VERIFIED - 2026-11-05
+
+Added a shared dependency-free shimmer/skeleton component for pending API reads.
+Buyer catalogue/pagination, property details/images/related results, account tabs,
+role dashboard metrics/records, profile/session gates, listing media and private
+document lists use shaped placeholders instead of circular fetch indicators.
+Pull-to-refresh retains its gesture without the circular overlay. Background
+WebSocket catalogue/detail refreshes retain confirmed content; photo refreshes
+keep existing images. Empty/error results still end loading and display their
+existing messages. Mutation/upload and listing-step progress retain real progress
+feedback. The local photo-picker opening indicator is not an API fetch.
+
+The animation supports light/dark themes, reduced motion, hidden-route ticker
+suspension and loading semantics; placeholders are noninteractive and contain
+no invented records. No package, backend, database, auth/session contract,
+environment, Railway or production change is required.
+
+Validation: 82 existing catalogue/detail/gallery/workspace/photo widget tests
+passed; the final 17 shimmer tests and 30 authentication/navigation tests passed.
+Two initial accessibility-test handle-cleanup failures were corrected in the
+test fixture, then the complete 17-test shimmer suite passed. Analysis of changed
+files found zero errors/warnings (existing informational lints remain); the final
+shared component/button/test analysis reported no issues. APK packaging and
+actual Android presentation are tracked separately from fixture evidence.
+
+Updated staging debug APK COMPILED using the existing offline workflow and
+explicit `--mode service --config config/staging.local.json`. Artifact:
+`build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes, freshly written;
+SHA-256 `fd226d211aa6d0372d25b50ff54fa85f2dfcf7d1bb2beb96be18fdbaaecd3c22`.
+Build record: `build/android-source-builds/2026-11-05T05-20-58-532Z-27040/build-record.json`.
+Package `com.example.homezone_mobile`, debuggable, Android API24 minimum/API36
+target, armv7/arm64/x86_64. The previous APK is preserved by the build wrapper.
+This slice did not install/launch the new APK or verify Android presentation.
+
+## Staging WebSocket publication - BACKEND CONNECTED / DEVICE VERIFIED - 2026-11-05
+
+Activated the existing custom server on the exact staging backend with
+`HOMEZONE_REALTIME_ENABLED=true` and `npm run start:realtime`. Railway rejected
+legacy custom-file selection; the supported empty config-file selector was used
+only for this staging service, preserving build/predeploy/restart/volume settings.
+Pinned deployment `39f07478-4329-44a9-b59f-9866cc0a285c` is SUCCESS on
+`9a2b1001b984c61d3fc9cc5d914a9934e105c75d`. Logs confirm server_started and
+listener_ready. Existing predeploy reported 21 migrations/no pending; none applied.
+
+ACTUAL ACCEPTANCE: staging WSS returned 101/ready. Existing staging Flutter APK
+on emulator-5554 also logged ready. Left Buyer-facing discovery open, then used
+an existing controlled OWNER account through the existing authenticated API to
+publish one labelled test listing with two existing authorized staging photos.
+POST returned 200/PUBLISHED, ID `cmw32s2dt0003ox0xo3ydesx7`. Observer received
+properties.changed; Flutter logged change_received at 04:58:32.163Z and ensuing
+catalogue HTTP 200 at 04:58:32.601Z. Actual Android screenshot shows the new card
+and photo without manual refresh/navigation after publication. Public readback
+is source database with three records and the matching ID. Diagnostic session
+was signed out. No account was created, no unrelated property was altered, no
+application source/schema/secret changed, and production was untouched.
+
+This verifies foreground Owner publication -> WebSocket -> Flutter catalogue
+read -> visible Buyer-facing card. Discovery was opened from the Owner Browse
+properties action; distinct Buyer login, rental-specific acceptance, reconnect
+under outage, load and multiple devices/replicas remain separate checks. No new
+APK/local test run was required; previously installed staging APK was used.
+`LISTING_WEBSOCKETS.md` records exact settings, screenshots/logs and rollback.
+This supersedes historical WebSocket activation-pending notes below.
+
 ## Staging photo publishing - BACKEND CONNECTED / DEVICE VERIFIED - 2026-11-04
 
 The founder authorized Railway access and activation. The matched staging backend
@@ -27,9 +91,10 @@ belongs only to the backend. No application code changed during activation,
 no account was created, no existing listing was altered, and no commit/push
 occurred. The one authorized public test listing remains clearly labelled.
 
-The screenshot's storage-unavailable blocker is RESOLVED on staging. Remaining:
-foreground automatic-new-publication/WebSocket acceptance, a distinct Buyer
-login, rental-specific acceptance, photo backups/restore/capacity monitoring and
+The screenshot's storage-unavailable blocker is RESOLVED on staging. Foreground
+automatic-new-publication/WebSocket acceptance was subsequently verified above.
+Remaining: a distinct Buyer login, rental-specific acceptance, photo
+backups/restore/capacity monitoring and
 other role workflows. Detailed target/log/asset evidence and limitations:
 `PROPERTY_PHOTO_VOLUME_STORAGE.md` (activation acceptance section). This section
 supersedes the historical activation-blocked notes below.

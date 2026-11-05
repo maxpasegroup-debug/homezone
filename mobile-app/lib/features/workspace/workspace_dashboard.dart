@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/ui/loading_skeleton.dart';
 import '../../theme/design_tokens.dart';
 import '../marketplace/marketplace_repository.dart';
 import '../marketplace/marketplace_screen.dart' show ListingImage;
@@ -271,9 +272,12 @@ class _WorkspaceHomeState extends State<WorkspaceHome> {
           ],
         ),
         if (_recordsLoading)
-          const Padding(
-            padding: EdgeInsets.all(Space.lg),
-            child: Center(child: CircularProgressIndicator()),
+          LoadingSkeleton(
+            layout: preview.module == 'properties'
+                ? SkeletonLayout.listings
+                : SkeletonLayout.rows,
+            itemCount: 2,
+            label: 'Loading your records',
           )
         else if (_recordsError != null)
           Card(
@@ -360,7 +364,7 @@ class _WorkspaceHomeState extends State<WorkspaceHome> {
         'Browse properties',
       ),
     };
-    return RefreshIndicator(
+    return RefreshIndicator.noSpinner(
       onRefresh: _refresh,
       child: ListView(
         key: PageStorageKey(
@@ -435,9 +439,10 @@ class _WorkspaceHomeState extends State<WorkspaceHome> {
             ],
           ),
           if (_loading)
-            const Padding(
-              padding: EdgeInsets.all(Space.lg),
-              child: Center(child: CircularProgressIndicator()),
+            LoadingSkeleton(
+              layout: SkeletonLayout.metrics,
+              itemCount: _metrics(widget.role).length,
+              label: 'Loading your overview',
             )
           else if (_error != null)
             Card(

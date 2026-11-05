@@ -8,6 +8,7 @@ import 'listing_photo_picker.dart';
 import 'owner_property_photos.dart';
 import '../documents/private_documents_screen.dart';
 import '../../core/api/api_client.dart';
+import '../../shared/ui/loading_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../marketplace/marketplace_repository.dart';
@@ -1063,7 +1064,7 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
               child: const Icon(Icons.add),
             )
           : null,
-      body: RefreshIndicator(
+      body: RefreshIndicator.noSpinner(
         onRefresh: () => load(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -1128,12 +1129,7 @@ class _WorkspaceRecordsState extends State<WorkspaceRecords> {
                   ),
                 ),
             if (loading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
+              const LoadingSkeleton(label: 'Loading workspace records'),
             if (current && more && !loading)
               TextButton(
                 onPressed: () => load(next: true),
@@ -3349,7 +3345,12 @@ class _WorkspaceSummaryState extends State<WorkspaceSummary> {
                 if (snapshot.hasError)
                   return Center(child: Text(marketplaceError(snapshot.error!)));
                 if (!snapshot.hasData)
-                  return const Center(child: CircularProgressIndicator());
+                  return const LoadingSkeleton(
+                    layout: SkeletonLayout.metrics,
+                    padding: EdgeInsets.all(20),
+                    label: 'Loading your summary',
+                    scrollable: true,
+                  );
                 final data = snapshot.data!;
                 if (data['source'] != 'database' ||
                     data['metrics'] is! JsonObject)

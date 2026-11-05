@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/ui/loading_skeleton.dart';
 import '../marketplace/marketplace_repository.dart';
 import '../marketplace/marketplace_screen.dart' show ListingImage;
 
@@ -202,7 +203,22 @@ class _PhotosState extends State<ListingPhotographsScreen> {
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         if (!current) const Text('Account access ended.'),
-        if (loading || busy) const LinearProgressIndicator(),
+        if (loading)
+          if (property == null)
+            const LoadingSkeleton(
+              layout: SkeletonLayout.gallery,
+              itemCount: 1,
+              label: 'Loading listing media',
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Shimmer(
+                label: 'Refreshing listing media',
+                child: SkeletonLine(height: 6),
+              ),
+            ),
+        if (busy) const LinearProgressIndicator(),
         if (current && property != null) ...[
           Text(
             property!['videoUrl'] == null

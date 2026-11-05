@@ -63,9 +63,12 @@ Sanitized local evidence is under
 `volume-buyer-gallery.png`. Desktop timestamps differ from Railway server time;
 use deployment ID, property ID and ordered server log timestamps for correlation.
 
-Still not verified: an already-open Buyer screen receiving a new publication
-without manual navigation, WebSocket acceptance, a distinct Buyer-account login,
-rental creation, backup/restore and all other role workflows. No volume backup
+Follow-up on 2026-11-05 verified an already-open Buyer-facing screen receiving
+a new publication through WebSockets without manual refresh/navigation, with its
+photo displayed. Exact activation and event/HTTP/Android evidence is recorded in
+`LISTING_WEBSOCKETS.md`; the photo mount/provider remained unchanged. Still not
+verified: a distinct Buyer-account login, rental creation, backup/restore and
+all other role workflows. No volume backup
 schedule was configured or restore performed. Retain capacity monitoring and
 independent database/photo backups. No production access, commit or push occurred.
 

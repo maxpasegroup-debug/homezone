@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/design_tokens.dart';
+import '../../shared/ui/loading_skeleton.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.serviceMode = false});
@@ -72,11 +73,9 @@ class _SplashScreenState extends State<SplashScreen> {
                       ? 'Opening HOMEZONE service access'
                       : 'Loading local UI preview',
                   child: const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      color: BrandColors.gold,
-                      strokeWidth: 2,
+                    width: 96,
+                    child: Shimmer(
+                      child: SkeletonBox(height: 5, borderRadius: 3),
                     ),
                   ),
                 ),

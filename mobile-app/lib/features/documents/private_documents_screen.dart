@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../shared/ui/loading_skeleton.dart';
 import '../marketplace/marketplace_repository.dart';
 
 class PrivateDocumentsScreen extends StatefulWidget {
@@ -219,7 +220,9 @@ class _PrivateDocumentsState extends State<PrivateDocumentsScreen> {
                       ),
                     ),
                   ),
-                if (loading || busy) const LinearProgressIndicator(),
+                if (loading)
+                  const LoadingSkeleton(label: 'Loading private documents'),
+                if (busy) const LinearProgressIndicator(),
                 if (!loading && error == null && files.isEmpty)
                   const Padding(
                     padding: EdgeInsets.all(24),

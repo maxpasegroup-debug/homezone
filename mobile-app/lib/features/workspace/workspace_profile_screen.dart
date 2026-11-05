@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api/api_client.dart';
+import '../../shared/ui/loading_skeleton.dart';
 import '../marketplace/marketplace_repository.dart';
 import '../marketplace/marketplace_screen.dart' show ProfileEditScreen;
 
@@ -150,7 +151,12 @@ class _WorkspaceProfileScreenState extends State<WorkspaceProfileScreen> {
     body: !current
         ? const Center(child: Text('Sign in again to view your profile.'))
         : loading
-        ? const Center(child: CircularProgressIndicator())
+        ? const LoadingSkeleton(
+            layout: SkeletonLayout.profile,
+            padding: EdgeInsets.all(20),
+            label: 'Loading your profile',
+            scrollable: true,
+          )
         : ListView(
             padding: const EdgeInsets.all(20),
             children: [

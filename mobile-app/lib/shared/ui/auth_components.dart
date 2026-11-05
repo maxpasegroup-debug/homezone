@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/design_tokens.dart';
+import 'loading_skeleton.dart';
 
 class AuthLayout extends StatelessWidget {
   const AuthLayout({super.key, required this.child, this.back = true});
@@ -94,10 +95,18 @@ class PrimaryButton extends StatelessWidget {
     child: FilledButton(
       onPressed: loading ? null : onPressed,
       child: loading
-          ? const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2),
+          ? const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Please wait…'),
+                SizedBox(height: 6),
+                SizedBox(
+                  width: 72,
+                  child: ExcludeSemantics(
+                    child: Shimmer(child: SkeletonBox(height: 4)),
+                  ),
+                ),
+              ],
             )
           : Text(label),
     ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/session_scope.dart';
 import '../../core/api/api_client.dart';
+import '../../shared/ui/loading_skeleton.dart';
 import '../marketplace/marketplace_repository.dart';
 import '../marketplace/marketplace_screen.dart' show ListingImage;
 
@@ -327,7 +328,21 @@ class _OwnerPropertyPhotosState extends State<OwnerPropertyPhotos>
             ),
           ],
         ),
-        if (_loading) const LinearProgressIndicator(),
+        if (_loading)
+          if (_photos.isEmpty)
+            const LoadingSkeleton(
+              layout: SkeletonLayout.gallery,
+              itemCount: 1,
+              label: 'Loading property photos',
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Shimmer(
+                label: 'Refreshing property photos',
+                child: SkeletonLine(height: 6),
+              ),
+            ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),

@@ -1,17 +1,63 @@
 # Listing WebSockets
 
-Date: 2026-11-04; work began 2026-11-03. Source baseline:
-`main/37e91ea07590bf781d54a751ccb9f6b4ded11c33`.
+Updated: 2026-11-05. Activated source baseline:
+`main/9a2b1001b984c61d3fc9cc5d914a9934e105c75d`.
 
-Status: implemented in source with local fixture verification. No live WebSocket
-connection to Railway, deployment, account/property mutation or infrastructure
-change is claimed by this work. Earlier successful Owner-to-Buyer acceptance
-used foreground HTTP polling; it does not verify this new transport.
+Status: BACKEND CONNECTED / DEVICE VERIFIED on staging. The founder authorized
+staging activation and a controlled Owner-to-Buyer property check. This supersedes
+the original source-only status; the local-check history below remains historical.
+
+## Staging activation and actual Android acceptance - 2026-11-05
+
+Target: project `1f8c9007-2993-426c-bbd0-b8dd0a0b17da`, environment
+`2181eadf-21a0-4ca3-8269-b6b6f28af9f4`, backend
+`ea6ca516-4063-4ed1-be95-bebcc0d1af00`, exact staging domain above. The project
+was checked to contain only the staging environment. Production was not accessed.
+
+Saved `HOMEZONE_REALTIME_ENABLED=true` and `npm run start:realtime` on that
+backend. Railway rejected selecting the legacy custom JSON file. Its supported
+empty config-file selector (`railwayConfigFile: ""`) was used to disable legacy
+file overrides, preserving the existing build, predeploy, replicas, restart and
+volume settings. No project-wide IaC migration or repository config rewrite occurred.
+Redeploy-as-is retained the previous start manifest, so the reviewed commit was
+explicitly deployed. Final deployment `39f07478-4329-44a9-b59f-9866cc0a285c`
+is SUCCESS and its effective manifest starts `npm run start:realtime`.
+Existing predeploy reported 21 migrations and no pending migrations. No migration
+was applied. Canonical staging URLs and the photo-volume provider/mount remained
+unchanged. No application source, authentication, role, schema or secret changed.
+
+| Checkpoint | Actual evidence |
+| --- | --- |
+| Server and PostgreSQL listener | Deployment logs: `server_started` at `2026-11-05T04:51:05.439899314Z`; `listener_ready` at `04:51:06.084423232Z`. |
+| Public WSS handshake | Exact staging socket returned HTTP 101 and `{"v":1,"type":"ready"}`. No credentials or cookies were sent. |
+| Flutter subscription | Existing staging APK on `emulator-5554` logged `[HomeZone realtime] ready`; public catalogue HTTP 200. No rebuild/reinstallation was needed. |
+| Real publication | Existing controlled OWNER account used existing Auth.js/API flow to POST one labelled test property. HTTP 200; ID `cmw32s2dt0003ox0xo3ydesx7`; PUBLISHED; two existing authorized staging test images. No account was created or unrelated record changed. Diagnostic session was signed out. |
+| Actual push and read | Independent observer received `properties.changed`. Flutter logged `change_received` at `04:58:32.163Z`, then catalogue HTTP 200 at `04:58:32.601Z` (435 ms request). |
+| Actual Android presentation | Already-open Buyer-facing discovery displayed `STAGING TEST WebSocket live 20261105` and its photo without tapping refresh or navigating after publication. |
+| Public readback | HTTP 200, source `database`, three published records; matching new test ID and two staging-host photo URLs. |
+
+Evidence is retained locally under ignored
+`mobile-app/build/owner-buyer-device-check-20261104/`: `realtime-server-startup-20261105.json`,
+`realtime-handshake-20261105.json`, `realtime-publication-verification-20261105.json`,
+`realtime-flutter-publication-20261105.log`, `realtime-buyer-card-before.png`,
+`realtime-buyer-auto-publication.png`, `realtime-public-catalogue-readback-20261105.json`
+and `realtime-activation-rollback-20261105.json`. No credentials are in these evidence
+files. Host diagnostic timestamps lag Railway/Android; use server Date and Android
+epoch timestamps plus the exact deployment/property IDs for correlation.
+
+Limits: discovery was the same public Buyer-facing screen opened through Owner
+Browse properties; this was not a separate Buyer-account login test. Publication
+was through the existing Owner API, not a repeat of native photo upload. The
+previous native two-photo publication is separately documented. Reconnect under
+outage, multiple devices/replicas, rental-specific acceptance and load/capacity
+testing remain unverified. This test proves foreground WebSocket publication
+delivery, not every role workflow or guaranteed delivery latency. The illustrative
+test record remains labelled; deletion is not part of this activation.
 
 ## Data flow
 
 1. Existing authorized property mutation validates the actor, ownership, status
-   and four-photo publication rule, then updates the record in a transaction.
+   and two-photo minimum publication rule, then updates the record in a transaction.
 2. With `HOMEZONE_REALTIME_ENABLED=true`, a mutation involving a previously or
    subsequently PUBLISHED property executes parameterized `pg_notify` in that
    same transaction. PostgreSQL delivers it only after commit; rollback delivers
@@ -74,10 +120,12 @@ No exact delivery latency or uninterrupted connectivity is guaranteed.
 
 ## Backend runtime and configuration
 
-`npm start` and `railway.json` are deliberately unchanged. They keep the current
-Next CLI server. `railway.staging-realtime.json` is an unselected, staging-only
-release template with the same build/predeploy/restart settings and the new
-start command; merely adding this file does not change the running service.
+`npm start` and repository `railway.json` are deliberately unchanged. They keep
+the ordinary Next CLI command for environments that select it. The staging
+service now explicitly starts the custom server, with legacy config-file reading
+disabled for this service. `railway.staging-realtime.json` remains a source
+template; selecting it was rejected by Railway and it is not the effective
+activation mechanism. Merely adding the template never activates a server.
 The opt-in command is:
 
 ```text
@@ -201,27 +249,29 @@ or device-to-staging WebSocket test was performed.
 | Dependencies, local commands and unselected staging template | `package.json`; `package-lock.json`; `railway.staging-realtime.json` |
 | Documentation | This file; `mobile-app/docs/HOMEZONE_COMPLETE_INTEGRATION_STATUS.md`; `mobile-app/docs/HOMEZONE_REMAINING_BLOCKERS.md`; `mobile-app/docs/OWNER_DIRECT_PUBLICATION.md` |
 
-## Approved staging activation sequence — not executed
+## Repeatable staging activation checkpoints
+
+Initial activation was completed above. The following checkpoints describe a
+future reviewed release; do not execute again simply because this checklist exists.
 
 1. Confirm the exact staging service/domain/deployed SHA, direct PostgreSQL target,
    connection capacity and private canonical-origin compliance. Review current
    pending migrations and recoverability: existing Railway predeploy executes
    `npm run db:migrate` for all pending migrations, even though this change adds none.
 2. Review this source/artifact and approve the exact staging-only release. Include
-   the existing four-photo client/backend compatibility gate and upload-provider
+   the existing two-photo client/backend compatibility gate and upload-provider
    requirements; WebSockets do not provision image storage or change publication.
-3. After separate approval, set only staging `HOMEZONE_REALTIME_ENABLED=true`.
-   In that staging backend service's Settings, select the custom config path
-   `/railway.staging-realtime.json` (confirm the repository/root directory), then
-   deploy the reviewed artifact. Confirm deployment details show
-   `npm run start:realtime`; a dashboard command alone cannot override the current
-   `railway.json` value. Do not select this template for production. Variable or
-   config-path changes may restart or deploy the service. Railway documents that
-   code configuration overrides dashboard settings and supports custom file paths;
-   it currently also marks legacy config-as-code for retirement on 2026-12-01,
-   so confirm the applicable mechanism when activating this existing service.
-   Any required infrastructure-config migration is a separate approved action.
-   See [Railway configuration](https://docs.railway.com/config-as-code).
+3. After approval, use only the exact staging service. Set
+   `HOMEZONE_REALTIME_ENABLED=true`, preserve its existing effective build,
+   predeploy, restart and volume settings, and select `npm run start:realtime`.
+   The completed activation used the supported empty legacy config selector;
+   nonempty legacy custom-file selection was rejected. Do not re-enable the
+   default JSON start override or migrate the entire project speculatively.
+   Deploy a pinned reviewed commit and inspect its effective start manifest:
+   redeploy-as-is may retain the previous manifest. Configuration and variable
+   changes can release/restart the service. Production is excluded. See
+   [Railway configuration precedence](https://docs.railway.com/config-as-code)
+   and [supported config migration](https://docs.railway.com/infrastructure-as-code).
 4. Confirm sanitized `server_started` and `listener_ready`, then a WSS upgrade/101
    and `ready` from the staging host. A successful HTTP catalogue read alone is
    insufficient. Verify reconnect and fallback without exposing cookies or data.
@@ -234,8 +284,8 @@ or device-to-staging WebSocket test was performed.
 
    Install/launch only as authorized. Collect actual Android presentation and
    safe timestamps; do not rely only on an internal Flutter render capture.
-6. With separate approval for one controlled property mutation, leave Buyer
-   discovery open and publish an authorized Owner draft with four valid photos.
+6. With approval for one controlled property mutation, leave Buyer discovery
+   open and publish an authorized Owner property with at least two valid photos.
    Record transaction success, hint receipt, ensuing HTTP response and visible
    matching listing/photo. Repeat authorized edit/unpublish/reconnect checks.
    Do not create accounts, publish test records or send private data merely to
@@ -243,11 +293,15 @@ or device-to-staging WebSocket test was performed.
 
 ## Rollback
 
-Approve any staging rollback independently. Restore the service's previously
-recorded config path (`/railway.json` for the current source) and verify the prior
-start command (`npm start -- --hostname 0.0.0.0`); disable the feature flag on all
-staging replicas, or restore a compatible prior artifact. New clients retain HTTP
+If rollback is needed, use the exact recorded staging target and snapshot,
+privately review current settings for concurrent changes, set the realtime flag
+false, restore the previous start command `npm run start` and previous config-file
+selector null (not a newly invented file path), and release the pinned compatible
+commit. Verify the effective ordinary start manifest and catalogue/photo reads.
+The prior successful deployment was `65f6852d-3c9b-4682-a9ee-9132e93de42b` on
+the same reviewed SHA. Do not assume redeploy-as-is changes the start manifest.
+New clients retain HTTP
 fallback. No tables, records, photographs, session secrets or credentials should
-be dropped/rotated to roll this feature back. Keep the four-photo-compatible
+be dropped/rotated to roll this feature back. Keep the two-photo-compatible
 client/backend versions paired. Preserve evidence and any legitimately created
 records; cleanup is a separate authorized mutation. Production is out of scope.
