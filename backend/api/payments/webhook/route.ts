@@ -2,7 +2,7 @@ import { auditLog } from "@/lib/audit";
 import { apiError, handleApiError, ok } from "@/lib/api/response";
 import { db } from "@/lib/db";
 import { verifyRazorpayWebhookSignature } from "@/lib/payments/razorpay";
-import { markPaymentPaid } from "@/lib/payments/service";
+import { markPaymentPaid, revokeBuyerPlusPayment } from "@/lib/payments/service";
 import { registerWebhookEvent, updateWebhookEventStatus } from "@/lib/platform/webhooks";
 
 type RazorpayWebhookPayload = {
@@ -13,25 +13,63 @@ type RazorpayWebhookPayload = {
         id?: string;
         order_id?: string;
         status?: string;
+        captured?: boolean;
+        amount?: number;
+        currency?: string;
       };
     };
+    refund?: { entity?: { id?: string; payment_id?: string; status?: string } };
   };
 };
 
+const maxWebhookBytes = 262_144;
+
+async function readWebhookBody(request: Request): Promise<string | Response> {
+  const declared = request.headers.get("content-length");
+  if (declared && /^\d+$/.test(declared) && Number(declared) > maxWebhookBytes) return apiError("Webhook payload is too large", 413);
+  const reader = request.body?.getReader();
+  if (!reader) return apiError("Invalid webhook payload", 400);
+  const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      size += value.length;
+      if (size > maxWebhookBytes) {
+        await reader.cancel();
+        return apiError("Webhook payload is too large", 413);
+      }
+      chunks.push(value);
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+  } catch {
+    return apiError("Invalid webhook payload", 400);
+  } finally { reader.releaseLock(); }
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.text();
     const signature = request.headers.get("x-razorpay-signature");
+    if (!signature) return apiError("Invalid webhook signature", 400);
+    const body = await readWebhookBody(request);
+    if (body instanceof Response) return body;
 
-    if (!signature || !verifyRazorpayWebhookSignature({ body, signature })) {
+    if (!verifyRazorpayWebhookSignature({ body, signature })) {
       return apiError("Invalid webhook signature", 400);
     }
 
-    const payload = JSON.parse(body) as RazorpayWebhookPayload;
+    let payload: RazorpayWebhookPayload;
+    try {
+      const parsed: unknown = JSON.parse(body);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+      payload = parsed as RazorpayWebhookPayload;
+    } catch { return apiError("Invalid webhook payload", 400); }
     const paymentEntity = payload.payload?.payment?.entity;
     const orderId = paymentEntity?.order_id;
     const paymentId = paymentEntity?.id;
-    const eventId = `${payload.event ?? "razorpay"}:${paymentId ?? orderId ?? body.length}`;
+    const refund = payload.payload?.refund?.entity;
+    const refundEvent = payload.event === "refund.created" || payload.event === "refund.processed";
+    if (refundEvent && (!refund?.id || !refund.payment_id)) return apiError("Invalid refund notification", 400);
+    const eventId = `${payload.event ?? "razorpay"}:${refundEvent ? refund!.id : paymentId ?? orderId ?? body.length}`;
     const webhook = await registerWebhookEvent({
       eventId,
       eventType: payload.event,
@@ -54,16 +92,33 @@ export async function POST(request: Request) {
     });
 
     if (payload.event === "payment.captured" && orderId && paymentId) {
+      const reference = await db.payment.findUnique({ where: { razorpayOrderId: orderId },
+        select: { product: true, amount: true, currency: true } });
+      if (reference?.product === "BUYER_PLUS" && (paymentEntity?.status !== "captured" || paymentEntity.captured !== true ||
+          !Number.isSafeInteger(paymentEntity.amount) || paymentEntity.amount !== reference.amount || paymentEntity.currency !== reference.currency)) {
+        await updateWebhookEventStatus({ eventId, provider: "RAZORPAY", status: "FAILED", lastError: "Plus capture acknowledgment mismatch" });
+        return apiError("Payment confirmation needs review", 400);
+      }
       await markPaymentPaid({
         orderId,
         paymentId,
-        webhookEventId: paymentId
+        webhookEventId: paymentId,
+        ...(reference?.product === "BUYER_PLUS" ? { captured: { amount: paymentEntity!.amount!, currency: paymentEntity!.currency! } } : {})
       });
       await updateWebhookEventStatus({
         eventId,
         provider: "RAZORPAY",
         status: "PROCESSED"
       });
+    }
+
+    if (refundEvent) {
+      const revoked = await revokeBuyerPlusPayment(refund!.payment_id!);
+      if (revoked === "unmapped") {
+        await updateWebhookEventStatus({ eventId, provider: "RAZORPAY", status: "FAILED", lastError: "Refund payment confirmation pending" });
+        return apiError("Refund confirmation is pending. Retry this notification.", 503);
+      }
+      await updateWebhookEventStatus({ eventId, provider: "RAZORPAY", status: "PROCESSED" });
     }
 
     if (payload.event === "payment.failed" && orderId) {
@@ -103,7 +158,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (payload.event !== "payment.captured" && payload.event !== "payment.failed") {
+    if (payload.event !== "payment.captured" && payload.event !== "payment.failed" && !refundEvent) {
       await updateWebhookEventStatus({
         eventId,
         provider: "RAZORPAY",

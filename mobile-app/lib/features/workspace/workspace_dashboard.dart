@@ -819,12 +819,15 @@ class WorkspaceMore extends StatelessWidget {
     required this.onSignOut,
     required this.onDeletionReview,
     required this.accountBusy,
+    this.onMessages,
+    this.onMembership,
   });
 
   final String role;
   final OpenWorkspaceModule onOpenModule;
   final VoidCallback onSummary, onProfile, onSignOut, onDeletionReview;
   final bool accountBusy;
+  final VoidCallback? onMessages, onMembership;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -851,6 +854,12 @@ class WorkspaceMore extends StatelessWidget {
       _WorkspaceGroup(
         title: 'Activity',
         children: [
+          if (onMessages != null)
+            WorkspaceMenuTile(
+              title: 'Messages',
+              icon: Icons.forum_outlined,
+              onTap: onMessages,
+            ),
           if (role == 'USER')
             _module('properties', 'My listings', Icons.home_work_outlined),
           if (role == 'BROKER')
@@ -871,6 +880,12 @@ class WorkspaceMore extends StatelessWidget {
       _WorkspaceGroup(
         title: 'Finance',
         children: [
+          if (onMembership != null)
+            WorkspaceMenuTile(
+              title: 'Membership & contact credits',
+              icon: Icons.workspace_premium_outlined,
+              onTap: onMembership,
+            ),
           if (role == 'BROKER')
             _module('commissions', 'Commissions', Icons.receipt_long_outlined),
           _module('payments', 'Payment history', Icons.payments_outlined),

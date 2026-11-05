@@ -1,5 +1,37 @@
 # HOMEZONE integration implementation status
 
+## Free property chat and Plus contacts - SOURCE IMPLEMENTED / APK COMPILED - 2026-11-05
+
+Added Buyer-to-listing-owner messages, inbox, block/report, owner contact-sharing
+preferences and Free/Plus membership screens using the existing API/session
+architecture. Plus is INR299/30 days/10 unique owners, with transactional credits
+and explicitly approved contact sharing. Owners can reply and publish for free.
+No public API includes owner phones. Private chat uses foreground authenticated
+HTTP polling, not the public property WebSocket. Preview/auth/roles are preserved.
+
+Backend includes the additive migration
+`20261105120000_buyer_membership_chat`, captured-payment-only Plus entitlements,
+duplicate-order reservation and refund revocation. Migration is NOT applied.
+Chat/contact activation is default-off; website checkout has its own default-off
+gate. Native purchase is deliberately unavailable pending payment-channel setup.
+No new feature is RUNTIME VERIFIED or activated by these source changes.
+
+Local evidence: full TypeScript check passed; 89 backend fixtures passed; 12 final
+focused Flutter tests passed; broader 85-test Flutter batch passed (overlaps nine
+focused tests). New Dart source/test analysis has no issues. Tests use synthetic
+stores/responses, not real PostgreSQL, accounts or payment-provider transactions.
+
+Staging debug APK compiled using `--mode service --config config/staging.local.json`.
+Artifact: `build/app/outputs/apk/debug/app-debug.apk`, 184,939,163 bytes;
+SHA-256 `157bcdd9ddcdc0a66d8d0bbd40e17d89e0211a5d1005c7584c0b215dd54d8cfa`.
+Record: `build/android-source-builds/2026-11-05T08-46-11-766Z-1436/build-record.json`.
+This build was not installed/launched. Next.js backend build also passed,
+including lint/type checks and all new routes, using a dummy unavailable loopback
+database and disabled/blank payment-provider configuration. No DB or provider
+connectivity was tested by compilation. Activation, schema rollout and actual two-account/payment
+acceptance remain separate owner approvals. Full contracts, limits and rollback:
+`SUBSCRIPTIONS_AND_CHAT.md`.
+
 ## API loading shimmer - SOURCE IMPLEMENTED / LOCAL VERIFIED - 2026-11-05
 
 Added a shared dependency-free shimmer/skeleton component for pending API reads.

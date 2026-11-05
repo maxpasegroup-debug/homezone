@@ -12,6 +12,7 @@ import 'buyer_presentation.dart';
 import '../../theme/design_tokens.dart';
 import '../../shared/ui/loading_skeleton.dart';
 import '../workspace/workspace_screen.dart';
+import '../engagement/engagement_screens.dart';
 
 /// Reuses the existing HTTP client while a service-backed screen is visible.
 /// Public socket hints trigger the same guarded HTTP reads. Polling remains as
@@ -1454,6 +1455,27 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
       child: Column(
         children: [
           ListTile(
+            title: const Text('Messages'),
+            leading: const Icon(Icons.forum_outlined),
+            onTap: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    ConversationListScreen(repository: widget.repository),
+              ),
+            ),
+          ),
+          ListTile(
+            title: const Text('Membership & contact credits'),
+            leading: const Icon(Icons.workspace_premium_outlined),
+            onTap: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MembershipScreen(repository: widget.repository),
+              ),
+            ),
+          ),
+          ListTile(
             title: const Text('My role workspace & notifications'),
             leading: const Icon(Icons.work_outline),
             onTap: () async {
@@ -2361,6 +2383,13 @@ class _LivePropertyScreenState extends State<LivePropertyScreen>
                       ),
                     ),
               child: const Text('Enquire about this property'),
+            ),
+            PropertyContactActions(
+              key: ValueKey(
+                'contact-actions-${property.id}-${widget.repository.coordinator.generation}',
+              ),
+              repository: widget.repository,
+              propertyId: property.id,
             ),
             if (!widget.repository.session.verified)
               const Text('Sign in to submit an enquiry.'),

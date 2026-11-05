@@ -20,6 +20,9 @@ import { createInvoiceNumber, isAllowedForRole } from "@/lib/payments/catalog";
 import { createRazorpayOrder, getRazorpayKeyId } from "@/lib/payments/razorpay";
 import { invoiceMetadata } from "@/lib/payments/service";
 import { isServicePayment, reserveServicePayment } from "@/lib/payments/service-checkout";
+import { reserveBuyerPlusPayment } from "@/lib/payments/buyer-plus-checkout";
+import { buyerPlusWebsiteCheckoutConfigured } from "@/lib/engagement/membership";
+import { authOrigin } from "@/lib/auth/redirect";
 
 export async function POST(request: Request) {
   try {
@@ -57,6 +60,47 @@ export async function POST(request: Request) {
     const propertyId = parsed.data.propertyId;
     const serviceBookingId = parsed.data.serviceBookingId;
     let studioRequestId = parsed.data.studioRequestId;
+
+    if (product === "BUYER_PLUS") {
+      // Native digital-access purchases are deliberately unavailable until an
+      // approved store-billing integration exists. This separate website gate
+      // cannot be inferred from the existing service-payment handoff flag.
+      if (!buyerPlusWebsiteCheckoutConfigured()) return apiError("Plus checkout is not available yet.", 503);
+      const origin = authOrigin();
+      if (!origin.startsWith("https:") || request.headers.get("origin") !== origin ||
+          request.headers.get("sec-fetch-site") === "cross-site") return forbidden("Request not permitted.");
+      if (propertyId || serviceBookingId || studioRequestId || parsed.data.city || parsed.data.notes) {
+        return apiError("This plan does not accept property or service references.", 400);
+      }
+      let keyId: string;
+      try { keyId = getRazorpayKeyId(); } catch {
+        return apiError("Plus checkout is not available yet.", 503);
+      }
+      const reserved = await reserveBuyerPlusPayment(profile.id);
+      if ("error" in reserved) return apiError(reserved.error, reserved.status);
+      const payment = reserved.payment;
+      let orderId = payment.razorpayOrderId;
+      if (!reserved.reuse) {
+        try {
+          const order = await createRazorpayOrder({ amount: payment.amount, currency: payment.currency,
+            receipt: payment.invoiceNumber, notes: { paymentId: payment.id, product } });
+          if (!order.id || order.amount !== payment.amount || order.currency !== payment.currency || order.receipt !== payment.invoiceNumber) {
+            throw new Error("Payment acknowledgment mismatch");
+          }
+          await db.payment.update({ where: { id: payment.id }, data: { razorpayOrderId: order.id, status: "PENDING" } });
+          orderId = order.id;
+        } catch {
+          // The provider may have created an order. Keep CREATED reserved and
+          // require reconciliation rather than silently risking a second charge.
+          return apiError("Payment confirmation was not received. Check Payments before trying again.", 503);
+        }
+        await auditLog({ action: "PAYMENT_ORDER_CREATED", actorId: profile.id, entityId: payment.id,
+          entityType: "payment", metadata: { product } });
+      }
+      return ok({ amount: payment.amount, currency: payment.currency, description: payment.description,
+        invoiceNumber: payment.invoiceNumber, keyId, orderId, paymentId: payment.id, product },
+        { headers: { "Cache-Control": "private, no-store" } });
+    }
 
     if (isServicePayment(product)) {
       if (!serviceBookingId || propertyId || studioRequestId) {

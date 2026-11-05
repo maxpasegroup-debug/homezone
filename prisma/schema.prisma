@@ -100,6 +100,7 @@ enum PaymentStatus {
 }
 
 enum PaymentProduct {
+  BUYER_PLUS
   FEATURED_LISTING
   PREMIUM_LISTING
   BROKER_MONTHLY
@@ -524,6 +525,15 @@ model Profile {
   aiMemories       AIMemory[]
   payments         Payment[]
   subscriptions    Subscription[]
+  contactPreference OwnerContactPreference?
+  buyerContactUnlocks OwnerContactUnlock[] @relation("BuyerContactUnlocks")
+  ownerContactUnlocks OwnerContactUnlock[] @relation("OwnerContactUnlocks")
+  buyerConversations PropertyConversation[] @relation("BuyerConversations")
+  ownerConversations PropertyConversation[] @relation("OwnerConversations")
+  chatMessages ChatMessage[]
+  conversationReports ConversationReport[]
+  buyerBlocks BuyerOwnerBlock[] @relation("BuyerBlocks")
+  ownerBlocks BuyerOwnerBlock[] @relation("OwnerBlocks")
   brokerTeam       BrokerTeamMember[] @relation("BrokerTeamOwner")
   brokerMemberships BrokerTeamMember[] @relation("BrokerTeamProfile")
   leadAssignmentsMade BrokerLeadAssignment[] @relation("LeadAssignmentActor")
@@ -544,6 +554,7 @@ model Property {
   id            String           @id @default(cuid())
   ownerId       String?
   owner         Profile?         @relation("PropertyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  conversations PropertyConversation[]
   title         String
   description   String?
   intent        PropertyIntent
@@ -1610,6 +1621,9 @@ model Subscription {
   startsAt    DateTime           @default(now())
   endsAt      DateTime
   payments    Payment[]
+  contactLimit Int              @default(0)
+  contactsUsed Int              @default(0)
+  contactUnlocks OwnerContactUnlock[]
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -1617,6 +1631,95 @@ model Subscription {
   @@index([product])
   @@index([status])
   @@index([endsAt])
+}
+
+// Explicit disclosure number; never copied from editable Profile.phone or login credentials.
+model OwnerContactPreference {
+  profileId      String   @id
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  phone          String?
+  sharingEnabled Boolean  @default(false)
+  consentVersion String?
+  updatedAt      DateTime @updatedAt
+}
+
+// A repeat disclosure of the same owner does not spend another contact credit.
+// A currently valid paid plan and current owner permission are still required.
+model OwnerContactUnlock {
+  id             String       @id @default(cuid())
+  buyerId        String
+  buyer          Profile      @relation("BuyerContactUnlocks", fields: [buyerId], references: [id], onDelete: Cascade)
+  ownerId        String
+  owner          Profile      @relation("OwnerContactUnlocks", fields: [ownerId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now())
+
+  @@unique([buyerId, ownerId])
+  @@index([subscriptionId])
+  @@index([ownerId])
+}
+
+model PropertyConversation {
+  id           String   @id @default(cuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyerId      String
+  buyer        Profile  @relation("BuyerConversations", fields: [buyerId], references: [id], onDelete: Cascade)
+  ownerId      String
+  owner        Profile  @relation("OwnerConversations", fields: [ownerId], references: [id], onDelete: Cascade)
+  buyerBlocked Boolean  @default(false)
+  ownerBlocked Boolean  @default(false)
+  messages     ChatMessage[]
+  reports      ConversationReport[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([propertyId, buyerId])
+  @@index([buyerId, updatedAt])
+  @@index([ownerId, updatedAt])
+}
+
+model ChatMessage {
+  id              String               @id @default(cuid())
+  conversationId  String
+  conversation    PropertyConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId        String
+  sender          Profile              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  clientMessageId String
+  body            String               @db.Text
+  createdAt       DateTime             @default(now())
+
+  @@unique([conversationId, senderId, clientMessageId])
+  @@index([conversationId, createdAt, id])
+  @@index([senderId])
+}
+
+// Blocking survives deletion of a listing and its conversation.
+model BuyerOwnerBlock {
+  buyerId      String
+  buyer        Profile  @relation("BuyerBlocks", fields: [buyerId], references: [id], onDelete: Cascade)
+  ownerId      String
+  owner        Profile  @relation("OwnerBlocks", fields: [ownerId], references: [id], onDelete: Cascade)
+  buyerBlocked Boolean  @default(false)
+  ownerBlocked Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  @@id([buyerId, ownerId])
+  @@index([ownerId])
+}
+
+model ConversationReport {
+  id             String               @id @default(cuid())
+  conversationId String
+  conversation   PropertyConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reporterId     String
+  reporter       Profile              @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reason         String               @db.Text
+  createdAt      DateTime             @default(now())
+
+  @@unique([conversationId, reporterId])
+  @@index([createdAt])
 }
 
 model Notification {

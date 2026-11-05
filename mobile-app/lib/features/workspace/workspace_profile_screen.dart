@@ -4,6 +4,7 @@ import '../../core/api/api_client.dart';
 import '../../shared/ui/loading_skeleton.dart';
 import '../marketplace/marketplace_repository.dart';
 import '../marketplace/marketplace_screen.dart' show ProfileEditScreen;
+import '../engagement/engagement_screens.dart';
 
 /// Common account details, separate from a provider's business profile.
 class WorkspaceProfileScreen extends StatefulWidget {
@@ -205,6 +206,25 @@ class _WorkspaceProfileScreenState extends State<WorkspaceProfileScreen> {
                 const Text(
                   'Your account role is managed by HomeZone. Editing contact details does not change your sign-in identity or permissions.',
                 ),
+                if ({'OWNER', 'BROKER', 'BUILDER'}.contains(role)) ...[
+                  const SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    onPressed: saving || !current
+                        ? null
+                        : () => Navigator.push<void>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ContactPrivacyScreen(repository: repository),
+                            ),
+                          ),
+                    icon: const Icon(Icons.privacy_tip_outlined),
+                    label: const Text('Manage contact sharing'),
+                  ),
+                  const Text(
+                    'Chat is free. Choose separately whether Plus members can unlock your contact number.',
+                  ),
+                ],
               ],
               if (error != null) ...[
                 const SizedBox(height: 16),

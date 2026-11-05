@@ -80,6 +80,16 @@ export async function POST(request: Request) {
       return forbidden("Invalid payment signature");
     }
 
+    // A Checkout callback authenticates its identifiers, not capture, value or
+    // currency. Only a matching signed capture webhook can grant digital access.
+    if (payment.product === "BUYER_PLUS") {
+      return ok({ paymentId: payment.id,
+        status: payment.status === "PAID" ? "PAID" : payment.status === "REFUNDED" || payment.status === "CANCELLED" ? "UNAVAILABLE" : "PENDING",
+        message: payment.status === "PAID" ? "Payment received. Refresh membership for current access." :
+          "Payment confirmation is pending. Check membership before trying another payment." },
+        { headers: { "Cache-Control": "private, no-store" } });
+    }
+
     const paid = await markPaymentPaid({
       orderId: parsed.data.razorpay_order_id,
       paymentId: parsed.data.razorpay_payment_id,

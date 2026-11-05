@@ -1,5 +1,35 @@
 # HOMEZONE remaining integration blockers
 
+## New chat and Plus activation - 2026-11-05
+
+Chat/contact/membership source and an updated staging APK are implemented and
+locally checked; no deployment or live verification occurred for this feature.
+Before it can work on staging:
+
+1. Approve the exact staging pending migration set and recoverability, including
+   `20261105120000_buyer_membership_chat`. Do not deploy blindly: Railway predeploy
+   runs all pending migrations. Preserve existing realtime/volume configuration.
+2. Approve backend deployment and `HOMEZONE_ENGAGEMENT_ENABLED` activation after
+   compatible schema/client verification. Defaults fail closed with clear 503s.
+3. Authorize controlled Buyer/Owner chat/contact preference/block/report writes
+   and actual Android presentation checks. No fixture test is live acceptance.
+4. Choose private APK versus store distribution and implement/approve its native
+   billing channel. App purchases are honestly disabled; Free/Plus plan display
+   and paid entitlement/credit handling do not by themselves complete checkout.
+5. Before paid activation, approve provider sandbox tests/configuration, refund/
+   dispute and ambiguous-order reconciliation, tax/receipt/support and retention
+   policies. `HOMEZONE_BUYER_PLUS_CHECKOUT_ENABLED` enables only canonical-origin
+   WEBSITE checkout and requires engagement plus existing Razorpay keys; it does
+   not enable native purchases. Existing mobile web-service payments are separate.
+
+No private WebSocket, push delivery, attachments, read receipts, older-message
+browser, credit replacement UI or automatic refund execution is claimed. Chat
+updates by authenticated foreground polling (~4 seconds); inbox/latest-history
+and memory are bounded. Phones users already saw cannot be recalled on opt-out.
+Pro/Boost plans remain deferred. Detailed implementation/approval/rollback plan:
+`SUBSCRIPTIONS_AND_CHAT.md`. Existing authentication/catalogue/owner workflows
+remain independent of these new gates.
+
 ## API loading shimmer - 2026-11-05
 
 Fetch indicators were replaced by shared shimmer placeholders in the active

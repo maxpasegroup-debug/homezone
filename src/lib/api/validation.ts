@@ -409,6 +409,7 @@ export const adminReportActionSchema = z.object({
 });
 
 export const paymentProductSchema = z.enum([
+  "BUYER_PLUS",
   "FEATURED_LISTING",
   "PREMIUM_LISTING",
   "BROKER_MONTHLY",

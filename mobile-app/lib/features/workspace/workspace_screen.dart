@@ -12,6 +12,7 @@ import '../../shared/ui/loading_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../marketplace/marketplace_repository.dart';
+import '../engagement/engagement_screens.dart';
 
 String recordId(JsonObject item) {
   final id = item['id'];
@@ -644,6 +645,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 onProfile: () => _push(
                   scope,
                   (_) => WorkspaceProfileScreen(repository: repository),
+                ),
+                onMessages: () => _push(
+                  scope,
+                  (_) => ConversationListScreen(repository: repository),
+                ),
+                onMembership: () => _push(
+                  scope,
+                  (_) => MembershipScreen(repository: repository),
                 ),
                 onSignOut: () => _signOut(scope),
                 onDeletionReview: () => _requestDeletionReview(scope),

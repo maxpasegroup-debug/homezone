@@ -12,6 +12,14 @@ export type PaymentProductConfig = {
 };
 
 export const paymentProducts: Record<PaymentProduct, PaymentProductConfig> = {
+  BUYER_PLUS: {
+    allowedRoles: ["USER"],
+    amount: 29900,
+    currency: "INR",
+    description: "HomeZone Plus: 30 days and 10 owner-contact unlocks",
+    durationDays: 30,
+    subscription: true
+  },
   FEATURED_LISTING: {
     allowedRoles: ["OWNER", "BROKER", "BUILDER", "ADMIN", "SUPER_ADMIN"],
     amount: 199900,
