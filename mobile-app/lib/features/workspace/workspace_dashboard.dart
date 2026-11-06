@@ -27,6 +27,7 @@ List<WorkspaceDestination> workspaceDestinations(String role) => switch (role) {
       module: 'ownerEnquiries',
       title: 'Listing enquiries',
     ),
+    WorkspaceDestination('Messages', Icons.chat_bubble_outline),
     WorkspaceDestination('More', Icons.more_horiz),
   ],
   'BROKER' => const [

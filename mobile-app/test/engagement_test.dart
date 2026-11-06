@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:homezone_mobile/app/session_scope.dart';
 import 'package:homezone_mobile/core/api/api_client.dart';
 import 'package:homezone_mobile/core/api/api_transport.dart';
+import 'package:homezone_mobile/features/engagement/chat_presentation.dart';
 import 'package:homezone_mobile/features/engagement/engagement_repository.dart';
 import 'package:homezone_mobile/features/engagement/engagement_screens.dart';
 
@@ -260,6 +261,7 @@ void main() {
         find.byType(TextField),
         'Is this property available?',
       );
+      await tester.pump();
       await tester.tap(find.byTooltip('Send message'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Retry same message'), findsOneWidget);
@@ -313,7 +315,8 @@ void main() {
     );
     started.complete(json({'conversation': _conversation()}));
     await tester.pumpAndSettle();
-    expect(find.text('Property chat'), findsOneWidget);
+    expect(find.text('Synthetic owner'), findsOneWidget);
+    expect(find.text('Property conversation'), findsOneWidget);
     expect(find.text('Synthetic property'), findsOneWidget);
     expect(
       fixture.transport.requests.where(
@@ -351,6 +354,7 @@ void main() {
       find.byType(TextField),
       '  Yes, please suggest a time.  ',
     );
+    await tester.pump();
     await tester.tap(find.byTooltip('Send message'));
     await tester.pumpAndSettle();
     final post = fixture.transport.requests.singleWhere(
@@ -367,6 +371,180 @@ void main() {
     );
     await close(tester);
   });
+
+  scenario(
+    'inbox search filters loaded names and properties without requests',
+    (tester) async {
+      fixture.transport.reply = (_) => json({
+        'conversations': [
+          _conversation(),
+          {
+            ..._conversation(),
+            'id': 'conversation-0002',
+            'propertyId': 'property-0002',
+            'propertyTitle': 'Coastal studio',
+            'peerName': 'Another host',
+          },
+        ],
+      });
+      await show(
+        tester,
+        ConversationListScreen(repository: fixture.repository),
+      );
+      expect(find.text('Synthetic owner'), findsOneWidget);
+      expect(find.text('Another host'), findsOneWidget);
+      final reads = fixture.transport.requests
+          .where((request) => request.uri.path == '/api/mobile/conversations')
+          .length;
+
+      await tester.enterText(find.byType(TextField), '  SYNTHETIC OWNER  ');
+      await tester.pump();
+      expect(find.text('Synthetic owner'), findsOneWidget);
+      expect(find.text('Another host'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'coastal');
+      await tester.pump();
+      expect(find.text('Another host'), findsOneWidget);
+      expect(find.text('Synthetic owner'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'no matching property');
+      await tester.pump();
+      expect(find.text('No matching conversations'), findsOneWidget);
+      expect(find.text('No conversations yet'), findsNothing);
+      expect(find.text('Another host'), findsNothing);
+
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pump();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '',
+      );
+      expect(find.text('Synthetic owner'), findsOneWidget);
+      expect(find.text('Another host'), findsOneWidget);
+      expect(find.text('No matching conversations'), findsNothing);
+      expect(
+        fixture.transport.requests
+            .where((request) => request.uri.path == '/api/mobile/conversations')
+            .length,
+        reads,
+      );
+      await close(tester);
+    },
+  );
+
+  scenario(
+    'inbox clears its private search and peer rows when the session ends',
+    (tester) async {
+      fixture.transport.reply = (_) => json({
+        'conversations': [_conversation()],
+      });
+      await show(
+        tester,
+        ConversationListScreen(repository: fixture.repository),
+      );
+      await tester.enterText(find.byType(TextField), 'Synthetic owner');
+      await tester.pump();
+      final searchController = tester
+          .widget<TextField>(find.byType(TextField))
+          .controller!;
+      final staleTap = tester
+          .widget<ChatInboxTile>(find.byType(ChatInboxTile))
+          .onTap;
+      expect(searchController.text, 'Synthetic owner');
+      expect(find.text('Synthetic owner'), findsNWidgets(2));
+
+      fixture.controller.clearLocalSession();
+      await tester.pumpAndSettle();
+      expect(searchController.text, '');
+      expect(find.text('Synthetic owner'), findsNothing);
+      expect(find.text('Synthetic property'), findsNothing);
+      expect(find.byType(ChatInboxSearch), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Your session changed. Sign in again.'), findsOneWidget);
+      staleTap();
+      await tester.pumpAndSettle();
+      expect(find.byType(ConversationScreen), findsNothing);
+      expect(
+        Navigator.of(
+          tester.element(find.byType(ConversationListScreen)),
+        ).canPop(),
+        false,
+      );
+      expect(find.text('Synthetic owner'), findsNothing);
+      expect(find.text('Synthetic property'), findsNothing);
+      final reads = fixture.transport.requests
+          .where((request) => request.uri.path == '/api/mobile/conversations')
+          .length;
+      await tester.pump(const Duration(seconds: 5));
+      expect(
+        fixture.transport.requests
+            .where((request) => request.uri.path == '/api/mobile/conversations')
+            .length,
+        reads,
+      );
+      await close(tester);
+    },
+  );
+
+  scenario(
+    'thread shows the peer, property, day groups and time-only footers',
+    (tester) async {
+      final first = DateTime(2020, 1, 2, 8, 10);
+      final second = DateTime(2020, 1, 2, 9, 25);
+      final nextDay = DateTime(2020, 1, 3, 10, 40);
+      fixture.transport.reply = (_) => json(
+        _messages(
+          messages: [
+            {
+              ..._message('message-0001', 'A first-day outgoing message'),
+              'createdAt': first.toUtc().toIso8601String(),
+            },
+            {
+              ..._message(
+                'message-0002',
+                'A first-day incoming message',
+                mine: false,
+              ),
+              'createdAt': second.toUtc().toIso8601String(),
+            },
+            {
+              ..._message('message-0003', 'A next-day outgoing message'),
+              'createdAt': nextDay.toUtc().toIso8601String(),
+            },
+          ],
+        ),
+      );
+      await show(
+        tester,
+        ConversationScreen(
+          repository: fixture.repository,
+          conversation: Conversation.parse(_conversation()),
+        ),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('Synthetic owner'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Property conversation'), findsOneWidget);
+      expect(find.text('Synthetic property'), findsOneWidget);
+      expect(find.byType(ChatDateSeparator), findsNWidgets(2));
+      expect(find.text('02/01/2020'), findsOneWidget);
+      expect(find.text('03/01/2020'), findsOneWidget);
+      expect(find.text('08:10'), findsOneWidget);
+      expect(find.text('09:25'), findsOneWidget);
+      expect(find.text('10:40'), findsOneWidget);
+      expect(find.byTooltip('02/01/2020 08:10'), findsOneWidget);
+      expect(find.byTooltip('03/01/2020 10:40'), findsOneWidget);
+      expect(find.byTooltip('Sent'), findsNWidgets(2));
+      expect(find.text('Online'), findsNothing);
+      expect(find.text('Typing...'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await close(tester);
+    },
+  );
 
   scenario('only message-read responses can advance the history cursor', (
     tester,
@@ -395,6 +573,7 @@ void main() {
       ),
     );
     await tester.enterText(find.byType(TextField), 'My sent message');
+    await tester.pump();
     await tester.tap(find.byTooltip('Send message'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 4));
@@ -464,6 +643,114 @@ void main() {
       hasLength(1),
     );
     expect(find.byTooltip('Send message'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await close(tester);
+  });
+
+  scenario(
+    'large-text narrow composer keeps uncertain retry reachable above the keyboard',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      const body =
+          'A property question.\nSecond line.\nThird line.\nFourth line.';
+      final attempts = <Map<String, dynamic>>[];
+      fixture.transport.reply = (request) {
+        if (request.method == 'POST') {
+          attempts.add(jsonDecode(request.body!) as Map<String, dynamic>);
+          if (attempts.length == 1) {
+            throw const SocketException('Synthetic uncertain send');
+          }
+          return json({'message': _message('message-0001', body)});
+        }
+        return json(_messages());
+      };
+      await signIn(tester);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: ConversationScreen(
+            repository: fixture.repository,
+            conversation: Conversation.parse(_conversation()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final composer = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.hintText == 'Message',
+      );
+      await tester.enterText(composer, body);
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send message'));
+      await tester.pumpAndSettle();
+      expect(attempts, hasLength(1));
+      expect(tester.widget<TextField>(composer).readOnly, true);
+      final fieldRect = tester.getRect(composer);
+      final retryRect = tester.getRect(find.byTooltip('Retry same message'));
+      expect(retryRect.left, greaterThan(fieldRect.right));
+      expect(retryRect.width, greaterThanOrEqualTo(48));
+      expect(retryRect.height, greaterThanOrEqualTo(48));
+      expect(retryRect.bottom, lessThanOrEqualTo(380));
+      expect(tester.takeException(), isNull);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(attempts, hasLength(1));
+      await tester.tap(find.byTooltip('Retry same message'));
+      await tester.pumpAndSettle();
+      expect(attempts, hasLength(2));
+      expect(attempts[1], attempts[0]);
+      expect(tester.widget<TextField>(composer).controller!.text, '');
+      expect(find.byTooltip('Retry same message'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await close(tester);
+    },
+  );
+
+  scenario('long unbroken message stays within a narrow large-text bubble', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final body = List.filled(800, 'W').join();
+    fixture.transport.reply = (_) => json(
+      _messages(messages: [_message('message-0001', body, mine: false)]),
+    );
+    await signIn(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: ConversationScreen(
+          repository: fixture.repository,
+          conversation: Conversation.parse(_conversation()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final message = find.byWidgetPredicate(
+      (widget) => widget is SelectableText && widget.data == body,
+    );
+    expect(message, findsOneWidget);
+    expect(tester.getRect(message).width, lessThanOrEqualTo(292));
+    expect(find.byTooltip('Sent'), findsNothing);
+    expect(find.byTooltip('Read'), findsNothing);
     expect(tester.takeException(), isNull);
     await close(tester);
   });
@@ -766,6 +1053,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Private pending receipt'), findsNothing);
+    expect(find.text('Synthetic owner'), findsNothing);
+    expect(find.text('Synthetic property'), findsNothing);
+    expect(find.text('Property conversation'), findsNothing);
     expect(find.byTooltip('Read'), findsNothing);
     expect(find.text('Your session changed. Sign in again.'), findsOneWidget);
     await close(tester);
@@ -826,6 +1116,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(fixture.controller.verified, false);
     expect(find.text('Private history'), findsNothing);
+    expect(find.text('Synthetic owner'), findsNothing);
+    expect(find.text('Synthetic property'), findsNothing);
+    expect(find.text('Property conversation'), findsNothing);
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Your session changed. Sign in again.'), findsOneWidget);
     await close(tester);
@@ -852,6 +1145,9 @@ void main() {
     fixture.controller.clearLocalSession();
     await tester.pumpAndSettle();
     expect(find.text('Private synthetic message'), findsNothing);
+    expect(find.text('Synthetic owner'), findsNothing);
+    expect(find.text('Synthetic property'), findsNothing);
+    expect(find.text('Property conversation'), findsNothing);
     expect(find.byType(TextField), findsNothing);
     await close(tester);
   });

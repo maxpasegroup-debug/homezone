@@ -1457,13 +1457,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
           ListTile(
             title: const Text('Messages'),
             leading: const Icon(Icons.forum_outlined),
-            onTap: () => Navigator.push<void>(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    ConversationListScreen(repository: widget.repository),
-              ),
-            ),
+            onTap: () => changeTab(5),
           ),
           ListTile(
             title: const Text('Membership & contact credits'),
@@ -1598,19 +1592,66 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
       ),
     ),
   );
-  void changeTab(int value) {
-    if (loading || mutating) return;
+  void _returnToProfile() {
+    if (tab != 3) return;
     setState(() {
+      revision++;
+      accountEpoch++;
+      collectionPending.clear();
+      tab = 4;
+      loading = false;
+      _loadingMore = false;
+      error = null;
+    });
+    requestListingRefresh();
+    if (account == null && verified) load();
+  }
+
+  void changeTab(int value) {
+    if (mutating || (loading && value != 5)) return;
+    setState(() {
+      if (value == 5) {
+        // Opening the inbox must not wait for an unrelated catalogue read.
+        // Existing generation/epoch guards discard those late responses.
+        revision++;
+        accountEpoch++;
+        collectionPending.clear();
+        loading = false;
+        _loadingMore = false;
+      }
       tab = value;
       error = null;
     });
     requestListingRefresh();
-    load();
+    if (value != 5) load();
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (tab == 5 && verified) {
+      return ConversationListScreen(
+        key: ValueKey(
+          'buyer-messages:${widget.repository.session.identity!.id}:${widget.repository.coordinator.generation}',
+        ),
+        repository: widget.repository,
+        bottomNavigationBar: _bottomNavigation(),
+      );
+    }
+    final page = _marketplaceScaffold();
+    if (tab != 3) return page;
+    // Enquiries remain a Profile subsection, with both app-bar and system Back.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _returnToProfile();
+      },
+      child: page,
+    );
+  }
+
+  Widget _marketplaceScaffold() => Scaffold(
     appBar: AppBar(
+      leading: tab == 3 ? BackButton(onPressed: _returnToProfile) : null,
       toolbarHeight: 76,
       titleSpacing: 20,
       title: tab == 0
@@ -1650,6 +1691,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
                 1 => 'Search',
                 2 => 'Saved',
                 3 => 'Enquiries',
+                5 => 'Messages',
                 _ => 'Profile',
               },
               maxLines: 1,
@@ -1769,60 +1811,66 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
         ],
       ),
     ),
-    bottomNavigationBar: NavigationBarTheme(
-      data: NavigationBarThemeData(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-        indicatorColor: Theme.of(
-          context,
-        ).colorScheme.primary.withValues(alpha: .1),
-        labelTextStyle: WidgetStateProperty.resolveWith(
-          (states) => TextStyle(
-            fontSize: 11,
-            height: 1.2,
-            fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w700
-                : FontWeight.w500,
-            color: states.contains(WidgetState.selected)
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+    bottomNavigationBar: _bottomNavigation(),
+  );
+
+  Widget _bottomNavigation() => NavigationBarTheme(
+    data: NavigationBarThemeData(
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+      indicatorColor: Theme.of(
+        context,
+      ).colorScheme.primary.withValues(alpha: .1),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          fontSize: 11,
+          height: 1.2,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w700
+              : FontWeight.w500,
+          color: states.contains(WidgetState.selected)
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
-      child: NavigationBar(
-        height: MediaQuery.textScalerOf(context).scale(1) > 1.4 ? 92 : 76,
-        labelBehavior: MediaQuery.textScalerOf(context).scale(1) > 1.4
-            ? NavigationDestinationLabelBehavior.onlyShowSelected
-            : NavigationDestinationLabelBehavior.alwaysShow,
-        selectedIndex: tab,
-        onDestinationSelected: changeTab,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            selectedIcon: Icon(Icons.manage_search_rounded),
-            label: 'Search',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.favorite_border),
-            selectedIcon: Icon(Icons.favorite_rounded),
-            label: 'Saved',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble_rounded),
-            label: 'Enquiries',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Profile',
-          ),
-        ],
-      ),
+    ),
+    child: NavigationBar(
+      height: MediaQuery.textScalerOf(context).scale(1) > 1.4 ? 92 : 76,
+      labelBehavior: MediaQuery.textScalerOf(context).scale(1) > 1.4
+          ? NavigationDestinationLabelBehavior.onlyShowSelected
+          : NavigationDestinationLabelBehavior.alwaysShow,
+      selectedIndex: tab == 5
+          ? 3
+          : tab == 3
+          ? 4
+          : tab,
+      onDestinationSelected: (index) => changeTab(index == 3 ? 5 : index),
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home_rounded),
+          label: 'Home',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.search),
+          selectedIcon: Icon(Icons.manage_search_rounded),
+          label: 'Search',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.favorite_border),
+          selectedIcon: Icon(Icons.favorite_rounded),
+          label: 'Saved',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.forum_outlined),
+          selectedIcon: Icon(Icons.forum_rounded),
+          label: 'Messages',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person_rounded),
+          label: 'Profile',
+        ),
+      ],
     ),
   );
 }

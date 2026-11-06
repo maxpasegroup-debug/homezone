@@ -362,6 +362,18 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     }
   }
 
+  void _openMessages(String scope) {
+    if (!_current(scope)) return;
+    if (repository.session.identity!.role == 'OWNER') {
+      final index = workspaceDestinations(
+        'OWNER',
+      ).indexWhere((destination) => destination.label == 'Messages');
+      if (index >= 0) _selectTab(scope, index);
+      return;
+    }
+    _push(scope, (_) => ConversationListScreen(repository: repository));
+  }
+
   void _browse(String scope) {
     if (_current(scope)) Navigator.pushNamed(context, '/discovery');
   }
@@ -591,6 +603,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       final destination = destinations[tab];
       final module = destination.module;
       final navigation = _navigation(scope, identity.role, tab, destinations);
+      if (identity.role == 'OWNER' && destination.label == 'Messages') {
+        return ConversationListScreen(
+          key: ValueKey('$scope:messages'),
+          repository: repository,
+          bottomNavigationBar: navigation,
+        );
+      }
       if (module != null) {
         return Scaffold(
           body: WorkspaceRecords(
@@ -646,10 +665,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   scope,
                   (_) => WorkspaceProfileScreen(repository: repository),
                 ),
-                onMessages: () => _push(
-                  scope,
-                  (_) => ConversationListScreen(repository: repository),
-                ),
+                onMessages: () => _openMessages(scope),
                 onMembership: () => _push(
                   scope,
                   (_) => MembershipScreen(repository: repository),

@@ -517,6 +517,9 @@ void main() {
             'nextCursor': null,
           });
         }
+        if (request.uri.path == '/api/mobile/conversations') {
+          return json({'conversations': []});
+        }
         return json({
           'profile': {'fullName': 'Synthetic Buyer'},
           'saved': saved ? [sample] : [],
@@ -545,11 +548,26 @@ void main() {
       expect(find.text('Synthetic home'), findsOneWidget);
       await tester.tap(find.byType(NavigationDestination).at(3));
       await tester.pumpAndSettle();
+      expect(find.text('No conversations yet'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      await tester.tap(find.byType(NavigationDestination).at(4));
+      await tester.pumpAndSettle();
+      expect(find.text('Synthetic Buyer'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('My Enquiries').hitTestable(), 220);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('My Enquiries'));
+      await tester.pumpAndSettle();
       expect(
         find.text('No enquiries yet. Open a property to enquire.'),
         findsOneWidget,
       );
-      await tester.tap(find.byType(NavigationDestination).at(4));
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        4,
+      );
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Synthetic Buyer').hitTestable(), -220);
       await tester.pumpAndSettle();
       expect(find.text('Synthetic Buyer'), findsOneWidget);
       f.controller.clearLocalSession();

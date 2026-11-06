@@ -1,5 +1,96 @@
 # HOMEZONE integration implementation status
 
+## Familiar inbox and thread presentation - COMPILED / BUYER ANDROID VERIFIED - 2026-11-06
+
+`lib/features/engagement/chat_presentation.dart` and
+`lib/features/engagement/engagement_screens.dart` provide compact avatar rows,
+local peer/property search, clear empty/no-match states, a peer/property thread
+header, date-separated grouped bubbles and a rounded composer with an adjacent
+send button. Incoming messages stay left and outgoing messages right; true
+message times and existing server-backed receipt ticks are retained. The inbox
+uses only available conversation metadata, with no fake unread/online status or
+unsupported call/attachment actions.
+
+The previously verified Buyer/Owner bottom tabs are preserved. Session-bound
+private-state clearing, peer-header gating, polling and viewport receipt logic
+remain in place. No backend/authentication/schema/configuration changes are
+part of this presentation slice. **101/101 focused tests across eight files PASS**:
+search/clear, stale taps, narrow 320x640/2x keyboard layout, uncertain idempotent
+retry, long messages/final-message visibility and existing receipt/privacy,
+navigation and role regressions. Source analysis exits 0 with zero errors/warnings
+and 42 informational style findings. Evidence:
+`build/chat-verification/chat-ui-focused-final-20261106.log`.
+
+The explicit staging Flutter run built in 52.7s and installed in 21.7s. Actual
+Android Buyer rendering verified the inbox, search no-match/clear and an existing
+staging thread with both bubble sides, day separator, times, blue double-read
+ticks and rounded empty composer/send disabled. The existing Buyer session was
+already restored; no fresh login, new account or new message was used in this
+presentation check. Updated Owner presentation has shared-widget/test coverage,
+but no fresh Owner native pass. The emulator soft keyboard did not appear;
+keyboard stress is verified through widget tests, not the focused composer PNG.
+Actual Android evidence: `build/chat-verification/chat-ui-buyer-inbox-20261106.png`,
+`chat-ui-search-no-results-20261106.png`, `chat-ui-buyer-thread-20261106.png`.
+Back returned to the selected Messages tab; the cleared search and inbox were
+visible in `chat-ui-return-inbox-20261106.png`. Verification metadata is in
+`build/chat-verification/chat-ui-verification-20261106.json`.
+
+Latest APK: `build/app/outputs/flutter-apk/app-debug.apk`, x86_64 emulator debug,
+100,135,339 bytes, SHA256
+`1add4084c2d835f5c00f05a9eb3c7ac1420ea0afa59fa33031e25a10375e660b`.
+Build/run: `flutter run --no-pub -d emulator-5554 --dart-define-from-file=config/staging.local.json`
+from `mobile-app/`. The earlier APK hashes below are superseded, not current
+artifact identifiers. No backend source/schema/configuration/deployment changes.
+
+## Primary Messages bottom tabs - COMPILED / ANDROID VERIFIED - 2026-11-06
+
+From `main/c282aa60315fe3ba2bd621d932815497586e2277`, Owner navigation is
+Home / Listings / Enquiries / Messages / More. Buyer navigation is
+Home / Search / Saved / Messages / Profile. Both open the existing scoped inbox
+as the actual tab child, with its own Scaffold and shared bottom navigation.
+Leaving Messages disposes/cancels inbox polling; thread Back restores the selected
+Messages tab. Buyer Enquiries stays under Profile with both Back paths, including
+escape during a pending read and stale-response protection. Standalone inbox,
+authentication, receipts and backend contracts remain unchanged.
+
+**90 focused tests across seven files PASS**, including navigation/polling,
+logout/anonymous access and two pending-read Back regressions. Final analysis exits
+0 with zero errors/warnings and 40 existing informational style lints.
+
+The explicit staging Flutter APK build/install passed. Actual Buyer native login
+showed all five Buyer tabs; Messages (fourth) loaded the existing controlled Owner
+thread from staging with Messages selected and the bottom bar visible. Buyer
+Profile sign-out returned to role selection. Actual role-first Owner login showed
+all five Owner tabs; Messages (fourth) loaded the controlled Buyer thread with the
+same persistent bottom bar/selection. Captures:
+`build/chat-verification/buyer-messages-bottom-tab-20261106.png` and
+`owner-messages-bottom-tab-20261106.png` were visually reviewed. No new accounts,
+messages, listings or payments were created. Final Owner sign-out returned to
+Welcome Back / Sign In with server acknowledgement/local clearing and zero
+encrypted-vault entries. Both controlled native sessions in this slice were
+explicitly signed out; final app state is unauthenticated Sign In.
+
+An initial Android DeadSystemException/JNI/FUSE failure interrupted presentation.
+Rebooting the existing emulator preserved app data and recovered normal onboarding
+and both role checks. No renderer/theme/native-window changes were made; this is
+not a claimed permanent fix for historical black-screen causes.
+
+Earlier Nov 6 navigation x64 emulator APK (superseded above): `build/app/outputs/flutter-apk/app-debug.apk`
+(same hash at `outputs/apk/debug/app-debug.apk`), 100,135,339 bytes, SHA256
+`2cf8f0f3c37a0d6064b0eafd7f8424e9deaec61b9419bb9cce23596e93b19962`.
+The older Nov 5 hashes below are historical; this x64 check does not verify ARM
+physical-device compatibility.
+
+Build/launch used `C:\src\flutter\bin\flutter.bat run --no-pub -d emulator-5554 --dart-define-from-file=config/staging.local.json`
+from `mobile-app/`. After emulator recovery, Android launched the already-installed
+`com.example.homezone_mobile/.MainActivity`; no replacement build was used.
+
+No backend, schema, migration, deployment, variables, production, commit or push
+changes. Existing verified chat/receipts below are not a new paid-purchase claim.
+Evidence: `build/chat-verification/bottom-messages-focused-final-20261106.log`,
+`bottom-messages-analysis-final-20261106.log` and
+`bottom-messages-recovery-20261106.png`.
+
 ## Chat receipt ticks - BACKEND CONNECTED / ANDROID VERIFIED - 2026-11-05
 
 Outgoing messages show Sent (one grey tick), Delivered (two grey ticks) and

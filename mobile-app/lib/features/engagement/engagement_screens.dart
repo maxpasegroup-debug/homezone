@@ -7,6 +7,7 @@ import '../../app/session_scope.dart';
 import '../../core/api/api_client.dart';
 import '../../shared/ui/loading_skeleton.dart';
 import '../marketplace/marketplace_repository.dart';
+import 'chat_presentation.dart';
 import 'engagement_repository.dart';
 
 /// Private feature state is bound to one verified account and cookie generation.
@@ -655,8 +656,13 @@ class _PropertyContactActionsState extends State<PropertyContactActions>
 }
 
 class ConversationListScreen extends StatefulWidget {
-  const ConversationListScreen({super.key, required this.repository});
+  const ConversationListScreen({
+    super.key,
+    required this.repository,
+    this.bottomNavigationBar,
+  });
   final MarketplaceRepository repository;
+  final Widget? bottomNavigationBar;
   @override
   State<ConversationListScreen> createState() => _ConversationListState();
 }
@@ -668,6 +674,7 @@ class _ConversationListState extends State<ConversationListScreen>
         RouteAware {
   @override
   MarketplaceRepository get marketplace => widget.repository;
+  final search = TextEditingController();
   List<Conversation> conversations = [];
   bool loading = true, reading = false, foreground = true, visible = true;
   String? error;
@@ -729,6 +736,7 @@ class _ConversationListState extends State<ConversationListScreen>
   void clearPrivateState() {
     epoch++;
     timer?.cancel();
+    search.clear();
     conversations = [];
     error = null;
     loading = false;
@@ -740,6 +748,7 @@ class _ConversationListState extends State<ConversationListScreen>
   void dispose() {
     epoch++;
     timer?.cancel();
+    search.dispose();
     observer?.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -787,76 +796,107 @@ class _ConversationListState extends State<ConversationListScreen>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Messages'),
-      actions: [
-        IconButton(
-          tooltip: 'Refresh messages',
-          onPressed: current && !loading ? _load : null,
-          icon: const Icon(Icons.refresh),
+  Widget build(BuildContext context) {
+    final query = search.text.trim().toLowerCase();
+    final matching = conversations.where(
+      (item) =>
+          query.isEmpty ||
+          item.peerName.toLowerCase().contains(query) ||
+          item.propertyTitle.toLowerCase().contains(query),
+    );
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+      appBar: AppBar(
+        automaticallyImplyLeading: widget.bottomNavigationBar == null,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+        toolbarHeight: 68,
+        title: const Text(
+          'Messages',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -.6,
+          ),
         ),
-      ],
-    ),
-    body: !current
-        ? _sessionEnded()
-        : loading && conversations.isEmpty
-        ? const LoadingSkeleton(
-            layout: SkeletonLayout.rows,
-            padding: EdgeInsets.all(20),
-            scrollable: true,
-            label: 'Loading conversations',
-          )
-        : RefreshIndicator.noSpinner(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              physics: const AlwaysScrollableScrollPhysics(),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh messages',
+            onPressed: current && !loading ? _load : null,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: !current
+          ? _sessionEnded()
+          : Column(
               children: [
-                if (error != null)
-                  _error(context, error!, loading ? null : _load),
-                if (!loading && error == null && conversations.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Column(
-                      children: [
-                        Icon(Icons.chat_bubble_outline, size: 48),
-                        SizedBox(height: 16),
-                        Text('No conversations yet'),
-                        SizedBox(height: 8),
-                        Text(
-                          'Buyers can start a chat from a published property. Owners can reply here for free.',
-                        ),
-                      ],
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  child: ChatInboxSearch(
+                    controller: search,
+                    onChanged: (_) {
+                      if (current) setState(() {});
+                    },
                   ),
-                for (final conversation in conversations)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.chat_bubble_outline),
-                      title: Text(conversation.peerName),
-                      subtitle: Text(
-                        '${conversation.propertyTitle}${conversation.blocked ? '\nMessaging blocked' : ''}',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        await Navigator.push<void>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ConversationScreen(
-                              repository: marketplace,
-                              conversation: conversation,
-                            ),
+                ),
+                Expanded(
+                  child: loading && conversations.isEmpty
+                      ? const LoadingSkeleton(
+                          layout: SkeletonLayout.rows,
+                          padding: EdgeInsets.all(20),
+                          scrollable: true,
+                          label: 'Loading conversations',
+                        )
+                      : RefreshIndicator.noSpinner(
+                          onRefresh: _load,
+                          child: ListView(
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: const EdgeInsets.only(bottom: 24),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              if (error != null)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                  child: _error(
+                                    context,
+                                    error!,
+                                    loading ? null : _load,
+                                  ),
+                                ),
+                              if (!loading && error == null && matching.isEmpty)
+                                ChatInboxEmpty(searching: query.isNotEmpty),
+                              for (final conversation in matching)
+                                ChatInboxTile(
+                                  conversation: conversation,
+                                  onTap: () async {
+                                    if (!current) return;
+                                    FocusScope.of(context).unfocus();
+                                    await Navigator.push<void>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => !current
+                                            ? Scaffold(body: _sessionEnded())
+                                            : ConversationScreen(
+                                                repository: marketplace,
+                                                conversation: conversation,
+                                              ),
+                                      ),
+                                    );
+                                    if (current) _load();
+                                  },
+                                ),
+                            ],
                           ),
-                        );
-                        if (current) _load();
-                      },
-                    ),
-                  ),
+                        ),
+                ),
               ],
             ),
-          ),
-  );
+      bottomNavigationBar: widget.bottomNavigationBar,
+    );
+  }
 }
 
 class ConversationScreen extends StatefulWidget {
@@ -1207,12 +1247,21 @@ class _ConversationState extends State<ConversationScreen>
     }
   }
 
-  void _showLatest() {
+  void _showLatest({int remainingLayouts = 5}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (active && scroll.hasClients) {
-        scroll.jumpTo(scroll.position.maxScrollExtent);
-      }
+      if (!active ||
+          !scroll.hasClients ||
+          scroll.position.isScrollingNotifier.value)
+        return;
+      final target = scroll.position.maxScrollExtent;
+      if ((target - scroll.position.pixels).abs() < .5) return;
+      scroll.jumpTo(target);
+      // Lazy layout refines the extent as variable-height bubbles enter view.
+      // Follow those refinements for a bounded number of frames, never a drag.
+      if (remainingLayouts > 0)
+        _showLatest(remainingLayouts: remainingLayouts - 1);
     });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   String _messageId() {
@@ -1342,10 +1391,168 @@ class _ConversationState extends State<ConversationScreen>
     );
   }
 
+  bool _sameDay(DateTime first, DateTime second) {
+    final a = first.toLocal(), b = second.toLocal();
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  String _dateLabel(DateTime value) {
+    final now = DateTime.now();
+    if (_sameDay(value, now)) return 'Today';
+    if (_sameDay(value, DateTime(now.year, now.month, now.day - 1))) {
+      return 'Yesterday';
+    }
+    return _day(value.toLocal());
+  }
+
+  List<Widget> _messageItems() {
+    final colors = Theme.of(context).colorScheme;
+    final result = <Widget>[];
+    for (var index = 0; index < messages.length; index++) {
+      final message = messages[index];
+      final startsDay =
+          index == 0 ||
+          !_sameDay(messages[index - 1].createdAt, message.createdAt);
+      final grouped = !startsDay && messages[index - 1].mine == message.mine;
+      if (startsDay) {
+        result.add(ChatDateSeparator(label: _dateLabel(message.createdAt)));
+      }
+      final local = message.createdAt.toLocal();
+      final time =
+          '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')}';
+      result.add(
+        Align(
+          alignment: message.mine
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          child: Container(
+            key: messageKeys.putIfAbsent(message.id, GlobalKey.new),
+            margin: EdgeInsets.only(top: grouped ? 3 : 9),
+            padding: const EdgeInsets.fromLTRB(13, 10, 11, 8),
+            constraints: BoxConstraints(
+              maxWidth: min(MediaQuery.sizeOf(context).width * .82, 420),
+            ),
+            decoration: BoxDecoration(
+              color: message.mine
+                  ? Color.alphaBlend(
+                      colors.primary.withValues(alpha: .11),
+                      colors.surfaceContainerLowest,
+                    )
+                  : colors.surfaceContainerLowest,
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: .35),
+                width: .6,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(!message.mine && grouped ? 5 : 18),
+                topRight: Radius.circular(message.mine && grouped ? 5 : 18),
+                bottomLeft: Radius.circular(message.mine ? 18 : 5),
+                bottomRight: Radius.circular(message.mine ? 5 : 18),
+              ),
+            ),
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.end,
+              spacing: 9,
+              runSpacing: 5,
+              children: [
+                SelectableText(
+                  message.body,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.45,
+                    color: colors.onSurface,
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: '${_day(local)} $time',
+                      child: Text(
+                        time,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    if (message.mine) ...[
+                      const SizedBox(width: 4),
+                      _messageStatus(message),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return result;
+  }
+
+  Widget _propertyContext() {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: colors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: .55),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.home_work_outlined, size: 23, color: colors.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.conversation.propertyTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 8, 6, 0),
+            child: Text(
+              'Never share PINs, passwords or payment codes in chat.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 10.5, color: colors.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Color.alphaBlend(
+      Theme.of(context).colorScheme.primary.withValues(alpha: .035),
+      Theme.of(context).colorScheme.surface,
+    ),
     appBar: AppBar(
-      title: const Text('Property chat'),
+      toolbarHeight: MediaQuery.textScalerOf(context).scale(1) > 1.4 ? 80 : 64,
+      titleSpacing: 0,
+      title: current
+          ? ChatThreadTitle(peerName: widget.conversation.peerName)
+          : const Text('Messages'),
       actions: [
         if (current)
           PopupMenuButton<String>(
@@ -1371,27 +1578,8 @@ class _ConversationState extends State<ConversationScreen>
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.conversation.propertyTitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Text(widget.conversation.peerName),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Never share PINs, passwords or payment codes in chat.',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
+              if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                _propertyContext(),
               Expanded(
                 child: loading && messages.isEmpty
                     ? const LoadingSkeleton(
@@ -1403,7 +1591,9 @@ class _ConversationState extends State<ConversationScreen>
                     : ListView(
                         key: messageViewport,
                         controller: scroll,
-                        padding: const EdgeInsets.all(16),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
                         children: [
                           if (messages.isEmpty && error == null)
                             const Padding(
@@ -1412,53 +1602,33 @@ class _ConversationState extends State<ConversationScreen>
                                 'Start the conversation about this property.',
                               ),
                             ),
-                          for (final message in messages)
-                            Align(
-                              alignment: message.mine
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                              child: Container(
-                                key: messageKeys.putIfAbsent(
-                                  message.id,
-                                  GlobalKey.new,
-                                ),
-                                margin: const EdgeInsets.only(bottom: 10),
-                                padding: const EdgeInsets.all(12),
-                                constraints: const BoxConstraints(
-                                  maxWidth: 340,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: message.mine
-                                      ? Theme.of(
-                                          context,
-                                        ).colorScheme.primaryContainer
-                                      : Theme.of(
-                                          context,
-                                        ).colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SelectableText(message.body),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          '${_day(message.createdAt.toLocal())} · '
-                                          '${message.createdAt.toLocal().hour.toString().padLeft(2, '0')}:'
-                                          '${message.createdAt.toLocal().minute.toString().padLeft(2, '0')}',
-                                          style: const TextStyle(fontSize: 10),
-                                        ),
-                                        if (message.mine) ...[
-                                          const SizedBox(width: 6),
-                                          _messageStatus(message),
-                                        ],
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                          ..._messageItems(),
+                          if (error != null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              child: _error(
+                                context,
+                                error!,
+                                reading ? null : _load,
+                              ),
+                            ),
+                          if (receiptError != null && !blocked)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+                              child: Text(
+                                receiptError!,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          if (blocked)
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                blockedByMe
+                                    ? 'You blocked this conversation. Unblock it from the menu to continue.'
+                                    : 'Messaging is unavailable for this conversation.',
                               ),
                             ),
                           if (hasMore)
@@ -1469,75 +1639,101 @@ class _ConversationState extends State<ConversationScreen>
                         ],
                       ),
               ),
-              if (error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _error(context, error!, reading ? null : _load),
-                ),
-              if (receiptError != null && !blocked)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-                  child: Text(
-                    receiptError!,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              if (blocked)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    blockedByMe
-                        ? 'You blocked this conversation. Unblock it from the menu to continue.'
-                        : 'Messaging is unavailable for this conversation.',
-                  ),
-                ),
               if (!blocked)
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: composer,
-                            readOnly: sending || pending != null,
-                            minLines: 1,
-                            maxLines: 4,
-                            maxLength: 2000,
-                            decoration: const InputDecoration(
-                              labelText: 'Message',
-                              hintText: 'Ask about this property',
-                              counterText: '',
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outlineVariant.withValues(alpha: .4),
+                        width: .6,
+                      ),
+                    ),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: composer,
+                              readOnly: sending || pending != null,
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 2000,
+                              keyboardType: TextInputType.multiline,
+                              textCapitalization: TextCapitalization.sentences,
+                              textInputAction: TextInputAction.newline,
+                              style: const TextStyle(fontSize: 15, height: 1.4),
+                              decoration: InputDecoration(
+                                hintText: 'Message',
+                                counterText: '',
+                                filled: true,
+                                fillColor: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest
+                                    .withValues(alpha: .55),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 13,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(26),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(26),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(26),
+                                  borderSide: BorderSide(
+                                    color: Theme.of(context).colorScheme.primary
+                                        .withValues(alpha: .45),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox.square(
-                          dimension: 48,
-                          child: IconButton.filled(
-                            onPressed: sending || acting || loading
-                                ? null
-                                : _send,
-                            tooltip: sending
-                                ? 'Sending…'
-                                : pending != null
-                                ? 'Retry same message'
-                                : 'Send message',
-                            style: IconButton.styleFrom(
-                              shape: const CircleBorder(),
-                            ),
-                            icon: Icon(
-                              sending
-                                  ? Icons.more_horiz
-                                  : pending != null
-                                  ? Icons.refresh
-                                  : Icons.send_rounded,
+                          const SizedBox(width: 8),
+                          SizedBox.square(
+                            dimension: 48,
+                            child: ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: composer,
+                              builder: (context, value, _) => IconButton.filled(
+                                onPressed:
+                                    sending ||
+                                        acting ||
+                                        loading ||
+                                        (pending == null &&
+                                            value.text.trim().isEmpty)
+                                    ? null
+                                    : _send,
+                                tooltip: sending
+                                    ? 'Sending…'
+                                    : pending != null
+                                    ? 'Retry same message'
+                                    : 'Send message',
+                                style: IconButton.styleFrom(
+                                  shape: const CircleBorder(),
+                                ),
+                                icon: Icon(
+                                  sending
+                                      ? Icons.more_horiz
+                                      : pending != null
+                                      ? Icons.refresh
+                                      : Icons.send_rounded,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

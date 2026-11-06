@@ -1,5 +1,132 @@
 # HomeZone subscriptions and property chat
 
+## Familiar messaging presentation - COMPILED / BUYER ANDROID VERIFIED - 2026-11-06
+
+The existing Buyer/Owner Messages destinations now use a compact avatar inbox
+with local search by peer name or property title. Rows show the actual peer,
+property and conversation update time; initials are presentation, not fetched
+profile photos. Empty and no-match states are distinct. No message preview,
+unread count or online indicator is fabricated.
+
+Threads use a peer-focused header, compact property context, day separators and
+grouped incoming-left/outgoing-right bubbles. Footers show the message time and
+the existing server-backed Sent/Delivered/Read ticks. A rounded multiline
+composer keeps the send button beside the field, disables empty submissions and
+retains the existing same-message retry behavior. Property context is hidden
+while the keyboard is open to leave room for messages. Unsupported attachment,
+voice and call controls are not introduced.
+
+Presentation is isolated in
+`lib/features/engagement/chat_presentation.dart`, integrated by
+`lib/features/engagement/engagement_screens.dart`. The existing backend contracts,
+polling, viewport receipt checks and account/session-generation guards remain.
+Search is cleared with private state; the peer header is shown only for the
+current authenticated session. The earlier verified bottom tabs remain intact.
+**101/101 focused tests across eight files PASS**, including local search/clear,
+stale inbox taps, 320x640 at 2x text with keyboard insets, uncertain-send
+idempotent retry, long unbroken messages, final-message visibility and existing
+receipt/privacy/navigation/role checks. Source analysis exits 0 with zero
+errors/warnings and 42 informational style findings. Evidence:
+`build/chat-verification/chat-ui-focused-final-20261106.log`.
+
+Explicit staging `flutter run --no-pub -d emulator-5554 --dart-define-from-file=config/staging.local.json`
+built in 52.7s and installed in 21.7s. Actual Android Buyer rendering showed the
+new inbox, search no-match/clear, an existing staging conversation with both
+bubble sides, day chip, times, blue double-read ticks and rounded empty composer
+with send disabled. Back returned to the selected Messages tab. The existing Buyer session was already restored;
+no fresh account login, account creation or new message send occurred in this
+presentation run. The Owner uses the same widgets and is covered by the tests,
+but no fresh Owner native presentation pass was performed for this polish.
+
+Visually reviewed Android evidence under `build/chat-verification/`:
+`chat-ui-buyer-inbox-20261106.png`, `chat-ui-search-no-results-20261106.png` and
+`chat-ui-buyer-thread-20261106.png`. The focused composer capture
+`chat-ui-thread-keyboard-20261106.png` does **not** prove native soft-keyboard
+presentation: the emulator IME did not appear. Keyboard/layout stress is verified
+in widget tests only. No backend, schema, configuration or deployment change was
+made for this slice.
+
+Back/tab retention and embedded new APK labels are also recorded in
+`build/chat-verification/chat-ui-verification-20261106.json`.
+
+Latest presentation artifact: `build/app/outputs/flutter-apk/app-debug.apk`,
+100,135,339 bytes, SHA256
+`1add4084c2d835f5c00f05a9eb3c7ac1420ea0afa59fa33031e25a10375e660b`.
+It is an **x86_64 emulator debug APK**, not a verified ARM phone build. This
+supersedes the navigation-only APK hash below.
+
+## Messages in bottom navigation - COMPILED / ANDROID VERIFIED - 2026-11-06
+
+Baseline before this slice: `main/c282aa60315fe3ba2bd621d932815497586e2277`.
+Messages is now a primary destination rather than only a Profile/More action:
+
+- Owner: Home / Listings / Enquiries / **Messages** / More.
+- Buyer: Home / Search / Saved / **Messages** / Profile.
+- Buyer My Enquiries remains available inside Profile with app-bar and Android
+  Back navigation. Back can leave even while its account read is pending;
+  stale responses cannot replace the destination after navigation.
+
+Both destinations reuse `ConversationListScreen`, whose own Scaffold accepts the
+existing bottom bar. Selecting another tab disposes the inbox and cancels its
+polling; opening a thread and returning keeps Messages selected. Account/session
+generation keys and the existing private-state guards remain authoritative.
+Standalone inbox navigation, chat sending/receipts, authentication and backend
+contracts are unchanged. The fictional preview remains separate.
+
+Local verification: **90 focused tests across seven files PASS**, covering direct
+tabs, chat return, hidden polling, anonymous/logout boundaries and two delayed-read
+Back regressions. Final analysis exits 0 with zero errors/warnings and 40 existing
+informational style lints. Evidence:
+`build/chat-verification/bottom-messages-focused-final-20261106.log` and
+`bottom-messages-analysis-final-20261106.log`.
+
+**Actual Android navigation passed on emulator-5554 with existing controlled accounts:**
+
+| Account / action | Observed result |
+| --- | --- |
+| Buyer native sign-in | Real Buyer Home displayed Home / Search / Saved / Messages / Profile. |
+| Buyer Messages tab | Fourth destination opened the existing controlled Owner conversation from staging, with the bottom bar visible and Messages selected. Actual PNG `buyer-messages-bottom-tab-20261106.png` was visually reviewed. |
+| Buyer sign-out | Profile sign-out returned to unauthenticated role selection. |
+| Owner role-first native sign-in | Real Owner dashboard displayed Home / Listings / Enquiries / Messages / More. |
+| Owner Messages tab | Fourth destination opened the existing controlled Buyer conversation from staging, with the bottom bar visible and Messages selected. Actual PNG `owner-messages-bottom-tab-20261106.png` was visually reviewed. |
+| Final Owner cleanup | Normal sign-out returned to Welcome Back / Sign In, acknowledged server sign-out/local clearing, and left zero encrypted-vault entries. |
+
+No new accounts, chat messages, listings, payments or other business records were
+created by these navigation checks. Both native controlled sessions used for this
+slice were explicitly signed out; final app state is unauthenticated Sign In.
+The existing staging backend was used; no new backend activation was required.
+
+The initial presentation attempt encountered an Android **DeadSystemException**,
+JNI pending exception and a disconnected shared-storage FUSE endpoint. The existing
+emulator was rebooted with app data preserved, after which normal Android
+onboarding and both role navigation checks recovered. This establishes an OS
+failure event during this run, not a permanent root cause/fix for every earlier
+black-screen observation. No renderer, theme or native-window changes were made.
+Recovery capture: `build/chat-verification/bottom-messages-recovery-20261106.png`.
+
+### Earlier Nov 6 navigation debug APK (superseded)
+
+Explicit staging Flutter build/install succeeded (assemble 29.3s, install 16s).
+Command, from `mobile-app/`:
+
+```powershell
+& 'C:\src\flutter\bin\flutter.bat' run --no-pub -d emulator-5554 --dart-define-from-file=config/staging.local.json
+```
+
+After the OS failure and emulator reboot, the already-installed staging APK was
+reopened through `adb ... shell am start -n com.example.homezone_mobile/.MainActivity`;
+no additional build or installation was needed for the recovered role checks.
+The emulator artifact is **x64**, 100,135,339 bytes:
+`build/app/outputs/flutter-apk/app-debug.apk`; the copy at
+`build/app/outputs/apk/debug/app-debug.apk` has the same SHA256:
+`2cf8f0f3c37a0d6064b0eafd7f8424e9deaec61b9419bb9cce23596e93b19962`.
+This identifies the earlier Nov 6 navigation build, superseded by the presentation
+artifact above. The Nov 5 artifact hashes and checks below are also historical;
+x64 emulator verification does not establish physical ARM-device compatibility.
+
+No backend/schema/migration/deployment/variable/production, commit or push changes.
+This navigation work does not activate paid subscription purchasing.
+
 Implementation date: 2026-11-05. Starting source baseline:
 `49cb11af9d43a58b7f46c7029c27c694aa2d34af`.
 

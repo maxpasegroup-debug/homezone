@@ -1,5 +1,73 @@
 # HOMEZONE remaining integration blockers
 
+## Messaging presentation checked; remaining scope - 2026-11-06
+
+The familiar inbox/thread presentation is source implemented: compact avatars
+and local search, actual conversation metadata, peer/property context, grouped
+date-separated bubbles, existing receipt ticks and a rounded side-by-side
+composer. The earlier Buyer/Owner Messages bottom tabs and session privacy
+guards are preserved. No fake unread/online state or unsupported media/call
+controls were added; private chat remains the existing foreground HTTP polling
+workflow.
+
+**101/101 focused tests across eight files PASS**; source analysis exits 0 with
+zero errors/warnings and 42 informational style findings. Tests include search,
+stale taps, narrow/2x keyboard layout, uncertain-send retry, long-message/final
+visibility and the existing receipt/privacy/navigation/role checks. The explicit
+staging build/install passed, and actual Buyer Android inbox/search/thread
+presentation was visually verified using the already-restored Buyer session.
+Both bubble sides, day/time metadata, blue double-read ticks and the rounded
+empty composer/send-disabled state appeared correctly. No fresh login, account
+creation or new message send was performed for this UI slice.
+Back returned to the selected Messages tab with the cleared search and inbox.
+
+Remaining presentation coverage: no fresh Owner native pass for the new layout
+(shared widgets are tested); the emulator soft keyboard did not appear, so only
+widget tests establish keyboard-inset stress behavior. A focused composer PNG
+is not IME evidence. The current x86_64 emulator APK is 100,135,339 bytes, SHA256
+`1add4084c2d835f5c00f05a9eb3c7ac1420ea0afa59fa33031e25a10375e660b`, at
+`build/app/outputs/flutter-apk/app-debug.apk`; prior hashes below are historical.
+Physical ARM devices and broader OS/network coverage remain unverified.
+
+Evidence: `build/chat-verification/chat-ui-focused-final-20261106.log`,
+`chat-ui-buyer-inbox-20261106.png`, `chat-ui-search-no-results-20261106.png`,
+`chat-ui-buyer-thread-20261106.png`. No new backend, schema, migration, Railway or
+deployment operation occurred. Paid checkout, private chat push/WebSocket and
+attachments retain their separate limits.
+
+## Messages bottom-tab presentation verified; scoped remaining limits - 2026-11-06
+
+The requested primary Messages destination is implemented in source:
+Owner Home / Listings / Enquiries / Messages / More; Buyer Home / Search / Saved /
+Messages / Profile. Existing shared inbox/session guards, thread return and
+poll cancellation are retained. Buyer My Enquiries remains under Profile; its
+app-bar/system Back now leaves a pending read safely instead of waiting for it.
+The 90 focused tests across seven files pass. Final analysis exits 0 with zero
+errors/warnings and 40 existing informational style lints. The explicit staging
+APK build/install passed, and actual Buyer/Owner native sign-ins each showed the
+new five-tab bar. Their fourth Messages tab loaded the controlled peer thread
+from staging and retained the visible selected bottom bar. Actual Buyer and Owner
+Android PNGs were visually reviewed. Buyer sign-out returned to role
+selection. Final Owner sign-out returned to Welcome Back / Sign In, acknowledged
+server sign-out/local clearing and left zero encrypted-vault entries. Both native
+controlled sessions for this slice were explicitly signed out; no new accounts,
+messages, listings or payments were created. Final app state is unauthenticated
+Sign In, not an open private inbox.
+
+The first attempt encountered Android DeadSystemException/JNI/FUSE failure.
+Reboot of the existing emulator preserved app data and recovered Android display
+and both role checks. No renderer/theme/native-window changes were made, and no
+general historical black-screen root cause is claimed. This Nov 6 x64 APK is
+100,135,339 bytes with SHA256
+`2cf8f0f3c37a0d6064b0eafd7f8424e9deaec61b9419bb9cce23596e93b19962`, at
+`build/app/outputs/flutter-apk/app-debug.apk` and the matching `apk/debug` path.
+Physical ARM devices and broader OS/network conditions remain unverified.
+
+This source/UI slice needs no backend changes, schema/migration, Railway variable
+change or deployment. Existing free-chat/receipt activation remains valid; paid
+subscription checkout remains separately disabled/unverified. No production,
+commit or push operations. Baseline: `main/c282aa60315fe3ba2bd621d932815497586e2277`.
+
 ## Receipt activation resolved; remaining limits - 2026-11-05
 
 Staging deployment `967b0c35-876f-42ec-8051-264fed2fd336` is SUCCESS. After a listed

@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:homezone_mobile/core/api/api_transport.dart';
+import 'package:homezone_mobile/features/engagement/engagement_screens.dart';
 import 'package:homezone_mobile/features/marketplace/marketplace_screen.dart'
     show ListingImage;
+import 'package:homezone_mobile/features/workspace/workspace_dashboard.dart'
+    show WorkspaceMore;
 import 'package:homezone_mobile/features/workspace/workspace_screen.dart';
 import 'package:homezone_mobile/theme/app_theme.dart';
 
@@ -22,6 +25,9 @@ const _totals = {
 };
 
 ApiResponse _reply(Fixture fixture, ApiRequest request) {
+  if (request.uri.path == '/api/mobile/conversations') {
+    return json({'conversations': []});
+  }
   if (request.uri.path == '/api/mobile/summary') {
     return json({'source': 'database', 'metrics': _totals});
   }
@@ -95,7 +101,7 @@ Future<void> _tapDestination(WidgetTester tester, String label) async {
 
 void main() {
   const roles = {
-    'OWNER': ['Home', 'Listings', 'Enquiries', 'More'],
+    'OWNER': ['Home', 'Listings', 'Enquiries', 'Messages', 'More'],
     'BROKER': ['Home', 'Leads', 'Listings', 'Follow-ups', 'More'],
     'BUILDER': ['Home', 'Projects', 'More'],
     'SERVICE_PROVIDER': ['Home', 'Requests', 'Bookings', 'Profile', 'More'],
@@ -143,14 +149,22 @@ void main() {
                 .selectedIndex,
             index,
           );
-          expect(
-            fixture.transport.requests.last.uri.path,
-            '/api/mobile/workspace',
-          );
-          expect(
-            fixture.transport.requests.last.uri.queryParameters['module'],
-            modules[entry.key]![index - 1],
-          );
+          if (entry.value[index] == 'Messages') {
+            expect(
+              fixture.transport.requests.last.uri.path,
+              '/api/mobile/conversations',
+            );
+            expect(find.byType(ConversationListScreen), findsOneWidget);
+          } else {
+            expect(
+              fixture.transport.requests.last.uri.path,
+              '/api/mobile/workspace',
+            );
+            expect(
+              fixture.transport.requests.last.uri.queryParameters['module'],
+              modules[entry.key]![index - 1],
+            );
+          }
         }
         await _tapDestination(tester, 'More');
         expect(find.text('More'), findsWidgets);
@@ -176,6 +190,11 @@ void main() {
           expect(tester.takeException(), isNull);
           await tester.scrollUntilVisible(find.text('HOMEZONE Studio'), 220);
           expect(tester.takeException(), isNull);
+          if (entry.key == 'OWNER') {
+            await _tapDestination(tester, 'Messages');
+            expect(find.text('No conversations yet'), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          }
           await _tapDestination(tester, 'More');
           await tester.scrollUntilVisible(find.text('Sign out'), 220);
           expect(tester.takeException(), isNull);
@@ -186,6 +205,158 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'Owner Messages tab opens chats and returns to the selected inbox without hidden polling',
+    (tester) async {
+      final fixture = Fixture();
+      try {
+        await _open(
+          tester,
+          fixture,
+          'OWNER',
+          reply: (request) {
+            if (request.uri.path == '/api/mobile/conversations') {
+              return json({
+                'conversations': [
+                  {
+                    'id': 'conversation-0001',
+                    'propertyId': 'property-0001',
+                    'propertyTitle': 'Synthetic owner listing',
+                    'peerName': 'Synthetic buyer',
+                    'blocked': false,
+                    'blockedByMe': false,
+                    'updatedAt': '2026-11-06T08:00:00.000Z',
+                  },
+                ],
+              });
+            }
+            if (request.uri.path.endsWith('/messages')) {
+              return json({
+                'messages': [],
+                'nextCursor': null,
+                'hasMore': false,
+                'blocked': false,
+                'blockedByMe': false,
+                'propertyTitle': 'Synthetic owner listing',
+              });
+            }
+            return _reply(fixture, request);
+          },
+        );
+        await _tapDestination(tester, 'Messages');
+        expect(find.byType(ConversationListScreen), findsOneWidget);
+        expect(find.byType(BackButton), findsNothing);
+        expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .selectedIndex,
+          3,
+        );
+        await tester.tap(find.text('Synthetic buyer'));
+        await tester.pumpAndSettle();
+        expect(find.byType(ConversationScreen), findsOneWidget);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(find.byType(ConversationListScreen), findsOneWidget);
+        expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .selectedIndex,
+          3,
+        );
+        await _tapDestination(tester, 'Home');
+        final inboxReads = fixture.transport.requests
+            .where((request) => request.uri.path == '/api/mobile/conversations')
+            .length;
+        await tester.pump(const Duration(seconds: 8));
+        await tester.pumpAndSettle();
+        expect(find.byType(ConversationListScreen), findsNothing);
+        expect(
+          fixture.transport.requests
+              .where(
+                (request) => request.uri.path == '/api/mobile/conversations',
+              )
+              .length,
+          inboxReads,
+        );
+        await _tapDestination(tester, 'More');
+        final moreMessages = find.descendant(
+          of: find.byType(WorkspaceMore),
+          matching: find.text('Messages'),
+        );
+        await tester.scrollUntilVisible(moreMessages, 180);
+        await tester.tap(moreMessages);
+        await tester.pumpAndSettle();
+        expect(find.byType(ConversationListScreen), findsOneWidget);
+        expect(
+          tester
+              .widget<NavigationBar>(find.byType(NavigationBar))
+              .selectedIndex,
+          3,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        fixture.dispose();
+      }
+    },
+  );
+
+  testWidgets('Owner inbox discards delayed data when the account changes', (
+    tester,
+  ) async {
+    final fixture = Fixture();
+    final pending = Completer<ApiResponse>();
+    try {
+      await _open(
+        tester,
+        fixture,
+        'OWNER',
+        reply: (request) => request.uri.path == '/api/mobile/conversations'
+            ? pending.future
+            : _reply(fixture, request),
+      );
+      await tester.tap(_destination('Messages'));
+      await tester.pump();
+      fixture.controller.clearLocalSession();
+      await tester.pump();
+      pending.complete(
+        json({
+          'conversations': [
+            {
+              'id': 'conversation-0001',
+              'propertyId': 'property-0001',
+              'propertyTitle': 'Private previous listing',
+              'peerName': 'Previous account buyer',
+              'blocked': false,
+              'blockedByMe': false,
+              'updatedAt': '2026-11-06T08:00:00.000Z',
+            },
+          ],
+        }),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Previous account buyer'), findsNothing);
+      expect(find.text('Private previous listing'), findsNothing);
+      expect(find.text('Sign in to continue'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsNothing);
+      fixture.transport.identity = 'owner-0002';
+      await fixture.signIn(tester);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        0,
+      );
+      expect(find.byType(ConversationListScreen), findsNothing);
+      expect(find.text('Previous account buyer'), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      if (!pending.isCompleted) pending.complete(json({}, 503));
+      await tester.pumpWidget(const SizedBox.shrink());
+      fixture.dispose();
+    }
+  });
 
   testWidgets(
     'Owner home uses server totals and opens the guided creation flow',
