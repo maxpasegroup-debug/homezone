@@ -1,5 +1,38 @@
 # HOMEZONE integration implementation status
 
+## Builder project device images - SOURCE IMPLEMENTED / COMPILED / RUNTIME UNVERIFIED - 2026-11-06
+
+Builder Create/Edit project now uses device pickers and selected previews for
+project photos, floor plans, master plan and brochure image. The existing upload
+route gains an owned Builder project contract, atomic attachment and limited
+readback. Native capability preflight blocks old/unavailable backends before
+creating a draft; sequential upload/readback precedes requested status changes,
+and uncertain writes cannot automatically replay. Existing media references,
+session/ownership/plan controls and Owner/Broker flows are preserved. No new
+schema, migration or environment variable. `npm run typecheck` passes; four
+isolated backend fixture suites pass **87 checks** (22 Builder uploads, 30 role /
+Builder integrity, 24 Owner publication, 11 mobile API), with no real database,
+provider or network. The final six-file Flutter suite passes **138/138 tests**,
+exit 0, covering Builder save/picker/actual-form and Owner photo/state/dashboard
+regressions. Seven-file Flutter analysis exits 0 with zero errors/warnings; its
+existing informational style findings remain. The one new helper brace-style
+finding was corrected and helper reanalysis reports no issues. The universal
+staging debug APK builds successfully with
+`node scripts/build-android.mjs --mode service --config config/staging.local.json`.
+Current artifact: `mobile-app/build/app/outputs/apk/debug/app-debug.apk`,
+200,206,023 bytes, SHA256
+`82ef9a0197a6c7da97abdcd992f383c7474217640c4b006b79fef5bb874c3cd3`.
+Build record `mobile-app/build/android-source-builds/2026-11-06T10-31-22-248Z-30280`
+confirms fresh staging output. ZIP inspection confirms ARMv7/ARM64/x86_64 native
+libraries and new picker labels; this does not establish device runtime. A
+separately approved staging backend deployment and APK installation are required
+before live usage. No install/launch, backend deployment or live write occurred.
+No live Builder upload or publication is claimed. See
+[Builder project images](BUILDER_PROJECT_IMAGE_UPLOADS.md) for limits,
+public-asset privacy, exact 17-file slice inventory and verification requirements.
+The preserved pre-existing Marketplace app-bar change is not part of this Builder
+feature; it is included in this APK. Earlier artifact hashes below are historical.
+
 ## Familiar inbox and thread presentation - COMPILED / BUYER ANDROID VERIFIED - 2026-11-06
 
 `lib/features/engagement/chat_presentation.dart` and

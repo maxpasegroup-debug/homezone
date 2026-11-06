@@ -1,5 +1,29 @@
 # HOMEZONE remaining integration blockers
 
+## Builder project device images require activation and verification - 2026-11-06
+
+The four native Builder project image sections and their owned backend upload /
+readback integration are source implemented. Backend typecheck passes and four
+isolated backend suites pass **87 checks**, using mocks without database/provider
+or network access. The final focused six-file Flutter run passes **138/138 tests**,
+exit 0, including Builder save/picker/actual-form and Owner regressions. Seven-file
+Flutter analysis exits 0 with zero errors/warnings; existing informational style
+findings remain. The new helper style finding was fixed and focused helper
+reanalysis is clean. The universal staging debug APK build passed and ZIP
+inspection confirms ARMv7/ARM64/x86_64 libraries plus the new picker labels.
+Artifact: `mobile-app/build/app/outputs/apk/debug/app-debug.apk`, 200,206,023 bytes,
+SHA256 `82ef9a0197a6c7da97abdcd992f383c7474217640c4b006b79fef5bb874c3cd3`.
+No live Builder project/upload/status workflow is verified by this slice. It
+requires a separately approved staging backend deployment plus installation of
+the new staging APK. The client stops before draft creation if the old backend
+lacks the Builder capability
+contract. No new schema, migration or environment variable is required, but
+existing provider readiness, Builder plan/ownership and full predeploy migration
+review still apply. Images are public media, not private documents; native PDF
+uploads are unsupported. See [Builder project images](BUILDER_PROJECT_IMAGE_UPLOADS.md).
+No installation/launch, deployment, database write or production action was
+performed. Artifact inspection is not device or live provider verification.
+
 ## Messaging presentation checked; remaining scope - 2026-11-06
 
 The familiar inbox/thread presentation is source implemented: compact avatars

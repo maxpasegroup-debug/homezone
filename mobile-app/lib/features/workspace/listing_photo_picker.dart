@@ -52,7 +52,15 @@ class ListingPhotoPicker extends StatefulWidget {
     required this.onChanged,
     required this.onPickingChanged,
     this.minimumPhotos = 0,
-  });
+    this.title = 'Property photos',
+    this.addLabel = 'Add photo',
+    this.emptyHint =
+        'Add photos of your property. They upload when you save the listing.',
+    this.imageName = 'Photo',
+    this.maximumPhotos = maxPhotos,
+    this.hintText =
+        'Choose up to 6 photos before saving. JPEG, PNG or WebP, up to 6 MB each and 24 MB in total.',
+  }) : assert(maximumPhotos > 0 && maximumPhotos <= maxPhotos);
 
   static const maxPhotos = 6;
   static const minimumPublicationPhotos = 2;
@@ -63,6 +71,8 @@ class ListingPhotoPicker extends StatefulWidget {
   final ValueChanged<List<SelectedListingPhoto>> onChanged;
   final ValueChanged<bool> onPickingChanged;
   final int minimumPhotos;
+  final String title, addLabel, emptyHint, imageName, hintText;
+  final int maximumPhotos;
 
   @override
   State<ListingPhotoPicker> createState() => _ListingPhotoPickerState();
@@ -76,7 +86,7 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
     if (!widget.enabled ||
         picking ||
         !widget.isCurrent() ||
-        widget.photos.length >= ListingPhotoPicker.maxPhotos) {
+        widget.photos.length >= widget.maximumPhotos) {
       return;
     }
     FocusScope.of(context).unfocus();
@@ -149,11 +159,11 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Property photos',
+                    widget.title,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
-                Text('${widget.photos.length}/${ListingPhotoPicker.maxPhotos}'),
+                Text('${widget.photos.length}/${widget.maximumPhotos}'),
               ],
             ),
             const SizedBox(height: 8),
@@ -161,16 +171,12 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
               Text(
                 'At least ${widget.minimumPhotos} different property photos are required to publish (${widget.photos.length} selected).',
               ),
-            const Text(
-              'Choose up to 6 photos before saving. JPEG, PNG or WebP, up to 6 MB each and 24 MB in total.',
-            ),
+            Text(widget.hintText),
             const SizedBox(height: 12),
             if (widget.photos.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  'Add photos of your property. They upload when you save the listing.',
-                ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(widget.emptyHint),
               )
             else
               SizedBox(
@@ -198,8 +204,9 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
                                     allowUpscaling: false,
                                   ),
                                   fit: BoxFit.cover,
-                                  semanticLabel:
-                                      'Selected property photo ${index + 1}',
+                                  semanticLabel: widget.imageName == 'Photo'
+                                      ? 'Selected property photo ${index + 1}'
+                                      : 'Selected ${widget.imageName.toLowerCase()} ${index + 1}',
                                   errorBuilder: (_, _, _) => const Center(
                                     child: Icon(Icons.broken_image_outlined),
                                   ),
@@ -209,7 +216,8 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
                                 top: 2,
                                 right: 2,
                                 child: IconButton.filledTonal(
-                                  tooltip: 'Remove photo ${index + 1}',
+                                  tooltip:
+                                      'Remove ${widget.imageName.toLowerCase()} ${index + 1}',
                                   onPressed: !enabled
                                       ? null
                                       : () {
@@ -226,7 +234,7 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text('Photo ${index + 1}'),
+                        Text('${widget.imageName} ${index + 1}'),
                       ],
                     ),
                   ),
@@ -234,8 +242,7 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
               ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed:
-                  enabled && widget.photos.length < ListingPhotoPicker.maxPhotos
+              onPressed: enabled && widget.photos.length < widget.maximumPhotos
                   ? add
                   : null,
               icon: picking
@@ -245,7 +252,7 @@ class _ListingPhotoPickerState extends State<ListingPhotoPicker> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(picking ? 'Opening photos...' : 'Add photo'),
+              label: Text(picking ? 'Opening photos...' : widget.addLabel),
             ),
             if (error != null)
               Padding(

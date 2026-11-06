@@ -5,6 +5,8 @@ import 'workspace_dashboard.dart';
 import 'workspace_profile_screen.dart';
 import 'listing_photographs_screen.dart';
 import 'listing_photo_picker.dart';
+import 'builder_project_images.dart';
+import 'builder_project_image_save.dart';
 import 'owner_property_photos.dart';
 import '../documents/private_documents_screen.dart';
 import '../../core/api/api_client.dart';
@@ -208,28 +210,6 @@ const _projectFields = [
     lines: 3,
     maxLength: 12100,
   ),
-  FieldSpec(
-    'mediaUrls',
-    'Project image URLs — one per line',
-    stringList: true,
-    urlList: true,
-    maxItems: 40,
-    itemMaxLength: 2048,
-    lines: 3,
-    maxLength: 12000,
-  ),
-  FieldSpec(
-    'floorPlanUrls',
-    'Floor plan URLs — one per line',
-    stringList: true,
-    urlList: true,
-    maxItems: 30,
-    itemMaxLength: 2048,
-    lines: 3,
-    maxLength: 12000,
-  ),
-  FieldSpec('masterPlanUrl', 'Master plan HTTPS URL', maxLength: 2048),
-  FieldSpec('brochureUrl', 'Brochure HTTPS URL', maxLength: 2048),
 ];
 const _providerFields = [
   FieldSpec(
@@ -2382,6 +2362,8 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   bool _createUncertain = false;
   String? error;
   List<SelectedListingPhoto> _photos = const [];
+  Map<String, List<SelectedListingPhoto>> _builderImages = const {};
+  late final BuilderProjectImageSave _builderImageSave;
   bool _pickingPhoto = false,
       _listingCreateStarted = false,
       _draftConfirmed = false,
@@ -2414,6 +2396,15 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   };
   bool get _isListingCreate =>
       widget.method == 'POST' && widget.path == '/api/properties';
+  bool get _isBuilderProjectForm =>
+      widget.repository.session.identity?.role == 'BUILDER' &&
+      ((widget.method == 'POST' && widget.path == '/api/builder/projects') ||
+          (widget.method == 'PATCH' &&
+              RegExp(
+                r'^/api/builder/projects/[A-Za-z0-9_-]{8,128}$',
+              ).hasMatch(widget.path)));
+  bool get _hasBuilderImages =>
+      _builderImages.values.any((images) => images.isNotEmpty);
   bool get _publishesListing =>
       _isListingCreate &&
       widget.fixed['status'] == 'PUBLISHED' &&
@@ -2433,6 +2424,12 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   void initState() {
     super.initState();
     widget.repository.session.addListener(_sessionChanged);
+    _builderImageSave = BuilderProjectImageSave(
+      widget.repository,
+      onProgress: (progress) {
+        if (current) setState(() => _saveProgress = progress);
+      },
+    );
     for (final f in widget.fields) {
       controls[f.key] = TextEditingController(
         text: f.stringList && widget.initial[f.key] is List
@@ -2443,8 +2440,11 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   }
 
   void _sessionChanged() {
-    if (mounted && !current && _photos.isNotEmpty) {
-      setState(() => _photos = const []);
+    if (mounted && !current && (_photos.isNotEmpty || _hasBuilderImages)) {
+      setState(() {
+        _photos = const [];
+        _builderImages = const {};
+      });
     }
   }
 
@@ -2452,6 +2452,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   void dispose() {
     widget.repository.session.removeListener(_sessionChanged);
     _photos = const [];
+    _builderImages = const {};
     for (final c in controls.values) c.dispose();
     super.dispose();
   }
@@ -2461,6 +2462,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
         busy ||
         _pickingPhoto ||
         _listingCreateStarted ||
+        _builderImageSave.started ||
         _createUncertain) {
       return;
     }
@@ -2518,6 +2520,11 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
           ? DateTime.parse(value).toUtc().toIso8601String()
           : value;
     }
+    if (_isBuilderProjectForm) {
+      payload.removeWhere(
+        (name, _) => BuilderProjectImageSave.fields.contains(name),
+      );
+    }
     final generation = widget.repository.coordinator.generation;
     setState(() {
       busy = true;
@@ -2526,6 +2533,21 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     try {
       if (_isListingCreate) {
         await _createListing(payload, generation);
+        return;
+      }
+      if (_isBuilderProjectForm && _hasBuilderImages) {
+        await _builderImageSave.save(
+          method: widget.method,
+          path: widget.path,
+          payload: payload,
+          images: _builderImages,
+        );
+        if (current && generation == widget.repository.coordinator.generation) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Project and images saved.')),
+          );
+          Navigator.pop(context, true);
+        }
         return;
       }
       final data = await widget.repository.call(
@@ -2547,7 +2569,9 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
       if (current) {
         setState(() {
           _saveProgress = null;
-          if (_isListingCreate && _createdListingId != null) {
+          if (_isBuilderProjectForm && _hasBuilderImages) {
+            error = _builderImageSave.errorMessage(e);
+          } else if (_isListingCreate && _createdListingId != null) {
             if (_publishesListing && !_publicationConfirmed) {
               error = _draftConfirmed && !_publicationStarted
                   ? 'Draft saved. It has not been published. '
@@ -3212,7 +3236,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
     builder: (context, _) => PopScope(
       canPop:
           !current ||
-          (!_isListingCreate || !busy) &&
+          (!(_isListingCreate || _isBuilderProjectForm) || !busy) &&
               (!_guided || _listingStep == 0 || _listingCreateStarted),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && busy) {
@@ -3273,6 +3297,22 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                             setState(() => _pickingPhoto = picking),
                       ),
                     for (final field in widget.fields) _fieldInput(field),
+                    if (_isBuilderProjectForm)
+                      BuilderProjectImages(
+                        selections: _builderImages,
+                        existing: widget.initial,
+                        enabled:
+                            !busy &&
+                            !_builderImageSave.started &&
+                            !_createUncertain,
+                        isCurrent: () => current,
+                        onChanged: (images) {
+                          if (current) setState(() => _builderImages = images);
+                        },
+                        onPickingChanged: (picking) {
+                          if (mounted) setState(() => _pickingPhoto = picking);
+                        },
+                      ),
                     if (error != null)
                       Text(
                         error!,
@@ -3280,7 +3320,9 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                           color: Theme.of(context).colorScheme.error,
                         ),
                       ),
-                    if (busy && _isListingCreate && _saveProgress != null)
+                    if (busy &&
+                        (_isListingCreate || _isBuilderProjectForm) &&
+                        _saveProgress != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Semantics(
@@ -3293,6 +3335,7 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                           busy ||
                               _pickingPhoto ||
                               _listingCreateStarted ||
+                              _builderImageSave.started ||
                               _createUncertain
                           ? null
                           : submit,
@@ -3306,6 +3349,13 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
                         child: const Text('Back to listings'),
+                      ),
+                    if (_isBuilderProjectForm &&
+                        _builderImageSave.started &&
+                        !busy)
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Back to Projects'),
                       ),
                     if (_createUncertain && !busy)
                       TextButton(

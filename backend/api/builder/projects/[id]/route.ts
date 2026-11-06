@@ -1,15 +1,35 @@
 import { auth } from "@/auth";
-import { handleApiError, ok, parseJson, unauthorized } from "@/lib/api/response";
+import { apiError, forbidden, handleApiError, notFound, ok, parseJson, unauthorized } from "@/lib/api/response";
 import { builderProjectSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 import { requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
+import { builderProjectMediaSelect } from "@/lib/builder/project-media";
 
 type RouteContext = {
   params: Promise<{
     id: string;
   }>;
 };
+
+/** Owned native upload readback, without team, bookings or internal documents. */
+export async function GET(_request: Request, context: RouteContext) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return unauthorized();
+    const profile = await getOrCreateProfile(session.user);
+    if (profile.role !== "BUILDER" || profile.verificationStatus === "SUSPENDED") return forbidden();
+    const { id } = await context.params;
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(id)) return apiError("Invalid project", 400);
+    const project = await db.builderProject.findFirst({
+      where: { id, builderId: profile.id }, select: builderProjectMediaSelect
+    });
+    if (!project) return notFound("Project not found");
+    return ok({ project }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    return apiError("Project media is unavailable. Refresh before retrying.", 503);
+  }
+}
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {

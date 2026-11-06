@@ -5,6 +5,7 @@ import {getOrCreateProfile} from "@/lib/auth/profile";
 import {requirePrivateFiles} from "@/lib/documents/private-files";
 import {getCloudinaryConfig} from "@/lib/media/cloudinary";
 import {propertyPhotoStorageProvider,propertyPhotoVolumeReady} from "@/lib/media/property-photo-storage";
+import {builderProjectImageUploadFields} from "@/lib/builder/project-media";
 export const dynamic="force-dynamic";
 export async function GET(){
  try{
@@ -18,6 +19,7 @@ export async function GET(){
  }catch{/* No credentials, paths or provider error is exposed. */}
  let websitePaymentHandoffEnabled=false,websiteOrigin:string|null=null;
  try{const origin=authOrigin();if(process.env.MOBILE_WEB_PAYMENTS_ENABLED==="true"&&origin.startsWith("https:")&&process.env.RAZORPAY_KEY_ID&&process.env.RAZORPAY_KEY_SECRET&&process.env.RAZORPAY_WEBHOOK_SECRET){websitePaymentHandoffEnabled=true;websiteOrigin=origin;}}catch{/* No origin fallback or guessed provider configuration. */}
- return ok({privateDocumentsConfigured,propertyPhotoUploadConfigured,websitePaymentHandoffEnabled,websiteOrigin,notice:"Configuration flags do not prove provider health or authorize live testing."},{headers:{"Cache-Control":"private, no-store"}});
+ const builderProjectImageUploadConfigured=profile.role==="BUILDER"&&propertyPhotoUploadConfigured;
+ return ok({privateDocumentsConfigured,propertyPhotoUploadConfigured,builderProjectImageUploadConfigured,builderProjectImageUploadFields,websitePaymentHandoffEnabled,websiteOrigin,notice:"Configuration flags do not prove provider health or authorize live testing."},{headers:{"Cache-Control":"private, no-store"}});
  }catch{return apiError("Service capabilities unavailable. Please retry.",503);}
 }

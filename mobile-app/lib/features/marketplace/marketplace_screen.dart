@@ -1655,36 +1655,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
       toolbarHeight: 76,
       titleSpacing: 20,
       title: tab == 0
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (MediaQuery.textScalerOf(context).scale(1) < 1.4) ...[
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: BrandColors.forest,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: const Icon(
-                      Icons.home_work_outlined,
-                      size: 23,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                const Flexible(
-                  child: Text(
-                    'HOMEZONE',
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-              ],
+          ? const Text(
+              'HOMEZONE',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
             )
           : Text(
               switch (tab) {
@@ -1709,11 +1688,12 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
               child: const Icon(Icons.compare_arrows),
             ),
           ),
-        IconButton(
-          tooltip: 'Refresh',
-          onPressed: loading || mutating ? null : () => load(),
-          icon: const Icon(Icons.refresh),
-        ),
+        if (tab != 0)
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: loading || mutating ? null : () => load(),
+            icon: const Icon(Icons.refresh),
+          ),
         if (MediaQuery.textScalerOf(context).scale(1) < 1.4)
           IconButton(
             tooltip: 'My profile',
