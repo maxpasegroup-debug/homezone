@@ -64,6 +64,12 @@ state.db = {
     state.locks.push({ kind: /BuilderProject/.test(parts.join("")) ? "project" : /Profile/.test(parts.join("")) ? "profile" : "property", id });
     return [];
   },
+  $executeRaw: async (parts, ...values) => {
+    assert.match(parts.join("?"), /^SELECT pg_notify\(\?, \?\)$/);
+    assert.deepEqual(values, ["homezone_public_properties_v1", '{"v":1,"type":"properties.changed"}']);
+    state.writes.push({ type: "publicInvalidate" });
+    return 1;
+  },
   $transaction: async callback => {
     // Serialize the real lock/admission callback, including concurrent cap checks.
     const predecessor = state.queue;
@@ -83,7 +89,6 @@ const mocks = {
   "@/lib/db": "export const db=globalThis.__builderUploadFixture.db;",
   "@/lib/api/rate-limit": "export const checkRateLimit=options=>{const s=globalThis.__builderUploadFixture;s.limits.push(options);return {allowed:s.allowed,resetAt:new Date(Date.now()+60000)};};export const rateLimitKey=(_request,scope,id)=>scope+':'+id;",
   "@/lib/logging/logger": "export const captureException=()=>{};",
-  "@/lib/properties/realtime": "export const notifyPublicPropertyChange=async()=>{};",
   "@/lib/auth/redirect": "export const authOrigin=()=> 'https://fixture.invalid';",
   "@/lib/documents/private-files": "export const requirePrivateFiles=()=>{throw new Error('unconfigured');};",
   "@/lib/media/cloudinary": "export const getCloudinaryConfig=()=>{throw new Error('unconfigured');};",
@@ -147,6 +152,21 @@ test("Builder project images reuse safe upload and owned-project readback", asyn
       assert.deepEqual(state.project.mediaUrls, []);
       assert.deepEqual(state.project.floorPlanUrls, []);
       assert.equal(state.writes.length, 1);
+    }
+  });
+  await t.test("published image attachment invalidates the public catalogue only after attachment", async () => {
+    const original = process.env.HOMEZONE_REALTIME_ENABLED;
+    try {
+      process.env.HOMEZONE_REALTIME_ENABLED = "true";
+      for (const status of ["PUBLISHED", "DRAFT"]) {
+        reset(); state.project.status = status;
+        assert.equal((await photo()).status, 200);
+        assert.deepEqual(state.writes.map(write => write.type), status === "PUBLISHED" ? ["project", "publicInvalidate"] : ["project"]);
+      }
+      reset({ failAttach: true }); state.project.status = "PUBLISHED";
+      assert.equal((await photo()).status, 409); assert.deepEqual(state.writes, []);
+    } finally {
+      if (original === undefined) delete process.env.HOMEZONE_REALTIME_ENABLED; else process.env.HOMEZONE_REALTIME_ENABLED = original;
     }
   });
   await t.test("JPEG, PNG and WebP image signatures are retained through the shared provider", async () => {

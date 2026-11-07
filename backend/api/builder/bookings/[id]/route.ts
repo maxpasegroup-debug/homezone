@@ -4,6 +4,7 @@ import { builderBookingActionSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 import { requireBuilderActor, requireBuilderWriteAccess } from "@/lib/builder/queries";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -52,6 +53,8 @@ export async function PATCH(request: Request, context: RouteContext) {
           projectId: booking.projectId
         }
       });
+      const project = await tx.builderProject.findUnique({ where: { id: booking.projectId }, select: { status: true } });
+      await notifyPublicPropertyChange(tx, project, project);
       return { booking: changed };
     });
     if (!updated) return apiError("Booking changed. Refresh before continuing.", 409);

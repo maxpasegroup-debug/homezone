@@ -4,6 +4,7 @@ import {getOrCreateProfile} from "@/lib/auth/profile";
 import {apiError,forbidden,ok,parseJson,unauthorized,handleApiError} from "@/lib/api/response";
 import {builderUnitSchema,builderTowerSchema,builderTeamMemberSchema,builderCampaignSchema} from "@/lib/api/validation";
 import {requireBuilderWriteAccess} from "@/lib/builder/queries";
+import {notifyPublicPropertyChange} from "@/lib/properties/realtime";
 import {z} from "zod";
 const admission=z.object({module:z.enum(["units","towers","builderTeam","campaigns"]),parent:z.string().regex(/^[A-Za-z0-9_-]{8,128}$/)}).passthrough();
 export async function PATCH(request:Request,context:{params:Promise<{id:string}>}){
@@ -30,6 +31,10 @@ export async function PATCH(request:Request,context:{params:Promise<{id:string}>
     }else{
       const values=builderCampaignSchema.partial().strict().safeParse(payload);if(!values.success)return {error:apiError("Invalid campaign changes",400)};
       updated=await tx.builderCampaign.updateMany({where:{id,projectId:parent},data:values.data});
+    }
+    if(module==="units"&&updated.count===1){
+      const project=await tx.builderProject.findUnique({where:{id:parent},select:{status:true}});
+      await notifyPublicPropertyChange(tx,project,project);
     }
     return {updated};
     });

@@ -200,6 +200,16 @@ Future<VoidCallback> _saveCallback(WidgetTester tester) async {
   return tester.widget<ButtonStyleButton>(save).onPressed!;
 }
 
+Future<void> _reassemble(WidgetTester tester) async {
+  // RendererBinding waits for endOfFrame. Advance the test binding's fake
+  // clock before awaiting reassembly so its warm-up frame can complete.
+  final reassemble = tester.binding.reassembleApplication();
+  await tester.pump();
+  await tester.pumpAndSettle();
+  await reassemble;
+  await tester.pumpAndSettle();
+}
+
 void main() {
   void formTest(
     String description,
@@ -267,6 +277,76 @@ void main() {
     },
   );
 
+  formTest('Builder form retains entered data and one image across reassemble', (
+    tester,
+    fixture,
+    server,
+  ) async {
+    await _chooseProjectImage(tester);
+    final state = tester.state(find.byType(WorkspaceForm));
+
+    // Covers retained State during reassemble. A widget test cannot synthesize
+    // adding a Dart field to an already running, older VM class definition.
+    await _reassemble(tester);
+    expect(tester.state(find.byType(WorkspaceForm)), same(state));
+    expect(tester.takeException(), isNull);
+    expect(_creates(fixture), isEmpty);
+    expect(_uploads(fixture), isEmpty);
+
+    final formScrollable = find
+        .descendant(
+          of: find.byType(WorkspaceForm),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    tester.state<ScrollableState>(formScrollable).position.jumpTo(0);
+    await tester.pumpAndSettle();
+
+    for (final entry in {
+      'name': 'Builder device image project',
+      'city': 'Kochi',
+      'description': 'A synthetic project for local UI validation only.',
+    }.entries) {
+      final input = find.descendant(
+        of: find.byKey(ValueKey(entry.key)),
+        matching: find.byType(TextFormField),
+      );
+      await _reveal(tester, input);
+      expect(tester.widget<TextFormField>(input).controller!.text, entry.value);
+    }
+    await _reveal(tester, _button('Add project photo'));
+    final selected = tester
+        .widget<BuilderProjectImages>(find.byType(BuilderProjectImages))
+        .selections['mediaUrls'];
+    expect(selected, hasLength(1));
+    expect(base64Encode(selected!.single.bytes), _png);
+
+    await _saveCallback(tester);
+    await tester.tap(_button('Save'));
+    await tester.pumpAndSettle();
+
+    expect(_creates(fixture), hasLength(1));
+    expect(_uploads(fixture), hasLength(1));
+    final projectRequests = fixture.transport.requests
+        .where(
+          (request) =>
+              request.uri.path.startsWith('/api/builder/projects') ||
+              request.uri.path == '/api/mobile/upload',
+        )
+        .toList();
+    expect(projectRequests.map((request) => request.method), [
+      'POST',
+      'POST',
+      'GET',
+      'PATCH',
+      'GET',
+    ]);
+    expect(server.project['status'], 'PUBLISHED');
+    expect(find.byType(WorkspaceForm), findsNothing);
+    expect(find.text('Project and images saved.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   formTest(
     'Unavailable project image service keeps entries without creating draft',
     (tester, fixture, server) async {
@@ -315,6 +395,13 @@ void main() {
         find.textContaining('Some changes may already be stored'),
         findsOneWidget,
       );
+      expect(
+        tester.widget<ButtonStyleButton>(_button('Save')).onPressed,
+        isNull,
+      );
+      final state = tester.state(find.byType(WorkspaceForm));
+      await _reassemble(tester);
+      expect(tester.state(find.byType(WorkspaceForm)), same(state));
       expect(
         tester.widget<ButtonStyleButton>(_button('Save')).onPressed,
         isNull,

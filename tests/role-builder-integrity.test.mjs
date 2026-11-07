@@ -35,7 +35,16 @@ function project(row, select) {
     value === true ? row[key] : project(row[key], value.select)]));
 }
 function client(tables, writes) {
-  return new Proxy({ $queryRaw: async () => [] }, {
+  return new Proxy({
+    $queryRaw: async () => [],
+    $executeRaw: async (parts, ...values) => {
+      assert.match(parts.join("?"), /^SELECT pg_notify\(\?, \?\)$/);
+      assert.deepEqual(values, ["homezone_public_properties_v1", '{"v":1,"type":"properties.changed"}']);
+      if (state.failAt === "notification") throw new Error("Synthetic notification failure");
+      writes.push("publicInvalidate");
+      return 1;
+    }
+  }, {
     get(target, model) {
       if (model in target) return target[model];
       return {
@@ -448,4 +457,48 @@ test("Builder contact creation cannot bind an arbitrary account", async () => {
   reset();
   assert.equal((await call("builder/projects/[id]/team", "POST", { name: "Contact only", profileId: "foreign-profile-0001" })).status, 403);
   assert.deepEqual(state.writes, []);
+});
+
+test("published Builder project changes commit anonymous catalogue invalidations with their writes", async () => {
+  const original = process.env.HOMEZONE_REALTIME_ENABLED;
+  try {
+    process.env.HOMEZONE_REALTIME_ENABLED = "true";
+    reset();
+    assert.equal((await call("builder/projects", "POST", { ...projectBody, status: "PUBLISHED" })).status, 200);
+    assert.equal(state.writes.at(-1), "publicInvalidate");
+    for (const [before, next, expected] of [["DRAFT", "PUBLISHED", 1], ["PUBLISHED", "PUBLISHED", 1], ["PUBLISHED", "DRAFT", 1], ["PUBLISHED", "ARCHIVED", 1], ["DRAFT", "DRAFT", 0]]) {
+      reset(); state.tables.builderProject[0].status = before;
+      assert.equal((await call("builder/projects/[id]", "PATCH", { status: next })).status, 200);
+      assert.equal(state.writes.filter(value => value === "publicInvalidate").length, expected);
+    }
+    reset(); state.tables.builderProject[0].status = "PUBLISHED";
+    assert.equal((await call("builder/projects/[id]/units", "POST", unit)).status, 200);
+    assert.equal(state.writes.at(-1), "publicInvalidate");
+    for (const [module, model, values] of nativeEdits) {
+      reset(); state.tables.builderProject[0].status = "PUBLISHED"; seedNativeChild(model);
+      assert.equal((await call("mobile/workspace/[id]", "PATCH", { module, parent: "project-own-0001", ...values }, "child-native-0001")).status, 200);
+      assert.equal(state.writes.filter(value => value === "publicInvalidate").length, module === "units" ? 1 : 0);
+    }
+    reset(); state.tables.builderProject[0].status = "PUBLISHED";
+    seedNativeChild("builderUnit"); state.tables.builderUnit[0].status = "RESERVED";
+    assert.equal((await call("mobile/workspace/[id]", "PATCH", { module: "units", parent: "project-own-0001", price: 100 }, "child-native-0001")).status, 409);
+    assert.ok(!state.writes.includes("publicInvalidate")); assert.equal(state.tables.builderUnit[0].price, undefined);
+    reset(); state.tables.builderProject[0].status = "PUBLISHED"; seedBooking();
+    state.tables.builderUnit[0].status = "AVAILABLE"; state.tables.builderProject[0].availableUnits = 1;
+    assert.equal((await call("builder/projects/[id]/bookings", "POST", { unitId: "unit-seeded-0001" })).status, 200);
+    assert.equal(state.writes.at(-1), "publicInvalidate");
+    reset(); state.tables.builderProject[0].status = "PUBLISHED"; seedBooking();
+    assert.equal((await call("builder/bookings/[id]", "PATCH", { action: "RELEASE" }, "booking-seeded-0001")).status, 200);
+    assert.equal(state.writes.at(-1), "publicInvalidate");
+    assert.equal(state.tables.builderUnit[0].status, "AVAILABLE");
+    reset(); state.failAt = "notification";
+    const before = structuredClone(state.tables);
+    assert.equal((await call("builder/projects", "POST", { ...projectBody, status: "PUBLISHED" })).status, 500);
+    assert.deepEqual(state.tables, before); assert.deepEqual(state.writes, []);
+    reset(); process.env.HOMEZONE_REALTIME_ENABLED = "false";
+    assert.equal((await call("builder/projects", "POST", { ...projectBody, status: "PUBLISHED" })).status, 200);
+    assert.ok(!state.writes.includes("publicInvalidate"));
+  } finally {
+    if (original === undefined) delete process.env.HOMEZONE_REALTIME_ENABLED; else process.env.HOMEZONE_REALTIME_ENABLED = original;
+  }
 });

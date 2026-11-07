@@ -72,7 +72,9 @@ async function uploadBuilderImage(request: Request, profile: { id: string; role:
       const data = field === "mediaUrls" ? { mediaUrls: { push: url } } :
         field === "floorPlanUrls" ? { floorPlanUrls: { push: url } } :
         field === "masterPlanUrl" ? { masterPlanUrl: url } : { brochureUrl: url };
-      return tx.builderProject.update({ where: { id: projectId }, data, select: builderProjectMediaSelect });
+      const saved = await tx.builderProject.update({ where: { id: projectId }, data, select: builderProjectMediaSelect });
+      await notifyPublicPropertyChange(tx, current, saved);
+      return saved;
     });
     if (!saved) return uncertain();
     return ok({ url, project: saved }, { headers: { "Cache-Control": "private, no-store" } });

@@ -1,5 +1,22 @@
 # HOMEZONE remaining integration blockers
 
+## Builder projects need staging activation and Buyer acceptance - 2026-11-07
+
+Published Builder-project catalogue/detail integration is now source implemented
+using new public GET routes and the existing client/media/realtime architecture.
+No schema migration or new environment variable is required. This source has not
+been deployed, and no real project has been created, published or uploaded to
+verify it. Approve the exact staging deployment separately after reviewing the
+full pending predeploy migration set. Verify the new routes, use an explicitly
+staging-configured APK, and authorize a controlled Builder project publication
+before checking Buyer cards, details, images, units, edits and unpublication.
+The new explicit staging debug APK builds successfully, but was not installed
+or launched by this slice. The existing Android clipboard/System UI ANR and
+missing emulator remain
+independent device-verification blockers. Project-specific enquiries/chat are
+not implemented; existing enquiry/favorite/contact endpoints accept Property
+IDs only. See [published projects](BUILDER_BUYER_PUBLISHED_PROJECTS.md).
+
 ## Builder project device images require activation and verification - 2026-11-06
 
 The four native Builder project image sections and their owned backend upload /

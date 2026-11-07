@@ -4,6 +4,7 @@ import { builderBookingSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 import { requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -57,6 +58,8 @@ export async function POST(request: Request, context: RouteContext) {
           projectId: id
         }
       });
+      const project = await tx.builderProject.findUnique({ where: { id }, select: { status: true } });
+      await notifyPublicPropertyChange(tx, project, project);
       return { booking };
     });
     if (!result) return forbidden("Unit is not available for reservation");

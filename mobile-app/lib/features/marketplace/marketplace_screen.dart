@@ -9,6 +9,7 @@ import 'account_listing_screen.dart';
 import 'listing_location.dart';
 import 'listing_media.dart';
 import 'buyer_presentation.dart';
+import 'public_projects_screen.dart';
 import '../../theme/design_tokens.dart';
 import '../../shared/ui/loading_skeleton.dart';
 import '../workspace/workspace_screen.dart';
@@ -1047,6 +1048,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen>
         ),
       ],
     ),
+    if (tab == 0) PublicProjectsSection(repository: widget.repository),
     BuyerSectionLabel(
       tab == 0 ? 'Homes to discover' : 'Search results',
       subtitle: filters.isEmpty

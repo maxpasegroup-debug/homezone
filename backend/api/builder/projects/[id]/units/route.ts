@@ -4,6 +4,7 @@ import { builderUnitSchema } from "@/lib/api/validation";
 import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 import { getBuilderPlan, requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -50,7 +51,7 @@ export async function POST(request: Request, context: RouteContext) {
           unitType: parsed.data.unitType
         }
       });
-      await tx.builderProject.update({
+      const project = await tx.builderProject.update({
         data: {
           availableUnits: { increment: unit.status === "AVAILABLE" ? 1 : 0 },
           unitsCount: { increment: 1 }
@@ -65,6 +66,7 @@ export async function POST(request: Request, context: RouteContext) {
           projectId: id
         }
       });
+      await notifyPublicPropertyChange(tx, project, project);
       return { unit };
     }, { isolationLevel: "Serializable" });
     if ("error" in result) return result.error;

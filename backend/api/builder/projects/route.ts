@@ -5,6 +5,7 @@ import { getOrCreateProfile } from "@/lib/auth/profile";
 import { isAdminRole } from "@/lib/auth/roles";
 import { db } from "@/lib/db";
 import { builderProjectInclude, getBuilderPlan, requireBuilderActor, requireBuilderWriteAccess } from "@/lib/builder/queries";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 
 export async function GET() {
   const session = await auth();
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
           projectId: project.id
         }
       });
+      await notifyPublicPropertyChange(tx, null, project);
       return { project };
     }, { isolationLevel: "Serializable" });
     if ("error" in result) return result.error;

@@ -4,7 +4,9 @@ type PublicPropertyState = { status: string } | null;
 type NotificationTransaction = Pick<Prisma.TransactionClient, "$executeRaw">;
 
 /**
- * Invalidate public reads without publishing an account, property ID or record.
+ * Invalidate public property and Builder-project reads without publishing an
+ * account, resource ID or record. Both public catalogues reuse the established
+ * anonymous properties.changed hint and fetch their own public projections.
  * Call after the mutation inside its transaction: PostgreSQL only delivers the
  * notification after commit and discards it when that transaction rolls back.
  */

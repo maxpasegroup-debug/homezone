@@ -2363,7 +2363,15 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   String? error;
   List<SelectedListingPhoto> _photos = const [];
   Map<String, List<SelectedListingPhoto>> _builderImages = const {};
-  late final BuilderProjectImageSave _builderImageSave;
+  // Existing form state can survive hot reload without initState running again.
+  // Construct on first use and retain the same save guard for this form.
+  late final BuilderProjectImageSave _builderImageSave =
+      BuilderProjectImageSave(
+        widget.repository,
+        onProgress: (progress) {
+          if (current) setState(() => _saveProgress = progress);
+        },
+      );
   bool _pickingPhoto = false,
       _listingCreateStarted = false,
       _draftConfirmed = false,
@@ -2424,12 +2432,6 @@ class _WorkspaceFormState extends State<WorkspaceForm> {
   void initState() {
     super.initState();
     widget.repository.session.addListener(_sessionChanged);
-    _builderImageSave = BuilderProjectImageSave(
-      widget.repository,
-      onProgress: (progress) {
-        if (current) setState(() => _saveProgress = progress);
-      },
-    );
     for (final f in widget.fields) {
       controls[f.key] = TextEditingController(
         text: f.stringList && widget.initial[f.key] is List

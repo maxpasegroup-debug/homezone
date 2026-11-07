@@ -161,3 +161,89 @@ all four image sections, create and edit readback, preservation of legacy
 references, failure/refresh handling, ownership denial, session changes and actual
 Android presentation. Passing local mocks/typecheck does not establish provider
 health, deployed route availability or live database attachment.
+
+## Retained form hot-reload correction - COMPILED / ANDROID PRESENTATION VERIFIED - 2026-11-06
+
+Baseline: `main/879973c1d0ba0bb73171818fe64b030b3118df45`, containing the Builder
+feature above. An actual Android red error screen reported
+`LateInitializationError: Field '_builderImageSave' has not been initialized`.
+The process remained alive and the VM paused at the helper getter. The helper
+had been assigned only in `initState`, which does not run again when existing
+form State is retained by hot reload. This is a form initialization failure,
+not evidence of a backend or database connection failure.
+
+`mobile-app/lib/features/workspace/workspace_screen.dart` now initializes the
+`late final` helper lazily on first access, retaining that same instance and its
+single-save/uncertain-write guard for the form. The helper is not recreated for
+each build. Regression additions in
+`mobile-app/test/builder_project_form_test.dart` exercise retained State through
+reassemble, entered values/images and the existing save/uncertainty safeguards.
+The focused two-file run passes **9/9 tests**, exit 0; evidence is
+`build/chat-verification/builder-lifecycle-passed-flutter-20261106.log`.
+Widget reassemble cannot exactly reproduce adding a new field to an older
+already-running VM class, so this is not a claim of that exact live scenario.
+
+Hot reload completed with code 0 but **did not recover the already-broken old
+debug State**; returning to the form still showed the original error. The old
+instance's initialization was not rerun. One full Dart restart was required for
+that running debug session, using the explicit staging configuration. It
+completed with code 0, the VM resumed and the same Android process (PID 10027)
+remained alive. The stored Builder login restored; this initial recovery used
+no app-data clearing or APK installation. The fix does not claim automatic
+migration of old retained VM instances. The corrected APK was subsequently
+installed as recorded below, so the device no longer depends on a debugger
+restart to retain the corrected source.
+
+Actual Android screenshots were reviewed after the corrected restart:
+
+- `build/chat-verification/app-after-corrected-restart-20261106.png`: Builder
+  Home renders, using the existing account and backend's zero-project result.
+- `builder-form-visible-20261106.png`: Create project renders the existing
+  Name, City, Description, address and status fields without the red screen.
+- `builder-image-sections-after-fix-20261106.png`: Project photos picker and
+  upload guidance render.
+- `builder-plan-pickers-after-fix-20261106.png`: Floor plan, master plan,
+  brochure image controls and Save render without a crash.
+
+Only opening/scrolling the form was exercised. **No image was picked, Save was
+not pressed, and no upload or project creation was performed.** This verifies
+Android form presentation, not live Builder upload/publication integration.
+
+Two-file source analysis exits 0 with **zero errors/warnings** and 31 pre-existing
+Workspace informational style findings; evidence:
+`build/chat-verification/builder-lifecycle-analyze-20261106.log`.
+The corrected universal staging debug APK build also passes. Current artifact:
+`mobile-app/build/app/outputs/apk/debug/app-debug.apk`, **200,206,113 bytes**,
+SHA256 `3994d1139d79effec64125ceb6eadec3bf72e8839de23b4628bb1718c559fae5`.
+Build evidence:
+`mobile-app/build/android-source-builds/2026-11-06T11-13-47-273Z-28732`.
+Actual ZIP inspection confirms ARMv7, ARM64 and x86_64 `libflutter.so` entries.
+This artifact supersedes the earlier `82ef9a...` APK at the same path; its earlier
+build record and the 138 Flutter / 87 backend checks remain feature-baseline
+evidence.
+
+The corrected APK was subsequently installed on `emulator-5554` with `adb install
+-r`, which succeeded and preserved app data. Reading the installed APK on the
+device confirmed its SHA256 exactly matches the corrected artifact above.
+The initial `am start -W` wait reported a timeout, so it was not treated as
+successful presentation evidence. A later actual Android screenshot,
+`build/chat-verification/corrected-installed-apk-startup-20261106.png`, confirms
+Builder Home in the foreground with the restored existing login and a new app
+process (PID 12562). This establishes installed-artifact startup; Create project
+presentation on the installed APK is still pending at this checkpoint. The
+earlier four form screenshots were from the explicit staging Dart restart.
+
+A subsequent cold-installed app interaction exposed a **separate Android ANR**
+at 16:56:02. Android last-ANR/DropBox traces show the native UI thread blocked in
+`IClipboard.hasPrimaryClip` / `ClipboardManager.hasPrimaryClip`, called by
+Flutter `PlatformPlugin.clipboardHasStrings`; the VM was resumed while the Home
+display/frames stopped advancing. This is evidence of that clipboard Binder
+wait, not a confirmed graphics cause or a recurrence of the Dart late-field
+failure. The deeper reason for the clipboard service wait is not established.
+Only the Android guest is being rebooted, without wiping data or changing Windows
+or renderer settings; cold-relaunch/form interaction remains pending retest.
+The original initialization correction and its nine passing tests are unchanged.
+
+No account/project submission, backend/configuration change or deployment was
+performed. Live upload/readback/status verification still needs the previously
+documented backend activation and controlled-write approval.

@@ -145,8 +145,19 @@ void main() {
       );
       final pending = Completer<ApiResponse>();
       var reads = 0;
-      f.transport.reply = (_) =>
-          ++reads == 1 ? pending.future : _catalog([_catalogListing(25)], 1);
+      f.transport.reply = (request) {
+        if (request.uri.path == '/api/mobile/projects') {
+          return fixture.json({
+            'source': 'database',
+            'projects': [],
+            'page': 1,
+            'hasMore': false,
+          });
+        }
+        return ++reads == 1
+            ? pending.future
+            : _catalog([_catalogListing(25)], 1);
+      };
       await _openCatalog(tester, f, repository: repository, settle: false);
       connection.ready();
       await tester.pump(const Duration(milliseconds: 200));
@@ -319,16 +330,30 @@ void main() {
       session: f.controller,
       realtime: live,
     );
-    f.transport.reply = (_) => _catalog([], 1);
+    f.transport.reply = (request) => request.uri.path == '/api/mobile/projects'
+        ? fixture.json({
+            'source': 'database',
+            'projects': [],
+            'page': 1,
+            'hasMore': false,
+          })
+        : _catalog([], 1);
     await _openCatalog(tester, f, repository: repository);
-    f.transport.reply = (_) => const ApiResponse(
-      429,
-      '{"error":"Synthetic rate limit"}',
-      retryAfter: '90',
-      headers: {
-        'retry-after': ['90'],
-      },
-    );
+    f.transport.reply = (request) => request.uri.path == '/api/mobile/projects'
+        ? fixture.json({
+            'source': 'database',
+            'projects': [],
+            'page': 1,
+            'hasMore': false,
+          })
+        : const ApiResponse(
+            429,
+            '{"error":"Synthetic rate limit"}',
+            retryAfter: '90',
+            headers: {
+              'retry-after': ['90'],
+            },
+          );
     connection.ready();
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();

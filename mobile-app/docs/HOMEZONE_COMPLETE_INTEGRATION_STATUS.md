@@ -1,5 +1,27 @@
 # HOMEZONE integration implementation status
 
+## Published Builder projects in Buyer marketplace - SOURCE IMPLEMENTED / COMPILED / RUNTIME UNVERIFIED - 2026-11-07
+
+Buyer Home now has a separate Builder projects section, searchable project
+catalogue, and public project details with photos, image plans and paginated
+AVAILABLE unit listings. Existing Property listings, saves and enquiries remain
+separate. New public GET routes `/api/mobile/projects` and
+`/api/mobile/projects/[id]` expose only PUBLISHED projects owned by current,
+non-suspended Builder profiles using explicit public projections. Hidden and
+missing projects return 404. Generic transaction-bound WebSocket invalidation
+is reused for project/media/unit/booking changes, with foreground HTTP refresh.
+No schema, migration, environment or auth changes. Backend typecheck passes;
+four isolated backend suites pass 74 checks. Across focused runs, 82 distinct
+Flutter cases pass, including actual Buyer-home card-to-detail navigation.
+Focused analysis has no errors/warnings; existing informational findings remain.
+Details are recorded in [the feature handover](BUILDER_BUYER_PUBLISHED_PROJECTS.md).
+The explicit staging offline debug APK build passes: 200,240,742 bytes, SHA256
+`1fbf3198a84b6f4803c5f5174a02ab6ebc910130192f4e1f861976b54968604d`.
+It supersedes the November 6 APK at the same artifact path. Backend deployment,
+APK installation and actual Builder-to-Buyer runtime verification remain
+separate activation checkpoints. Earlier catalogue HTTP 200 does not verify
+this feature. No live writes or deployment were performed.
+
 ## Builder project device images - SOURCE IMPLEMENTED / COMPILED / RUNTIME UNVERIFIED - 2026-11-06
 
 Builder Create/Edit project now uses device pickers and selected previews for

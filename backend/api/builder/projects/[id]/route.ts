@@ -5,6 +5,7 @@ import { getOrCreateProfile } from "@/lib/auth/profile";
 import { db } from "@/lib/db";
 import { requireBuilderProjectAccess, requireBuilderWriteAccess } from "@/lib/builder/queries";
 import { builderProjectMediaSelect } from "@/lib/builder/project-media";
+import { notifyPublicPropertyChange } from "@/lib/properties/realtime";
 
 type RouteContext = {
   params: Promise<{
@@ -53,6 +54,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const result = await db.$transaction(async (tx) => {
       const admission = await requireBuilderWriteAccess(tx, profile, id);
       if ("error" in admission) return admission;
+      const before = await tx.builderProject.findUnique({ where: { id }, select: { status: true } });
       const saved = await tx.builderProject.update({
         where: {
           id
@@ -70,6 +72,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           projectId: saved.id
         }
       });
+      await notifyPublicPropertyChange(tx, before, saved);
       return { project: saved };
     });
     if ("error" in result) return result.error;

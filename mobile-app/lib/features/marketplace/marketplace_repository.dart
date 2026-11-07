@@ -6,6 +6,7 @@ import '../../core/api/api_transport.dart';
 import '../../core/api/cookie_request_coordinator.dart';
 import '../auth/sign_in_controller.dart';
 import 'listing_realtime.dart';
+import 'public_project.dart';
 
 typedef JsonObject = Map<String, dynamic>;
 
@@ -206,6 +207,10 @@ final class MarketplaceRepository {
   final ValueNotifier<int> listingChanges = ValueNotifier<int>(0);
 
   bool _changesListings(String method, String path) =>
+      (['POST', 'PATCH'].contains(method) &&
+          RegExp(
+            r'^/api/builder/(?:projects(?:/[A-Za-z0-9_-]{8,128}(?:/(?:units|bookings))?)?|bookings/[A-Za-z0-9_-]{8,128})$',
+          ).hasMatch(path)) ||
       (method == 'POST' &&
           (path == '/api/properties' || path == '/api/mobile/upload')) ||
       (method == 'PATCH' &&
@@ -234,8 +239,9 @@ final class MarketplaceRepository {
           !protected &&
           method == 'GET' &&
           (path == '/api/mobile/properties' ||
+              path == '/api/mobile/projects' ||
               RegExp(
-                r'^/api/mobile/properties/[A-Za-z0-9_-]{8,128}$',
+                r'^/api/mobile/(?:properties|projects)/[A-Za-z0-9_-]{8,128}$',
               ).hasMatch(path));
       if (publicCatalog) {
         final result = await client.request(method, path, query: query);
@@ -352,6 +358,50 @@ final class MarketplaceRepository {
     final listing = Listing.parse(data['property']);
     if (listing.id != id) throw const ApiException(ApiFailure.invalidResponse);
     return listing;
+  }
+
+  /// Projects have their own public contract; never pass project IDs into
+  /// property favorites, enquiries or contact APIs.
+  Future<PublicProjectPage> publicProjects(
+    Map<String, String> filters,
+    int page,
+  ) async {
+    if (page < 1 ||
+        page > 1000 ||
+        filters.keys.any((key) => !const ['keyword', 'city'].contains(key))) {
+      throw const ApiException(ApiFailure.validation);
+    }
+    final data = await call(
+      'GET',
+      '/api/mobile/projects',
+      protected: false,
+      query: {...filters, 'page': '$page', 'pageSize': '12'},
+    );
+    final result = PublicProjectPage.parse(data);
+    if (result.page != page) {
+      throw const ApiException(ApiFailure.invalidResponse);
+    }
+    return result;
+  }
+
+  Future<PublicProjectDetail> publicProject(
+    String id, {
+    int unitsPage = 1,
+  }) async {
+    if (unitsPage < 1 || unitsPage > 1000) {
+      throw const ApiException(ApiFailure.validation);
+    }
+    final data = await call(
+      'GET',
+      '/api/mobile/projects/${_id(id)}',
+      protected: false,
+      query: {'unitsPage': '$unitsPage'},
+    );
+    final result = PublicProjectDetail.parse(data);
+    if (result.project.id != id || result.unitsPage != unitsPage) {
+      throw const ApiException(ApiFailure.invalidResponse);
+    }
+    return result;
   }
 
   /// A session snapshot alone does not confirm the current dashboard profile.
