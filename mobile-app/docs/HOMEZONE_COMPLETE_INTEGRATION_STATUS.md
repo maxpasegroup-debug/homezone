@@ -1,5 +1,48 @@
 # HOMEZONE integration implementation status
 
+## Actual Builder form and automatic Buyer update - STAGING FLUTTER / WEBSOCKET VERIFIED - 2026-11-07
+
+The full-flow follow-up drove actual Builder dashboard Create -> WorkspaceForm
+values -> PUBLISHED -> Save against staging. Exactly one additional labelled
+test project (Check03, `cmw61t4ur0005pj0xw6af2c7v`) returned 200/PUBLISHED.
+The already-mounted Buyer Home received a real WebSocket properties.changed,
+performed a subsequent HTTP read and displayed the new card without manual
+refresh or remount. Card-to-matching-detail HTTP/render checkpoints passed;
+the final separate read-only detail/empty-inventory case passed, exit 0. The
+combined runner's later reveal-helper failure is retained, not called a green
+test. No app source correction or repeated publication was needed.
+
+This is actual headless Flutter UI plus live staging evidence. Native Android
+onboarding rendered, but System UI ANR blocked device interaction. Full Android
+acceptance, media and nonempty inventory remain unverified. See
+[full verification and limitations](BUILDER_BUYER_STAGING_VERIFICATION.md).
+
+## Builder publication and Buyer visibility - STAGING / HEADLESS FLUTTER VERIFIED - 2026-11-07
+
+Corrected Builder credentials now authenticate with a server-confirmed BUILDER
+profile. One authorized labelled test project was created PUBLISHED via the
+existing API (200) and read back from the Builder's projects and the Buyer's
+public catalogue/details with the same ID. Actual Buyer MarketplaceScreen
+rendered the real card and opened its details in a live headless Flutter widget
+run; the final case passed. Builder/Buyer temporary sessions signed out. No app
+source or infrastructure correction was necessary for this retry. The project
+is `STAGING TEST Builder Buyer 20261107 Check02`, ID
+`cmw60gv3f0001pj0xnj0g45u0`. No media or units were created. Android presentation,
+Builder form/pickers, native restore and WebSocket delivery remain unverified;
+ADB currently lists no device. See [latest evidence](BUILDER_BUYER_STAGING_VERIFICATION.md).
+
+## Earlier Builder-to-Buyer attempt - SUPERSEDED - 2026-11-07
+
+The public staging project API is now reachable: 200/database/empty catalogue.
+Using real Flutter HTTP/auth/session/repository code, Buyer sign-in, independent
+session, USER profile and logout succeeded. Builder callback returned generic
+`CredentialsSignin` without a session cookie; no project was created. This does
+not establish whether the supplied Builder credential, account state or
+account-specific admission is responsible. Updated APK installation succeeded,
+but Android's process-system ANR also blocked device presentation. These are
+new runtime facts; the older undeployed-source statements below are historical.
+See [actual verification results](BUILDER_BUYER_STAGING_VERIFICATION.md).
+
 ## Published Builder projects in Buyer marketplace - SOURCE IMPLEMENTED / COMPILED / RUNTIME UNVERIFIED - 2026-11-07
 
 Buyer Home now has a separate Builder projects section, searchable project

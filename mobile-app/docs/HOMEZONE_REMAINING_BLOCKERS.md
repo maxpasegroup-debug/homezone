@@ -1,5 +1,58 @@
 # HOMEZONE remaining integration blockers
 
+## Builder publication / Buyer automatic visibility closed; Android remains blocked - 2026-11-07
+
+The actual Builder Create Project form saved one labelled PUBLISHED staging
+project (Check03). Actual WebSocket notification, a subsequent Buyer GET, the
+already-mounted Buyer's automatic card appearance and matching project details
+are verified through real Flutter widgets and staging responses. A final
+read-only detail case passed; the earlier combined runner's later scroll/reveal
+failure remains documented. No backend or app source fix was required.
+
+Remaining acceptance: a responsive Android device. The latest native screenshot
+showed HomeZone onboarding behind a System UI ANR, rather than a completely black
+display. The temporary emulator was stopped gracefully without data wipe or
+renderer changes. No usable Android Builder/Buyer interaction was verified.
+Photos/plans, actual unit inventory, edit/unpublication and native session
+restoration are not covered by this publication test. No new API, migration,
+deployment or SSH access is a demonstrated prerequisite for the verified flow.
+See [exact evidence](BUILDER_BUYER_STAGING_VERIFICATION.md).
+
+## Current Builder-to-Buyer acceptance boundary - 2026-11-07
+
+Builder login is no longer blocked: the corrected credential passed actual
+Flutter/Auth.js authentication and BUILDER profile confirmation. Exactly one
+authorized project was published (200), read back by Builder and Buyer, and
+displayed/opened by the actual Buyer Home/detail widgets against staging. No
+SSH/account reset/role/configuration change is needed for that verified path.
+See [successful verification](BUILDER_BUYER_STAGING_VERIFICATION.md).
+
+Remaining: actual Android presentation (ADB currently lists no devices; earlier
+OS ANR unresolved), Builder create-form/picker interaction, live media uploads,
+nonempty unit inventory, edit/unpublication and WebSocket delivery evidence.
+The labelled staging test project remains; do not create another copy or call
+this a complete device workflow. Earlier blocked/undeployed snapshots below
+are historical and superseded for authentication, publication and Buyer reads.
+
+## Earlier Builder test login and Android presentation - SUPERSEDED - 2026-11-07
+
+The new public project GET route is live (200/database/empty); lack of route
+availability is no longer the observed blocker. Actual Flutter-client Buyer
+login, USER profile and logout pass. The supplied Builder login returns generic
+`CredentialsSignin`, so the controlled project-publication test stopped with
+zero project writes. Confirm a working staging Builder credential/status and
+admission before retrying. Android also remains blocked by a process-system ANR
+after successful APK installation; no device dashboard presentation is claimed.
+See [verification evidence and resume steps](BUILDER_BUYER_STAGING_VERIFICATION.md).
+
+Read-only Railway follow-up confirms canonical staging URLs, AUTH_SECRET
+presence, valid password sign-in HMAC/policy, realtime activation and the
+intended database reference. Current deployment c6a0d334-a599-4fec-b4ef-d121cdeb9ea7
+reports SUCCESS. Builder account diagnosis remains blocked by private SSH
+authentication; no public PostgreSQL endpoint or usable local SSH identity is
+configured. No networking/access setting was changed. A temporary SSH diagnostic
+key requires separate approval and a confirmed removal/2FA cleanup procedure.
+
 ## Builder projects need staging activation and Buyer acceptance - 2026-11-07
 
 Published Builder-project catalogue/detail integration is now source implemented
